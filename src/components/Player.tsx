@@ -1,0 +1,382 @@
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
+import { Music2, Pause, Play, Repeat2, Volume2 } from "lucide-react";
+import type { Project } from "../core/model";
+import { db } from "../core/storage";
+import { formatTime, playable } from "../core/timing";
+export type PlayerHandle = {
+  seek: (time: number, play?: boolean) => void;
+  getTime: () => number;
+  pause: () => void;
+};
+type Props = {
+  project: Project;
+  loopId: string | null;
+  onLoop: (id: string | null) => void;
+  onTime: (time: number) => void;
+  onPersist: (time: number) => void;
+  onError: (message: string) => void;
+  onUpload: (file: File) => void;
+  follow: boolean;
+  onFollow: (follow: boolean) => void;
+  readOnly: boolean;
+  onReady: (ready: boolean) => void;
+};
+export const Player = forwardRef<PlayerHandle, Props>(function Player(
+  {
+    project: p,
+    loopId,
+    onLoop,
+    onTime,
+    onPersist,
+    onError,
+    onUpload,
+    follow,
+    onFollow,
+    readOnly,
+    onReady,
+  },
+  ref,
+) {
+  const audio = useRef<HTMLAudioElement>(null),
+    [source, setSource] = useState(""),
+    [loaded, setLoaded] = useState(false),
+    [playing, setPlaying] = useState(false),
+    [time, setTime] = useState(0),
+    [zoom, setZoom] = useState(1),
+    [rate, setRate] = useState(1),
+    [volume, setVolume] = useState(0.8);
+  const callbacks = useRef({ onTime, onPersist, onError });
+  callbacks.current = { onTime, onPersist, onError };
+  const restoredPosition = useRef(p.position);
+  const readyRef = useRef(false);
+  const loop = p.blocks.find(
+    (b) => b.id === loopId && playable(b, p.blocks, p.audio?.duration),
+  );
+  const loopRef = useRef(loop);
+  loopRef.current = loop;
+  useEffect(() => {
+    let disposed = false;
+    let url = "";
+    readyRef.current = false;
+    onReady(false);
+    setLoaded(false);
+    setPlaying(false);
+    setSource("");
+    restoredPosition.current = p.position;
+    setTime(p.position);
+    callbacks.current.onTime(p.position);
+    if (p.audio?.id)
+      db.audio
+        .get(p.audio.id)
+        .then((record) => {
+          if (disposed) return;
+          if (record) {
+            url = URL.createObjectURL(record.blob);
+            setSource(url);
+          } else
+            callbacks.current.onError(
+              "找不到本地音频，请重新选择歌曲以恢复同步播放。",
+            );
+        })
+        .catch(() =>
+          callbacks.current.onError("无法读取本地音频，请重新选择歌曲。"),
+        );
+    return () => {
+      disposed = true;
+      audio.current?.pause();
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [p.id, p.audio?.id]);
+  const seek = (t: number, play = false) => {
+    const a = audio.current;
+    if (
+      !a ||
+      !readyRef.current ||
+      !Number.isFinite(t) ||
+      t < 0 ||
+      t > a.duration
+    )
+      return;
+    const l = loopRef.current;
+    if (l && (t < l.start! || t >= l.end!)) onLoop(null);
+    a.currentTime = t;
+    setTime(t);
+    callbacks.current.onTime(t);
+    callbacks.current.onPersist(t);
+    if (play)
+      void a
+        .play()
+        .catch(() =>
+          callbacks.current.onError("播放失败，请检查音频格式并重新点击播放。"),
+        );
+  };
+  useImperativeHandle(ref, () => ({
+    seek,
+    getTime: () => audio.current?.currentTime ?? 0,
+    pause: () => audio.current?.pause(),
+  }));
+  useEffect(() => {
+    let frame = 0,
+      lastDraw = 0,
+      lastSave = 0;
+    const sync = (stamp: number) => {
+      const a = audio.current;
+      if (a && readyRef.current) {
+        const l = loopRef.current;
+        if (
+          l &&
+          !a.paused &&
+          (a.currentTime >= l.end! || a.currentTime < l.start!)
+        )
+          a.currentTime = l.start!;
+        if (stamp - lastDraw > 80) {
+          setTime(a.currentTime);
+          callbacks.current.onTime(a.currentTime);
+          lastDraw = stamp;
+        }
+        if (!a.paused && stamp - lastSave > 5000) {
+          callbacks.current.onPersist(a.currentTime);
+          lastSave = stamp;
+        }
+      }
+      frame = requestAnimationFrame(sync);
+    };
+    frame = requestAnimationFrame(sync);
+    const visible = () => {
+      const a = audio.current;
+      if (!a || !readyRef.current) return;
+      const l = loopRef.current;
+      if (l && !a.paused && a.currentTime >= l.end!) a.currentTime = l.start!;
+      setTime(a.currentTime);
+      callbacks.current.onTime(a.currentTime);
+      callbacks.current.onPersist(a.currentTime);
+    };
+    document.addEventListener("visibilitychange", visible);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener("visibilitychange", visible);
+    };
+  }, []);
+  const duration = p.audio?.duration ?? 0;
+  return (
+    <footer className="player" aria-label="歌曲播放器">
+      <audio
+        ref={audio}
+        src={source || undefined}
+        preload="metadata"
+        onLoadedMetadata={() => {
+          const a = audio.current!;
+          if (!Number.isFinite(a.duration) || a.duration <= 0) {
+            onError("歌曲时长无效，请选择其他音频。");
+            return;
+          }
+          a.currentTime = Math.min(restoredPosition.current, a.duration);
+          a.volume = volume;
+          a.playbackRate = rate;
+          readyRef.current = true;
+          setLoaded(true);
+          onReady(true);
+        }}
+        onPlay={() => setPlaying(true)}
+        onPause={() => {
+          setPlaying(false);
+          if (readyRef.current) onPersist(audio.current!.currentTime);
+        }}
+        onEnded={() => {
+          if (loopRef.current) {
+            audio.current!.currentTime = loopRef.current.start!;
+            void audio
+              .current!.play()
+              .catch(() => onError("循环播放被中断，请点击播放。"));
+          } else {
+            setPlaying(false);
+            onPersist(audio.current!.currentTime);
+          }
+        }}
+        onError={() => {
+          if (source) {
+            readyRef.current = false;
+            setLoaded(false);
+            onReady(false);
+            onError(
+              "无法解码歌曲，请重新选择浏览器支持的 MP3、WAV 或 AAC 文件。",
+            );
+          }
+        }}
+      />
+      <div className="player-controls">
+        <div className="song-badge">
+          <Music2 size={20} />
+          <div>
+            <strong>{p.audio?.name || "把歌曲带进编排"}</strong>
+            <small>
+              {loaded
+                ? "音频已在此浏览器就绪"
+                : p.audio
+                  ? "重新关联歌曲即可恢复播放"
+                  : "导入本地歌曲，边听边打点"}
+            </small>
+          </div>
+        </div>
+        <label className={"file-button " + (readOnly ? "disabled" : "")}>
+          {p.audio ? "更换歌曲" : "导入歌曲"}
+          <input
+            aria-label="音频文件"
+            disabled={readOnly}
+            type="file"
+            accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) onUpload(f);
+              e.target.value = "";
+            }}
+          />
+        </label>
+        <button
+          className="play-button"
+          aria-label={playing ? "暂停" : "播放"}
+          disabled={!loaded}
+          onClick={() => {
+            const a = audio.current!;
+            if (a.paused) {
+              if (
+                loop &&
+                (a.currentTime < loop.start! || a.currentTime >= loop.end!)
+              )
+                a.currentTime = loop.start!;
+              void a
+                .play()
+                .catch(() => onError("无法播放，请重新点击或选择其他歌曲。"));
+            } else a.pause();
+          }}
+        >
+          {playing ? <Pause size={20} /> : <Play size={20} />}
+        </button>
+        <span className="clock" data-testid="playback-time">
+          {formatTime(time)} <span>/ {formatTime(duration)}</span>
+        </span>
+        <label className="compact">
+          速度
+          <select
+            aria-label="播放速度"
+            value={rate}
+            onChange={(e) => {
+              const n = Number(e.target.value);
+              setRate(n);
+              if (audio.current) audio.current.playbackRate = n;
+            }}
+          >
+            {[0.5, 0.75, 1, 1.25, 1.5, 2].map((n) => (
+              <option key={n} value={n}>
+                {n}×
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="volume">
+          <Volume2 size={16} />
+          <input
+            aria-label="音量"
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={volume}
+            onChange={(e) => {
+              const n = Number(e.target.value);
+              setVolume(n);
+              if (audio.current) audio.current.volume = n;
+            }}
+          />
+        </label>
+        <button
+          className={loop ? "active" : ""}
+          disabled={!loop}
+          onClick={() => onLoop(null)}
+        >
+          <Repeat2 size={15} />
+          {loop ? "退出循环" : "未循环"}
+        </button>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={follow}
+            onChange={(e) => onFollow(e.target.checked)}
+          />
+          跟随播放
+        </label>
+      </div>
+      <input
+        className="seek"
+        aria-label="播放进度"
+        type="range"
+        min="0"
+        max={duration || 1}
+        step="0.01"
+        value={Math.min(time, duration || 1)}
+        disabled={!loaded}
+        onChange={(e) => seek(Number(e.target.value))}
+      />
+      <div className="timeline-top">
+        <span>
+          歌曲时间轴 <span className="muted">· 点击段落定位</span>
+        </span>
+        <label>
+          缩放{" "}
+          <input
+            aria-label="时间轴缩放"
+            type="range"
+            min="1"
+            max="8"
+            value={zoom}
+            onChange={(e) => setZoom(Number(e.target.value))}
+          />
+        </label>
+      </div>
+      <div className="timeline-scroll">
+        <div className="timeline" style={{ width: `${zoom * 100}%` }}>
+          {Array.from({ length: 11 }, (_, i) => (
+            <span className="tick" key={i} style={{ left: `${i * 10}%` }}>
+              {formatTime((duration * i) / 10).slice(0, 5)}
+            </span>
+          ))}
+          {duration > 0 &&
+            p.blocks
+              .filter((b) => b.start !== null && b.end !== null)
+              .map((b, i) => (
+                <button
+                  key={b.id}
+                  disabled={!loaded || !playable(b, p.blocks, duration)}
+                  className={"timeline-block tone-" + (i % 4)}
+                  style={{
+                    left: `${Math.min(100, (b.start! / duration) * 100)}%`,
+                    width: `${(Math.max(0, Math.min(duration, b.end!) - b.start!) / duration) * 100}%`,
+                  }}
+                  onClick={() => seek(b.start!, true)}
+                  title={`${b.type} ${formatTime(b.start)} — ${formatTime(b.end)}`}
+                >
+                  {b.type}
+                </button>
+              ))}
+          <span
+            className="playhead"
+            style={{
+              left: `${duration ? Math.min(100, (time / duration) * 100) : 0}%`,
+            }}
+          />
+          {!duration && (
+            <span className="timeline-empty">
+              歌曲就绪后，在这里查看段落与播放位置
+            </span>
+          )}
+        </div>
+      </div>
+    </footer>
+  );
+});
