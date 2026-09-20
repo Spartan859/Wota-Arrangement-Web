@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const colors = [
+  ["黑", "#111827"],
   ["橙", "#ff8a18"],
   ["极橙", "#ffad38"],
   ["极EX橙", "#ffd34a"],
@@ -75,8 +76,8 @@ export const defaultPose = (dancerId: string): Pose => ({
   dancerId,
   x: 0.5,
   y: 0.5,
-  left: "蓝",
-  right: "蓝",
+  left: "极橙",
+  right: "极橙",
   visible: false,
 });
 export const colorHex = (name: StickColor) =>

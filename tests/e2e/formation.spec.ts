@@ -54,7 +54,7 @@ test("舞者双手颜色、拖动建帧、插值、登退场、撤销和刷新",
   const dancer = page.getByRole("button", { name: "舞者 小一", exact: true });
   await expect(dancer).toBeVisible();
   await dancer.locator('[data-hand="left"]').click();
-  await expect(page.locator(".stick-palette button")).toHaveCount(23);
+  await expect(page.locator(".stick-palette button")).toHaveCount(24);
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "红", exact: true })

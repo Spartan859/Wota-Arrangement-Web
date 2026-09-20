@@ -474,3 +474,28 @@ test("编辑卡片随可用高度压缩，无需滚动查看对时按钮", async
     await expect(page.locator(".editor-time-row")).toBeInViewport();
   }
 });
+
+test("缩放时间轴跟随播放分页，暂停后不强制滚动", async ({ page }) => {
+  await boot(page);
+  await audio(page, 12);
+  await page.getByLabel("时间轴缩放").fill("8");
+  const scroll = page.locator(".timeline-scroll");
+  await expect
+    .poll(() => scroll.evaluate((el) => el.scrollWidth - el.clientWidth))
+    .toBeGreaterThan(20);
+  await page.getByRole("button", { name: "播放", exact: true }).click();
+  await page.getByLabel("播放进度", { exact: true }).fill("10.5");
+  await expect
+    .poll(() => scroll.evaluate((el) => el.scrollLeft))
+    .toBeGreaterThan(0);
+  await page.getByRole("button", { name: "暂停", exact: true }).click();
+  const paused = await scroll.evaluate((el) => el.scrollLeft);
+  await page.getByLabel("播放进度", { exact: true }).fill("2");
+  await page.waitForTimeout(200);
+  expect(await scroll.evaluate((el) => el.scrollLeft)).toBe(paused);
+  await page.getByRole("checkbox", { name: "跟随播放" }).uncheck();
+  await page.getByRole("button", { name: "播放", exact: true }).click();
+  await page.getByLabel("播放进度", { exact: true }).fill("11");
+  await page.waitForTimeout(200);
+  expect(await scroll.evaluate((el) => el.scrollLeft)).toBe(paused);
+});

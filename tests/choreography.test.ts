@@ -20,7 +20,7 @@ describe("全员队形", () => {
     changePose(c, id, 4, { x: 0.9, left: "红" });
     expect(sampleFormation(c, 3)[0]).toMatchObject({
       x: 0.7,
-      left: "蓝",
+      left: "极橙",
       visible: true,
     });
     expect(sampleFormation(c, 4)[0].left).toBe("红");
@@ -65,7 +65,7 @@ describe("全员队形", () => {
         dancers: [...c.dancers, ...c.dancers],
       }).success,
     ).toBe(false);
-    expect(colors).toHaveLength(23);
+    expect(colors).toHaveLength(24);
   });
   it("v2 兼容与JSON保存，不丢超时关键帧", () => {
     const p = project();

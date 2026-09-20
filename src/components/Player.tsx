@@ -67,10 +67,33 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
   ref,
 ) {
   const playhead = useRef<HTMLSpanElement>(null);
+  const timelineScroll = useRef<HTMLDivElement>(null);
   // Position is owned by the audio animation frame, not the throttled React state.
   const drawPlayhead = (position: number, duration: number) => {
     if (playhead.current)
       playhead.current.style.left = `${duration > 0 ? Math.max(0, Math.min(100, (position / duration) * 100)) : 0}%`;
+  };
+  const followTimeline = (position: number, duration: number) => {
+    const viewport = timelineScroll.current;
+    if (
+      !viewport ||
+      !follow ||
+      zoom <= 1 ||
+      duration <= 0 ||
+      audio.current?.paused ||
+      !playhead.current
+    )
+      return;
+    const head = playhead.current.getBoundingClientRect();
+    const box = viewport.getBoundingClientRect();
+    const rightLimit = box.left + box.width * 0.86;
+    const leftLimit = box.left + box.width * 0.14;
+    if (head.right > rightLimit) viewport.scrollLeft += head.right - rightLimit;
+    else if (head.left < leftLimit && position > 0)
+      viewport.scrollLeft = Math.max(
+        0,
+        viewport.scrollLeft - (leftLimit - head.left),
+      );
   };
   const audio = useRef<HTMLAudioElement>(null),
     [source, setSource] = useState(""),
@@ -160,6 +183,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     a.currentTime = t;
     drawPlayhead(t, a.duration);
     setTime(t);
+    if (!a.paused) followTimeline(t, a.duration);
     callbacks.current.onTime(t, !a.paused);
     callbacks.current.onPersist(t);
     if (play)
@@ -189,6 +213,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
         )
           a.currentTime = l.start!;
         drawPlayhead(a.currentTime, a.duration);
+        followTimeline(a.currentTime, a.duration);
         if (stamp - lastDraw > 80) {
           setTime(a.currentTime);
           callbacks.current.onTime(a.currentTime, !a.paused);
@@ -527,7 +552,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
           />
         </label>
       </div>
-      <div className="timeline-scroll">
+      <div className="timeline-scroll" ref={timelineScroll}>
         <div className="timeline" style={{ width: `${zoom * 100}%` }}>
           <div
             className="timeline-gap-target"
