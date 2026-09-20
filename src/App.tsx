@@ -1,3 +1,4 @@
+import { FormationCanvas } from "./components/FormationCanvas";
 import { useEffect, useRef, useState } from "react";
 import {
   Download,
@@ -46,6 +47,7 @@ export default function App() {
   const [selected, setSelected] = useState<string | null>(null),
     [time, setTime] = useState(0),
     [pendingTime, setPendingTime] = useState<number | null>(null);
+  const [workspaceView, setWorkspaceView] = useState("blocks");
   const [follow, setFollow] = useState(true);
   const [audioReady, setAudioReady] = useState(false),
     [loop, setLoop] = useState<string | null>(null);
@@ -96,7 +98,11 @@ export default function App() {
         e.preventDefault();
         store.travel(e.shiftKey ? "redo" : "undo");
       }
-      if (e.key === "Delete" && selected) {
+      if (
+        e.key === "Delete" &&
+        selected &&
+        !(e.target as HTMLElement)?.closest(".formation-panel,.formation-track")
+      ) {
         e.preventDefault();
         store.edit((d) => removeBlock(d, selected));
         setSelected(null);
@@ -316,51 +322,78 @@ export default function App() {
           <button onClick={() => void attempt(store.reload)}>重新载入</button>
         </div>
       )}
+      <nav className="formation-tabs" aria-label="编辑视图">
+        <button
+          className={workspaceView === "blocks" ? "active" : ""}
+          onClick={() => setWorkspaceView("blocks")}
+        >
+          段落
+        </button>
+        <button
+          className={workspaceView === "formation" ? "active" : ""}
+          onClick={() => setWorkspaceView("formation")}
+        >
+          队形
+        </button>
+      </nav>
       <main className="workbench">
-        <section className="editor-panel">
-          <div className="panel-heading">
-            <div>
-              <span className="eyebrow">ARRANGEMENT</span>
-              <h2>当前段落</h2>
+        <div className={`upper-workspace view-${workspaceView}`}>
+          <section className="editor-panel">
+            <div className="panel-heading">
+              <div>
+                <span className="eyebrow">ARRANGEMENT</span>
+                <h2>当前段落</h2>
+              </div>
             </div>
-          </div>
-          <fieldset disabled={readOnly}>
-            <BlockEditor
-              project={p}
-              selected={currentBlock}
-              edit={store.edit}
-              onSeek={(t) => player.current?.seek(t, true)}
-              onLoop={(id) => {
-                const b = p.blocks.find((x) => x.id === id);
-                if (b && b.start !== null) player.current?.seek(b.start, true);
-                setLoop(id);
-              }}
-              onError={fail}
-              onLyricsImport={(rows) => {
-                if (rows.length)
-                  store.edit((d) => {
-                    const b = d.blocks.find((x) => x.id === selected);
-                    if (b)
-                      b.lyrics = [
-                        ...b.lyrics.filter(
-                          (l) => l.jp || l.cn || l.time !== null,
-                        ),
-                        ...rows,
-                      ];
-                  });
-              }}
-              onOpenLyricsImport={() => setModal("lyrics")}
-              activeLyricId={currentLyric?.id}
-              audioReady={audioReady}
-              time={time}
-            />
-          </fieldset>
-        </section>
+            <fieldset disabled={readOnly}>
+              <BlockEditor
+                project={p}
+                selected={currentBlock}
+                edit={store.edit}
+                onSeek={(t) => player.current?.seek(t, true)}
+                onLoop={(id) => {
+                  const b = p.blocks.find((x) => x.id === id);
+                  if (b && b.start !== null)
+                    player.current?.seek(b.start, true);
+                  setLoop(id);
+                }}
+                onError={fail}
+                onLyricsImport={(rows) => {
+                  if (rows.length)
+                    store.edit((d) => {
+                      const b = d.blocks.find((x) => x.id === selected);
+                      if (b)
+                        b.lyrics = [
+                          ...b.lyrics.filter(
+                            (l) => l.jp || l.cn || l.time !== null,
+                          ),
+                          ...rows,
+                        ];
+                    });
+                }}
+                onOpenLyricsImport={() => setModal("lyrics")}
+                activeLyricId={currentLyric?.id}
+                audioReady={audioReady}
+                time={time}
+              />
+            </fieldset>
+          </section>
+          <FormationCanvas
+            key={p.id}
+            project={p}
+            edit={store.edit}
+            readOnly={readOnly}
+            getTime={() => (audioReady ? (player.current?.getTime() ?? 0) : 0)}
+            pause={() => player.current?.pause()}
+            onError={fail}
+          />
+        </div>
         <section className="timeline-panel">
           <Player
             key={p.id}
             ref={player}
             project={p}
+            edit={store.edit}
             loopId={loop}
             onLoop={setLoop}
             onTime={(position, playing) => {

@@ -1,3 +1,4 @@
+import { FormationTrack } from "./FormationTrack";
 import {
   forwardRef,
   useEffect,
@@ -21,6 +22,7 @@ export type PlayerHandle = {
 };
 type Props = {
   project: Project;
+  edit: (fn: (p: Project) => void) => void;
   loopId: string | null;
   onLoop: (id: string | null) => void;
   onTime: (time: number, playing: boolean) => void;
@@ -44,6 +46,7 @@ type Props = {
 export const Player = forwardRef<PlayerHandle, Props>(function Player(
   {
     project: p,
+    edit,
     loopId,
     onLoop,
     onTime,
@@ -715,6 +718,18 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
                 ))}
             </div>
           )}
+          <FormationTrack
+            key={p.id}
+            project={p}
+            edit={edit}
+            readOnly={readOnly}
+            duration={duration}
+            loaded={loaded}
+            getTime={() => audio.current?.currentTime ?? 0}
+            pause={() => audio.current?.pause()}
+            seek={(t) => seek(t)}
+            onError={onError}
+          />
           <span className="playhead" data-testid="playhead" ref={playhead}>
             <span
               className="playhead-time"
