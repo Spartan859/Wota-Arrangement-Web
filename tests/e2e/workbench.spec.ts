@@ -44,7 +44,7 @@ test("时间轴新建、卡片编辑、拍子流水灯和删除", async ({ page 
   await audio(page);
   await clickTimeline(page, 0.1);
   await expect(page.getByRole("dialog")).toContainText("新建段落");
-  await page.getByLabel("拍数").fill("16");
+  await page.getByLabel("拍数", { exact: true }).fill("16");
   await page.getByRole("button", { name: "创建", exact: true }).click();
   await expect(page.getByTestId("editor-card")).toContainText("16 拍");
   await page.getByRole("button", { name: /技 \/ 动作编排/ }).click();
@@ -58,9 +58,9 @@ test("类型与拍数同弹窗，LRC 同刻选择生成中文", async ({ page })
   await boot(page);
   await clickTimeline(page, 0.1);
   await page.getByRole("button", { name: "创建", exact: true }).click();
-  await page.getByRole("button", { name: /8 拍/ }).click();
+  await page.getByRole("button", { name: "编辑类型与拍数" }).click();
   await expect(page.getByRole("dialog")).toContainText("段落类型与拍数");
-  await page.getByLabel("拍数").fill("12");
+  await page.getByLabel("拍数", { exact: true }).fill("12");
   await page.getByRole("button", { name: "完成", exact: true }).click();
   await page.getByRole("button", { name: /双语歌词/ }).click();
   await page.getByRole("button", { name: "打开 LRC" }).click();
@@ -80,8 +80,8 @@ test("时间轴拖动冲突被拒绝且手机无横向溢出", async ({ page }) 
   await audio(page);
   await clickTimeline(page, 0.1);
   await page.getByRole("button", { name: "创建", exact: true }).click();
-  await page.getByRole("button", { name: /8 拍/ }).click();
-  await page.getByLabel("拍数").fill("4");
+  await page.getByRole("button", { name: "编辑类型与拍数" }).click();
+  await page.getByLabel("拍数", { exact: true }).fill("4");
   await page.getByRole("button", { name: "完成", exact: true }).click();
   expect(
     await page.evaluate(
@@ -179,7 +179,7 @@ test("快捷键打点、输入保护和相邻边界拖动", async ({ page }) => 
   await timedProject(page);
   await page.locator(".timeline-block").nth(1).click();
   await expect(page.getByLabel("入点（秒）")).toHaveCount(0);
-  await expect(page.locator(".ab-controls .primary")).toHaveCount(2);
+  await expect(page.locator(".ab-controls .primary")).toHaveCount(3);
   await position(page, 6);
   await page.locator(".timeline-block").nth(1).focus();
   await page.keyboard.press("[");
@@ -269,4 +269,60 @@ test("仅轨道空白可新建，刻度、片段和循环标记不触发", async
   // Clicking an occupied interval must still only select its clip.
   await page.locator(".timeline-block").first().click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+test("浮动提示不挤占工作区，按拍数设出点及循环快捷键", async ({ page }) => {
+  await timedProject(page);
+  await page.locator(".timeline-block").nth(1).click();
+  await expect(page.locator(".timeline-arrangement").nth(1)).toHaveText("副歌");
+  await expect(page.locator(".timeline-arrangement").nth(1)).toHaveCSS(
+    "text-overflow",
+    "ellipsis",
+  );
+  const heading = await page.locator(".block-title-row h2").boundingBox();
+  const beats = await page.locator(".block-beat-count").boundingBox();
+  expect(Math.abs(heading!.y - beats!.y)).toBeLessThan(4);
+  await page.getByRole("button", { name: "编辑类型与拍数" }).click();
+  await page.getByLabel("拍数", { exact: true }).fill("6");
+  await page.getByRole("button", { name: "完成", exact: true }).click();
+  await page.getByRole("button", { name: /按拍数设出点/ }).click();
+  await expect(page.locator(".timeline-block").nth(1)).toHaveAttribute(
+    "title",
+    /00:08.00/,
+  );
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await page.locator(".timeline-block").nth(1).focus();
+  await page.keyboard.press("e");
+  await expect(page.locator(".timeline-block").nth(1)).toHaveAttribute(
+    "title",
+    /00:08.00/,
+  );
+  // First interval would end at 8 and overlap the second interval.
+  await page.locator(".timeline-block").first().click();
+  await page.getByRole("button", { name: "编辑类型与拍数" }).click();
+  await page.getByLabel("拍数", { exact: true }).fill("16");
+  await page.getByRole("button", { name: "完成", exact: true }).click();
+  const before = (await page.locator(".workbench").boundingBox())!;
+  await page.getByRole("button", { name: /按拍数设出点/ }).click();
+  await expect(page.getByRole("alert")).toContainText("重叠");
+  await expect(page.getByRole("alert")).toHaveCSS("position", "fixed");
+  const after = (await page.locator(".workbench").boundingBox())!;
+  expect(after.y).toBe(before.y);
+  expect(after.height).toBe(before.height);
+  await expect(page.locator(".timeline-block").first()).toHaveAttribute(
+    "title",
+    /00:03.00/,
+  );
+  await position(page, 1);
+  await page.getByRole("button", { name: "选 A", exact: true }).click();
+  await position(page, 2);
+  await page.getByRole("button", { name: "选 B", exact: true }).click();
+  await page.keyboard.press("l");
+  await expect(
+    page.getByRole("button", { name: "退出 A/B 循环", exact: true }),
+  ).toBeEnabled();
+  await page.keyboard.press("l");
+  await expect(
+    page.getByRole("button", { name: "开始 A/B 循环", exact: true }),
+  ).toBeEnabled();
 });

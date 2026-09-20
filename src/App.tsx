@@ -61,6 +61,14 @@ export default function App() {
   const currentLyric = activeLyric(p.blocks, time, p.audio?.duration ?? 0);
   const readOnly = store.conflict || busy;
   const fail = (message: string) => setError(message);
+  useEffect(() => {
+    if (!error && !notice) return;
+    const timer = setTimeout(() => {
+      setError("");
+      setNotice("");
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [error, notice]);
   async function attempt(fn: () => void | Promise<void>) {
     try {
       await fn();
@@ -261,7 +269,7 @@ export default function App() {
       </header>
       {(error || notice) && (
         <div
-          className={"message " + (error ? "error" : "")}
+          className={"message toast " + (error ? "error" : "")}
           role={error ? "alert" : "status"}
         >
           <span>{error || notice}</span>
@@ -478,6 +486,7 @@ export default function App() {
       )}
       {modal === "shift" && (
         <Modal title="歌词时间偏移" onClose={() => setModal(null)}>
+          <p>统一调整所有歌词时间戳：正数延后，负数提前；不改变段落出入点。</p>
           <Field label="偏移秒数" value={offset} onCommit={setOffset} />
           <button
             className="primary"

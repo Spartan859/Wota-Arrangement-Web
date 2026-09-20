@@ -88,3 +88,6 @@ CI 包含静态构建、Chromium/WebKit 测试及对原 CLI 提交 `d61296eb31b0
 ExcelJS 按需加载。其 Node 侧 `uuid` 依赖通过 npm override 固定在修复后的 11.x，ExcelJS 仅使用该包的 v4 接口；升级时需重新执行审计与兼容测试。
 
 已知验证范围见 [VALIDATION.md](VALIDATION.md)。
+
+“按拍数设出点”（`E`）根据当前段落入点、拍数和 BPM 计算出点，重叠或越界时保留原值。`L` 开始或退出 A/B 循环。快捷键在输入框或弹窗中不触发。
+“歌词偏移”统一提前或延后所有歌词时间戳，不修改段落出入点。

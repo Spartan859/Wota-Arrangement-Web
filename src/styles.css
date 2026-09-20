@@ -1725,3 +1725,64 @@ fieldset {
     height: 23px;
   }
 }
+
+.message.toast {
+  position: fixed;
+  top: 100px;
+  right: 24px;
+  z-index: 100;
+  margin: 0;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  box-shadow: 0 6px 24px #24324725;
+  border-radius: 10px;
+}
+.block-title-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.block-title-row h2 {
+  margin: 0;
+}
+.block-beat-count {
+  font-size: 28px;
+  font-weight: 650;
+}
+.timeline {
+  height: 83px;
+}
+.timeline-block,
+.timeline-gap-target {
+  top: 20px;
+  height: 51px;
+}
+.timeline-block {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 4px;
+}
+.timeline-label,
+.timeline-arrangement {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  text-align: left;
+}
+.timeline-label {
+  padding-right: 9px;
+}
+.timeline-arrangement {
+  font-weight: 600;
+}
+@media (max-width: 850px) {
+  .message.toast {
+    right: 16px;
+    top: 16px;
+  }
+}

@@ -8,7 +8,12 @@ import {
 import { Music2, Pause, Play, Repeat2, Volume2 } from "lucide-react";
 import type { Project } from "../core/model";
 import { db } from "../core/storage";
-import { draggedRange, formatTime, playable } from "../core/timing";
+import {
+  draggedRange,
+  formatTime,
+  playable,
+  suggestedDuration,
+} from "../core/timing";
 export type PlayerHandle = {
   seek: (time: number, play?: boolean) => void;
   getTime: () => number;
@@ -233,6 +238,25 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     if (!loaded || readOnly || !selectedBlock) return;
     onUpdateRange?.(selectedBlock.id, { [edge]: audio.current!.currentTime });
   };
+  const suggested =
+    selectedBlock && /^\d+$/.test(selectedBlock.beats.trim())
+      ? suggestedDuration(p.bpm, selectedBlock.beats)
+      : null;
+  const canSuggest =
+    !readOnly &&
+    !!selectedBlock &&
+    selectedBlock.start !== null &&
+    suggested !== null;
+  const setSuggestedEnd = () => {
+    if (!canSuggest || !selectedBlock || suggested === null) return;
+    onUpdateRange?.(selectedBlock.id, {
+      end: selectedBlock.start! + suggested,
+    });
+  };
+  const toggleAb = () => {
+    if (abEnabled) setAbEnabled(false);
+    else startAbLoop();
+  };
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (
@@ -248,9 +272,11 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
       )
         return;
       const key = e.key.toLowerCase();
-      if (!["a", "b", "[", "]"].includes(key)) return;
+      if (!["a", "b", "[", "]", "l", "e"].includes(key)) return;
       e.preventDefault();
       if (key === "a" || key === "b") choosePoint(key);
+      else if (key === "l") toggleAb();
+      else if (key === "e") setSuggestedEnd();
       else markRange(key === "[" ? "start" : "end");
     };
     document.addEventListener("keydown", handler);
@@ -440,9 +466,11 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
         </span>
         <button
           disabled={!loaded || pointA === null || pointB === null}
-          onClick={() => (abEnabled ? setAbEnabled(false) : startAbLoop())}
+          aria-keyshortcuts="l"
+          aria-label={abEnabled ? "退出 A/B 循环" : "开始 A/B 循环"}
+          onClick={toggleAb}
         >
-          {abEnabled ? "退出 A/B 循环" : "开始 A/B 循环"}
+          {abEnabled ? "退出 A/B 循环" : "开始 A/B 循环"} <kbd>L</kbd>
         </button>
         <button
           className="primary"
@@ -459,6 +487,15 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
           onClick={() => markRange("end")}
         >
           当前作为出点 <kbd>]</kbd>
+        </button>
+        <button
+          className="primary"
+          aria-keyshortcuts="e"
+          disabled={!canSuggest}
+          onClick={setSuggestedEnd}
+          title="出点 = 入点 + 拍数 × 60 / BPM"
+        >
+          按拍数设出点 <kbd>E</kbd>
         </button>
       </div>
       <div className="timeline-top">
@@ -613,7 +650,13 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
                     }}
                     title={`${b.type} ${formatTime(range.start)} — ${formatTime(range.end)}`}
                   >
-                    {b.type}
+                    <span className="timeline-label">{b.type}</span>
+                    <span
+                      className="timeline-arrangement"
+                      title={b.arrangement}
+                    >
+                      {b.arrangement || "—"}
+                    </span>
                     <span className="timeline-edge timeline-edge-start" />
                     <span className="timeline-edge timeline-edge-end" />
                     <span

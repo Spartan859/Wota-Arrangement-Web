@@ -1,3 +1,4 @@
+import { Pencil } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
   lyric,
@@ -74,10 +75,17 @@ export function BlockEditor({
       <div className="editor-card-head">
         <div>
           <span className="eyebrow">CURRENT BLOCK</span>
-          <h2>{b.type || "未命名"}</h2>
-          <button className="click-summary" onClick={() => setModal("type")}>
-            {b.beats} 拍 · 点击编辑
-          </button>
+          <div className="block-title-row">
+            <h2>{b.type || "未命名"}</h2>
+            <span className="block-beat-count">{b.beats} 拍</span>
+            <button
+              aria-label="编辑类型与拍数"
+              title="编辑类型与拍数"
+              onClick={() => setModal("type")}
+            >
+              <Pencil size={19} />
+            </button>
+          </div>
         </div>
         <div className="beat-grid" aria-label={`${b.beats} 拍`}>
           {Array.from({ length: Math.ceil(beatCount / 8) }, (_, row) => (
