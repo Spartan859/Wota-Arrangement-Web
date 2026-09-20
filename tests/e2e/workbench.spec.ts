@@ -50,8 +50,8 @@ test("时间轴新建、卡片编辑、拍子流水灯和删除", async ({ page 
   await page.getByRole("button", { name: /技 \/ 动作编排/ }).click();
   await page.getByLabel("技 \/ 动作编排").fill("换位");
   await page.getByRole("button", { name: "完成", exact: true }).click();
-  await expect(page.getByText("换位")).toBeVisible();
-  await page.getByRole("button", { name: "删除副歌" }).click();
+  await expect(page.getByTestId("editor-card").getByText("换位")).toBeVisible();
+  await page.getByRole("button", { name: "删除副歌", exact: true }).click();
   await expect(page.locator(".timeline-block")).toHaveCount(0);
 });
 test("类型与拍数同弹窗，LRC 同刻选择生成中文", async ({ page }) => {
@@ -421,4 +421,25 @@ test("播放头逐帧跟随音频且暂停定位不漂移", async ({ page }) => 
   const paused = await page.locator(".playhead").getAttribute("style");
   await page.waitForTimeout(200);
   expect(await page.locator(".playhead").getAttribute("style")).toBe(paused);
+});
+
+test("空隙新建生成完整区间且刷新后仍位于原位置", async ({ page }) => {
+  await timedProject(page);
+  const box = (await page.locator(".timeline-gap-target").boundingBox())!;
+  await page.mouse.click(box.x + box.width / 3, box.y + box.height / 2);
+  await expect(page.getByRole("dialog")).toContainText("出点 00:05.00");
+  await expect(page.getByRole("dialog")).toContainText("空隙不足");
+  await page.getByRole("button", { name: "创建", exact: true }).click();
+  await expect(page.locator(".timeline-block")).toHaveCount(3);
+  await expect(page.locator(".untimed-strip")).toHaveCount(0);
+  await expect(page.locator(".timeline-block").nth(1)).toHaveAttribute(
+    "title",
+    /00:04.00 — 00:05.00/,
+  );
+  await expect(page.locator(".save-state")).toContainText("已保存");
+  await page.reload();
+  await expect(page.locator(".timeline-block").nth(1)).toHaveAttribute(
+    "title",
+    /00:04.00 — 00:05.00/,
+  );
 });

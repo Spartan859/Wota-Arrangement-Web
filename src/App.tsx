@@ -28,6 +28,7 @@ import {
   activeLyric,
   formatTime,
   intervalError,
+  insertionRange,
   playable,
 } from "./core/timing";
 import { useProject } from "./useProject";
@@ -503,6 +504,8 @@ export default function App() {
         <CreateBlockModal
           time={pendingTime}
           bpm={p.bpm}
+          blocks={p.blocks}
+          duration={p.audio?.duration}
           onClose={() => setModal(null)}
           onCreate={(b, t) => {
             store.edit((d) => insertAt(d, b, t));
@@ -517,16 +520,30 @@ export default function App() {
 function CreateBlockModal({
   time,
   bpm,
+  blocks,
+  duration,
   onClose,
   onCreate,
 }: {
   time: number | null;
   bpm: string;
+  blocks: Block[];
+  duration?: number;
   onClose: () => void;
   onCreate: (b: Block, t: number | null) => void;
 }) {
   const [type, setType] = useState("副歌"),
     [beats, setBeats] = useState("8");
+  let range = { start: time, end: null as number | null };
+  let error = "";
+  try {
+    if (!/^\d+$/.test(beats) || Number(beats) <= 0)
+      throw new Error("拍数必须是正整数。");
+    range = insertionRange(time, beats, bpm, blocks, duration);
+  } catch (e) {
+    error = (e as Error).message;
+  }
+
   return (
     <Modal title="新建段落" onClose={onClose}>
       <label className="field">
@@ -544,16 +561,24 @@ function CreateBlockModal({
       </label>
       <Field label="拍数" value={beats} onCommit={setBeats} />
       <p className="muted">
-        起点 {time === null ? "未设置" : formatTime(time)} ·{" "}
-        {Number(bpm) > 0 && /^\d+$/.test(beats)
-          ? `${((Number(beats) * 60) / Number(bpm)).toFixed(2)} 秒`
-          : ""}
+        起点 {formatTime(range.start)} · 出点 {formatTime(range.end)}
       </p>
+      {time !== null &&
+        range.end !== null &&
+        range.end < time + (Number(beats) * 60) / Number(bpm) && (
+          <p className="muted">空隙不足，出点取空隙末尾；拍数保持不变。</p>
+        )}
+      {error && (
+        <p role="alert" className="error">
+          {error}
+        </p>
+      )}
       <button
         className="primary"
+        disabled={!!error}
         onClick={() => {
           if (!/^\d+$/.test(beats) || Number(beats) <= 0) return;
-          onCreate(block(type, beats, true), time);
+          onCreate({ ...block(type, beats, true), ...range }, time);
         }}
       >
         创建

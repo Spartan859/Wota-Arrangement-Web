@@ -125,3 +125,37 @@ export function draggedRange(
   const shift = clamp(delta, lower - start, upper - end);
   return { start: start + shift, end: end + shift };
 }
+
+/** Plan a new clip inside the clicked gap without moving existing clips. */
+export function insertionRange(
+  start: number | null,
+  beats: string,
+  bpm: string,
+  blocks: Block[],
+  duration?: number,
+) {
+  if (start === null) return { start: null, end: null };
+  const length = suggestedDuration(bpm, beats);
+  if (length === null) throw new Error("请填写有效 BPM 后创建时间轴片段。");
+  if (
+    !Number.isFinite(start) ||
+    start < 0 ||
+    (duration !== undefined && start >= duration)
+  )
+    throw new Error("起点必须在歌曲范围内。");
+  if (
+    blocks.some(
+      (b) =>
+        b.start !== null && b.end !== null && start >= b.start && start < b.end,
+    )
+  )
+    throw new Error("请在段落之间的空白处新建。");
+  const end = Math.min(
+    start + length,
+    duration ?? Infinity,
+    ...blocks
+      .filter((b) => b.start !== null && b.start > start)
+      .map((b) => b.start!),
+  );
+  return { start, end };
+}

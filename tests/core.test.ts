@@ -1,4 +1,4 @@
-import { draggedRange } from "../src/core/timing";
+import { draggedRange, insertionRange } from "../src/core/timing";
 
 import { describe, expect, it } from "vitest";
 import {
@@ -141,5 +141,29 @@ describe("LRC 项目来源", () => {
         }),
       ),
     ).toThrow();
+  });
+});
+
+describe("新建段落区间", () => {
+  it("生成出点并限制在空隙与歌曲范围内", () => {
+    const next = { ...block(), start: 6, end: 9 };
+    expect(insertionRange(1, "4", "120", [next], 12)).toEqual({
+      start: 1,
+      end: 3,
+    });
+    expect(insertionRange(5, "8", "120", [next], 12)).toEqual({
+      start: 5,
+      end: 6,
+    });
+    expect(insertionRange(10, "8", "120", [next], 12)).toEqual({
+      start: 10,
+      end: 12,
+    });
+    expect(() => insertionRange(7, "8", "120", [next], 12)).toThrow("空白");
+    expect(() => insertionRange(1, "8", "0", [], 12)).toThrow("BPM");
+    expect(insertionRange(null, "8", "120", [])).toEqual({
+      start: null,
+      end: null,
+    });
   });
 });
