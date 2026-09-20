@@ -242,3 +242,31 @@ test("快捷键打点、输入保护和相邻边界拖动", async ({ page }) => 
   await expect(page.getByRole("alert")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test("仅轨道空白可新建，刻度、片段和循环标记不触发", async ({ page }) => {
+  await timedProject(page);
+  const timeline = page.locator(".timeline");
+  let box = (await timeline.boundingBox())!;
+  // Empty ruler above an occupied interval, and space below the clip lane.
+  await page.mouse.click(box.x + box.width / 12, box.y + 10);
+  await page.mouse.click(box.x + box.width / 3, box.y + box.height - 2);
+  await page.locator(".timeline-block").first().click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await position(page, 4);
+  await page.getByRole("button", { name: "选 A", exact: true }).click();
+  await page.locator(".ab-marker b").click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await position(page, 10);
+  await page.getByLabel("时间轴缩放").fill("2");
+  await page.locator(".timeline-scroll").evaluate((el) => {
+    el.scrollLeft = 100;
+  });
+  box = (await timeline.boundingBox())!;
+  await page.mouse.click(box.x + (box.width * 4.5) / 12, box.y + 34);
+  await expect(page.getByRole("dialog")).toContainText("新建段落");
+  await expect(page.getByRole("dialog")).toContainText("00:04.50");
+  await page.getByRole("button", { name: "关闭对话框" }).click();
+  // Clicking an occupied interval must still only select its clip.
+  await page.locator(".timeline-block").first().click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});

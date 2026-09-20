@@ -1699,3 +1699,29 @@ fieldset {
   border-radius: 3px;
   padding: 0 4px;
 }
+
+/* Only the clip lane accepts gap insertion, never the ruler or surrounding area. */
+.timeline-gap-target {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 20px;
+  height: 29px;
+  cursor: copy;
+}
+.timeline-block {
+  z-index: 1;
+}
+.playhead,
+.ab-marker {
+  pointer-events: auto;
+}
+.timeline-empty {
+  pointer-events: none;
+}
+@media (max-width: 850px) {
+  .timeline-gap-target {
+    top: 18px;
+    height: 23px;
+  }
+}

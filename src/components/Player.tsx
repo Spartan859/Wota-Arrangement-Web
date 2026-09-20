@@ -478,29 +478,33 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
         </label>
       </div>
       <div className="timeline-scroll">
-        <div
-          className="timeline"
-          style={{ width: `${zoom * 100}%` }}
-          onClick={(e) => {
-            if ((e.target as HTMLElement).closest("button")) return;
-            if (!duration) {
-              onInsert?.(null);
-              return;
-            }
-            const rect = e.currentTarget.getBoundingClientRect();
-            onInsert?.(
-              Math.round(
-                Math.max(
-                  0,
-                  Math.min(
-                    duration,
-                    ((e.clientX - rect.left) / rect.width) * duration,
-                  ),
-                ) * 100,
-              ) / 100,
-            );
-          }}
-        >
+        <div className="timeline" style={{ width: `${zoom * 100}%` }}>
+          <div
+            className="timeline-gap-target"
+            aria-label="时间轴空白轨道"
+            onClick={(e) => {
+              if (readOnly || e.target !== e.currentTarget) return;
+              if (!duration) {
+                onInsert?.(null);
+                return;
+              }
+              const rect = e.currentTarget.getBoundingClientRect();
+              const clicked = ((e.clientX - rect.left) / rect.width) * duration;
+              if (
+                clicked < 0 ||
+                clicked >= duration ||
+                p.blocks.some(
+                  (b) =>
+                    b.start !== null &&
+                    b.end !== null &&
+                    clicked >= b.start &&
+                    clicked < b.end,
+                )
+              )
+                return;
+              onInsert?.(clicked);
+            }}
+          />
           {pointA !== null && pointB !== null && duration > 0 && (
             <div
               className="ab-region"
