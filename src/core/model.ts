@@ -1,3 +1,4 @@
+import { choreographySchema } from "./choreography";
 import { z } from "zod";
 
 export const sections: Record<string, string> = {
@@ -59,6 +60,7 @@ export const projectSchema = z.object({
   songName: z.string(),
   bpm: z.string(),
   blocks: z.array(blockSchema),
+  choreography: choreographySchema.optional(),
   lyricSource: z
     .object({
       raw: z.string(),
