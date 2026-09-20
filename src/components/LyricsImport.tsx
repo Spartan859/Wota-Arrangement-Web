@@ -1,28 +1,65 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { lyric, type Lyric } from "../core/model";
+import { lyric, type Lyric, type Project } from "../core/model";
 import { parseLyrics, shifted, type ImportPreview } from "../core/lyrics";
 import { formatTime } from "../core/timing";
 import { Modal } from "./Fields";
 
 type Props = {
+  source?: Project["lyricSource"];
+  onSource: (source: NonNullable<Project["lyricSource"]>) => void;
+  startInLoader?: boolean;
+  canImport: boolean;
   onClose: () => void;
   onImport: (rows: Lyric[]) => void;
   duration?: number;
   focusTime?: number | null;
 };
 export function LyricsImport({
+  source,
+  onSource,
+  startInLoader,
+  canImport,
   onClose,
   onImport,
   duration,
   focusTime,
 }: Props) {
-  const [raw, setRaw] = useState(""),
-    [lrc, setLrc] = useState(false);
-  const [preview, setPreview] = useState<ImportPreview | null>(null);
-  const [offset, setOffset] = useState("0"),
+  const [raw, setRaw] = useState(source?.raw ?? ""),
+    [lrc, setLrc] = useState(source?.lrc ?? true);
+  const [preview, setPreview] = useState<ImportPreview | null>(() => {
+    if (!source?.raw || startInLoader) return null;
+    try {
+      return parseLyrics(source.raw, source.lrc);
+    } catch {
+      return null;
+    }
+  });
+  const [offset, setOffset] = useState(String(source?.offset ?? 0)),
     [ack, setAck] = useState(false);
   const [selected, setSelected] = useState<string[]>([]),
     [error, setError] = useState("");
+  const [name, setName] = useState(source?.name ?? "粘贴 LRC");
+  const saveSource = (text: string, isLrc: boolean, filename: string) => {
+    if (!offset.trim() || !Number.isFinite(Number(offset)))
+      throw new Error("偏移必须是有效秒数。");
+    const parsed = parseLyrics(text, isLrc);
+    onSource({ raw: text, lrc: isLrc, name: filename, offset: Number(offset) });
+    setPreview(parsed);
+    setSelected([]);
+  };
+  const saveOffset = () => {
+    if (!offset.trim() || !Number.isFinite(Number(offset))) {
+      setError("偏移必须是有效秒数。");
+      setOffset(String(source?.offset ?? 0));
+      return;
+    }
+    onSource({
+      raw: source?.raw ?? "",
+      lrc: source?.lrc ?? true,
+      name: source?.name ?? "",
+      offset: Number(offset),
+    });
+  };
   const scroller = useRef<HTMLDivElement>(null);
   const groups = useMemo(() => {
     if (!preview || !lrc) return [];
@@ -43,9 +80,9 @@ export function LyricsImport({
       return;
     const target = [
       ...scroller.current.querySelectorAll<HTMLElement>("[data-time]"),
-    ].find((el) => Number(el.dataset.time) >= focusTime);
+    ].find((el) => Number(el.dataset.time) + Number(offset) >= focusTime);
     target?.scrollIntoView({ block: "center" });
-  }, [preview, focusTime]);
+  }, [preview, focusTime, offset]);
   const attempt = (fn: () => void) => {
     try {
       fn();
@@ -63,8 +100,9 @@ export function LyricsImport({
         },
     );
   const selectRow = (row: Lyric) => {
-    if (row.time === null) return;
-    const same = preview!.rows.filter((x) => x.time === row.time);
+    const same = preview!.rows.filter((x) =>
+      row.time === null ? x.id === row.id : x.time === row.time,
+    );
     const chosen = selected.find((id) => same.some((x) => x.id === id));
     setSelected(
       [
@@ -89,7 +127,11 @@ export function LyricsImport({
     onImport(shifted(rows, Number(offset), duration));
   };
   return (
-    <Modal title={lrc ? "选择 LRC 歌词" : "导入歌词"} onClose={onClose} wide>
+    <Modal
+      title={!preview ? "载入歌词" : lrc ? "选择 LRC 歌词" : "导入歌词"}
+      onClose={onClose}
+      wide
+    >
       {!preview && (
         <>
           <label className="file-picker">
@@ -106,7 +148,8 @@ export function LyricsImport({
                   const isLrc = /\.lrc$/i.test(f.name);
                   setRaw(text);
                   setLrc(isLrc);
-                  setPreview(parseLyrics(text, isLrc));
+                  setName(f.name);
+                  saveSource(text, isLrc, f.name);
                   setAck(false);
                   setSelected([]);
                 } catch (err) {
@@ -136,7 +179,7 @@ export function LyricsImport({
             className="primary"
             onClick={() =>
               attempt(() => {
-                setPreview(parseLyrics(raw, lrc));
+                saveSource(raw, lrc, name);
                 setAck(false);
                 setSelected([]);
               })
@@ -185,7 +228,8 @@ export function LyricsImport({
           <label className="field">
             <span>整体偏移（秒）</span>
             <input
-              aria-label="导入时间偏移"
+              aria-label="歌词偏移秒数"
+              onBlur={saveOffset}
               type="number"
               step="0.1"
               value={offset}
@@ -224,10 +268,12 @@ export function LyricsImport({
             {groups.map(([time, items]) => (
               <section
                 key={time}
-                data-time={time === "none" ? undefined : time}
+                data-time={time.startsWith("none-") ? undefined : time}
               >
                 <header>
-                  {time === "none" ? "无时间" : formatTime(Number(time))}
+                  {time.startsWith("none-")
+                    ? "无时间"
+                    : formatTime(Number(time) + Number(offset))}
                 </header>
                 {items.map((row) => (
                   <label
@@ -238,7 +284,11 @@ export function LyricsImport({
                     key={row.id}
                   >
                     <input
-                      type="radio"
+                      type="checkbox"
+                      disabled={
+                        items.some((x) => selected.includes(x.id)) &&
+                        !selected.includes(row.id)
+                      }
                       name={`lrc-${time}`}
                       checked={selected.includes(row.id)}
                       onChange={() => selectRow(row)}
@@ -252,6 +302,8 @@ export function LyricsImport({
           <label className="field">
             <span>整体偏移（秒）</span>
             <input
+              aria-label="歌词偏移秒数"
+              onBlur={saveOffset}
               type="number"
               step="0.1"
               value={offset}
@@ -259,8 +311,12 @@ export function LyricsImport({
             />
           </label>
           <div className="toolbar">
-            <button onClick={() => setPreview(null)}>重新解析</button>
-            <button className="primary" onClick={() => attempt(confirmLrc)}>
+            <button onClick={() => setPreview(null)}>编辑 / 重新载入</button>
+            <button
+              className="primary"
+              disabled={!canImport}
+              onClick={() => attempt(confirmLrc)}
+            >
               加入当前段落
             </button>
           </div>

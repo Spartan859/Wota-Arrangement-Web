@@ -70,7 +70,7 @@ test("类型与拍数同弹窗，LRC 同刻选择生成中文", async ({ page })
     buffer: Buffer.from("[00:01]日文\n[00:01]中文一\n[00:01]中文二"),
   });
   await expect(page.locator(".lrc-option")).toHaveCount(3);
-  await page.locator(".lrc-option").first().getByRole("radio").check();
+  await page.locator(".lrc-option").first().getByRole("checkbox").check();
   await page.getByRole("button", { name: "加入当前段落" }).click();
   await expect(page.getByText("日文")).toBeVisible();
 });
@@ -254,6 +254,8 @@ test("仅轨道空白可新建，刻度、片段和循环标记不触发", async
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await position(page, 4);
   await page.getByRole("button", { name: "选 A", exact: true }).click();
+  await page.getByTestId("playhead").locator(".playhead-time").click();
+  await position(page, 6);
   await page.locator(".ab-marker b").click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await position(page, 10);
@@ -262,7 +264,7 @@ test("仅轨道空白可新建，刻度、片段和循环标记不触发", async
     el.scrollLeft = 100;
   });
   box = (await timeline.boundingBox())!;
-  await page.mouse.click(box.x + (box.width * 4.5) / 12, box.y + 34);
+  await page.mouse.click(box.x + (box.width * 4.5) / 12, box.y + 50);
   await expect(page.getByRole("dialog")).toContainText("新建段落");
   await expect(page.getByRole("dialog")).toContainText("00:04.50");
   await page.getByRole("button", { name: "关闭对话框" }).click();
@@ -325,4 +327,63 @@ test("浮动提示不挤占工作区，按拍数设出点及循环快捷键", as
   await expect(
     page.getByRole("button", { name: "开始 A/B 循环", exact: true }),
   ).toBeEnabled();
+});
+
+test("LRC 原文与偏移保存、再次选词及左右多行编辑", async ({ page }) => {
+  await timedProject(page);
+  await page.locator(".timeline-block").nth(1).click();
+  await expect(
+    page.locator(".topbar").getByRole("button", { name: "撤销", exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    page.locator(".editor-panel .panel-heading").getByText("歌词偏移"),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: /双语歌词/ }).click();
+  await expect(page.getByRole("dialog").locator("textarea")).toHaveCount(2);
+  await page.getByLabel("日文歌词", { exact: true }).fill("第一句\n第二句");
+  await page.getByLabel("中文歌词", { exact: true }).fill("译文一\n译文二");
+  await page.getByRole("button", { name: "打开 LRC", exact: true }).click();
+  await page.getByLabel("歌词文件").setInputFiles({
+    name: "remember.lrc",
+    mimeType: "text/plain",
+    buffer: Buffer.from("[00:05]日本語\n[00:05]翻译"),
+  });
+  await page.getByLabel("歌词偏移秒数").fill("1.5");
+  await page.getByLabel("歌词偏移秒数").press("Tab");
+  await page.getByRole("button", { name: "关闭对话框" }).click();
+  await expect(page.locator(".topbar")).toContainText("remember.lrc");
+  await expect(page.locator(".topbar")).toContainText("偏移 1.5s");
+  await page.getByRole("button", { name: /双语歌词/ }).click();
+  await expect(page.getByLabel("日文歌词", { exact: true })).toHaveValue(
+    "第一句\n第二句",
+  );
+  await page.getByRole("button", { name: "打开 LRC", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("选择 LRC 歌词");
+  await expect(page.locator(".lrc-picker header")).toHaveText("00:06.50");
+  await page.locator(".lrc-option").first().getByRole("checkbox").check();
+  await expect(
+    page.locator(".lrc-option").nth(1).getByRole("checkbox"),
+  ).toBeDisabled();
+  await page.getByRole("button", { name: "加入当前段落" }).click();
+  await expect(page.locator(".save-state")).toContainText("已保存");
+  await page.reload();
+  await expect(page.locator(".topbar")).toContainText("remember.lrc");
+  await expect(page.locator(".topbar")).toContainText("偏移 1.5s");
+  await page
+    .locator(".topbar")
+    .getByRole("button", { name: "remember.lrc" })
+    .click();
+  await expect(page.getByLabel("歌词文本")).toHaveValue(
+    "[00:05]日本語\n[00:05]翻译",
+  );
+  await page.getByLabel("歌词文本").fill("[ti:invalid]");
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "预览", exact: true })
+    .click();
+  await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
+    "没有找到歌词",
+  );
+  await page.getByRole("button", { name: "关闭对话框" }).click();
+  await expect(page.locator(".topbar")).toContainText("remember.lrc");
 });

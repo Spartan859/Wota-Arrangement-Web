@@ -707,10 +707,20 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
           )}
           <span
             className="playhead"
+            data-testid="playhead"
             style={{
               left: `${duration ? Math.min(100, (time / duration) * 100) : 0}%`,
             }}
-          />
+          >
+            <span
+              className="playhead-time"
+              style={{
+                transform: time > duration / 2 ? "translateX(-100%)" : "none",
+              }}
+            >
+              {formatTime(time)}
+            </span>
+          </span>
           {!duration && (
             <span className="timeline-empty">
               歌曲就绪后，在这里查看段落与播放位置

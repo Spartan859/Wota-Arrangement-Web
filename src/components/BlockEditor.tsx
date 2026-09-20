@@ -239,64 +239,72 @@ function LyricsEditor({
   onOpenLrc?: () => void;
   activeLyricId?: string;
 }) {
-  const [rows, setRows] = useState(b.lyrics);
+  const initial = b.lyrics.filter((l) => l.jp !== pureText);
+  const [jp, setJp] = useState(initial.map((l) => l.jp).join("\n"));
+  const [cn, setCn] = useState(initial.map((l) => l.cn).join("\n"));
   const commit = () => {
-    edit({ lyrics: rows.length ? rows : [lyric(pureText, pureText)] });
+    if (
+      jp !== initial.map((l) => l.jp).join("\n") ||
+      cn !== initial.map((l) => l.cn).join("\n")
+    ) {
+      const splitField = (text: string, field: "jp" | "cn") => {
+        const lines = text.split("\n");
+        if (
+          lines.length !==
+          initial
+            .map((l) => l[field])
+            .join("\n")
+            .split("\n").length
+        )
+          return lines;
+        let cursor = 0;
+        return initial.map((l) => {
+          const count = l[field].split("\n").length;
+          const value = lines.slice(cursor, cursor + count).join("\n");
+          cursor += count;
+          return value;
+        });
+      };
+      const japanese = splitField(jp, "jp"),
+        chinese = splitField(cn, "cn");
+      const rows = Array.from(
+        { length: Math.max(1, japanese.length, chinese.length) },
+        (_, i) => ({
+          ...(initial[i] ?? lyric()),
+          jp: japanese[i] ?? "",
+          cn: chinese[i] ?? "",
+        }),
+      );
+      edit({ lyrics: rows });
+    }
     onClose();
   };
   return (
     <Modal title="双语歌词" onClose={commit} wide>
-      <div className="lyrics-editor">
-        {rows.map((l, i) => (
-          <div
-            className={
-              "lyric-edit " + (l.id === activeLyricId ? "is-playing" : "")
-            }
-            key={l.id}
-          >
-            <div className="lyric-meta">
-              <span className="number">{i + 1}</span>
-              <button
-                onClick={() => setRows(rows.filter((x) => x.id !== l.id))}
-              >
-                删除
-              </button>
-            </div>
-            <Field
-              label={`日文 ${i + 1}`}
-              value={l.jp}
-              onCommit={(v) =>
-                setRows(rows.map((x) => (x.id === l.id ? { ...x, jp: v } : x)))
-              }
-            />
-            <Field
-              label={`中文 ${i + 1}`}
-              value={l.cn}
-              onCommit={(v) =>
-                setRows(rows.map((x) => (x.id === l.id ? { ...x, cn: v } : x)))
-              }
-            />
-            <Field
-              label={`时间 ${i + 1}`}
-              value={l.time === null ? "" : String(l.time)}
-              onCommit={(v) =>
-                setRows(
-                  rows.map((x) =>
-                    x.id === l.id
-                      ? { ...x, time: v.trim() ? Number(v) : null }
-                      : x,
-                  ),
-                )
-              }
-            />
-          </div>
-        ))}
+      <div className="bilingual-inputs">
+        <label className="field">
+          <span>日文</span>
+          <textarea
+            aria-label="日文歌词"
+            rows={10}
+            value={jp}
+            onChange={(e) => setJp(e.target.value)}
+          />
+        </label>
+        <label className="field">
+          <span>中文</span>
+          <textarea
+            aria-label="中文歌词"
+            rows={10}
+            value={cn}
+            onChange={(e) => setCn(e.target.value)}
+          />
+        </label>
       </div>
       <div className="toolbar">
-        <button onClick={() => setRows([...rows, lyric()])}>添加一行</button>
         <button
           onClick={() => {
-            onClose();
+            commit();
             onOpenLrc?.();
           }}
         >

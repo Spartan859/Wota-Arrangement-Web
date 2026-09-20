@@ -121,3 +121,25 @@ describe("时间轴拖动边界", () => {
     expect(draggedRange(right, blocks, 12, "end", 10).end).toBe(12);
   });
 });
+
+describe("LRC 项目来源", () => {
+  it("兼容无来源旧 v2，原文和偏移随 JSON 往返，拒绝非法偏移", () => {
+    const p = project();
+    expect(parseProject(backup(p)).lyricSource).toBeUndefined();
+    p.lyricSource = {
+      raw: "[00:01]合成",
+      name: "test.lrc",
+      lrc: true,
+      offset: -0.5,
+    };
+    expect(parseProject(backup(p)).lyricSource).toEqual(p.lyricSource);
+    expect(() =>
+      parseProject(
+        JSON.stringify({
+          ...p,
+          lyricSource: { ...p.lyricSource, offset: "oops" },
+        }),
+      ),
+    ).toThrow();
+  });
+});

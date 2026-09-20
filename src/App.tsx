@@ -30,7 +30,6 @@ import {
   intervalError,
   playable,
 } from "./core/timing";
-import { shifted } from "./core/lyrics";
 import { useProject } from "./useProject";
 import { Field, Modal } from "./components/Fields";
 import { LyricsImport } from "./components/LyricsImport";
@@ -50,12 +49,11 @@ export default function App() {
   const [audioReady, setAudioReady] = useState(false),
     [loop, setLoop] = useState<string | null>(null);
   const [modal, setModal] = useState<
-    "lyrics" | "preview" | "export" | "projects" | "shift" | "create" | null
+    "lyrics" | "preview" | "export" | "projects" | "source" | "create" | null
   >(null);
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
-    [busy, setBusy] = useState(false),
-    [offset, setOffset] = useState("0");
+    [busy, setBusy] = useState(false);
   const currentBlock =
     p.blocks.find((b) => b.id === selected) ?? activeBlock(p.blocks, time);
   const currentLyric = activeLyric(p.blocks, time, p.audio?.duration ?? 0);
@@ -230,6 +228,33 @@ export default function App() {
             })
           }
         />
+        <div className="header-history">
+          {" "}
+          <div className="toolbar">
+            <button
+              aria-label="撤销"
+              disabled={!store.canUndo || readOnly}
+              onClick={() => store.travel("undo")}
+            >
+              <Undo2 size={16} />
+            </button>
+            <button
+              aria-label="重做"
+              disabled={!store.canRedo || readOnly}
+              onClick={() => store.travel("redo")}
+            >
+              <Redo2 size={16} />
+            </button>
+          </div>
+        </div>
+        <div className="source-status">
+          <button disabled={readOnly} onClick={() => setModal("source")}>
+            {p.lyricSource?.name || "载入 LRC"}
+          </button>
+          <button disabled={readOnly} onClick={() => setModal("lyrics")}>
+            偏移 {p.lyricSource?.offset ?? 0}s
+          </button>
+        </div>
         <div className="header-actions">
           <button onClick={() => setModal("projects")}>
             <FolderOpen size={16} />
@@ -296,30 +321,6 @@ export default function App() {
             <div>
               <span className="eyebrow">ARRANGEMENT</span>
               <h2>当前段落</h2>
-            </div>
-            <div className="toolbar">
-              <button
-                aria-label="撤销"
-                disabled={!store.canUndo || readOnly}
-                onClick={() => store.travel("undo")}
-              >
-                <Undo2 size={16} />
-              </button>
-              <button
-                aria-label="重做"
-                disabled={!store.canRedo || readOnly}
-                onClick={() => store.travel("redo")}
-              >
-                <Redo2 size={16} />
-              </button>
-              <button
-                onClick={() => {
-                  setOffset("0");
-                  setModal("shift");
-                }}
-              >
-                歌词偏移
-              </button>
             </div>
           </div>
           <fieldset disabled={readOnly}>
@@ -408,16 +409,30 @@ export default function App() {
           />
         </section>
       </main>
-      {modal === "lyrics" && (
+      {(modal === "lyrics" || modal === "source") && (
         <LyricsImport
+          source={p.lyricSource}
+          startInLoader={modal === "source"}
+          canImport={!!currentBlock && !readOnly}
+          onSource={(source) =>
+            store.edit((d) => {
+              d.lyricSource = source;
+            })
+          }
           duration={p.audio?.duration}
           focusTime={currentBlock?.start}
           onClose={() => setModal(null)}
           onImport={(rows) => {
-            if (selected)
+            if (currentBlock)
               store.edit((d) => {
-                const b = d.blocks.find((x) => x.id === selected);
-                if (b) b.lyrics = [...b.lyrics, ...rows];
+                const b = d.blocks.find((x) => x.id === currentBlock.id);
+                if (b)
+                  b.lyrics = [
+                    ...b.lyrics.filter(
+                      (l) => (l.jp || l.cn) && l.jp !== "（纯动作/无歌词）",
+                    ),
+                    ...rows,
+                  ];
               });
             setModal(null);
           }}
@@ -482,32 +497,6 @@ export default function App() {
               </button>
             ))}
           </div>
-        </Modal>
-      )}
-      {modal === "shift" && (
-        <Modal title="歌词时间偏移" onClose={() => setModal(null)}>
-          <p>统一调整所有歌词时间戳：正数延后，负数提前；不改变段落出入点。</p>
-          <Field label="偏移秒数" value={offset} onCommit={setOffset} />
-          <button
-            className="primary"
-            onClick={() =>
-              void attempt(() => {
-                store.edit((d) => {
-                  d.blocks = d.blocks.map((b) => ({
-                    ...b,
-                    lyrics: shifted(
-                      b.lyrics,
-                      Number(offset),
-                      p.audio?.duration,
-                    ),
-                  }));
-                });
-                setModal(null);
-              })
-            }
-          >
-            应用
-          </button>
         </Modal>
       )}
       {modal === "create" && (

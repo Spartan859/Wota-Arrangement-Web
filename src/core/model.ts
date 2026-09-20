@@ -59,6 +59,14 @@ export const projectSchema = z.object({
   songName: z.string(),
   bpm: z.string(),
   blocks: z.array(blockSchema),
+  lyricSource: z
+    .object({
+      raw: z.string(),
+      name: z.string(),
+      lrc: z.boolean(),
+      offset: z.number().finite(),
+    })
+    .optional(),
   audio: z
     .object({
       id: z.string().nullable(),
