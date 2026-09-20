@@ -64,8 +64,13 @@ export async function readXlsx(data: ArrayBuffer): Promise<Project> {
 }
 export async function writeXlsx(p: Project): Promise<ArrayBuffer> {
   if (!p.blocks.length) throw new Error("请先添加至少一个段落。");
-  if (p.blocks.some((b) => !b.type.trim() || !b.beats.trim()))
-    throw new Error("导出前请填写每个段落的类型和拍数。");
+  if (
+    p.blocks.some(
+      (b) =>
+        !b.type.trim() || !/^\d+$/.test(b.beats.trim()) || Number(b.beats) <= 0,
+    )
+  )
+    throw new Error("导出前请填写正整数拍数和段落类型。");
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("打艺编排脚本");
   ws.mergeCells("A1:F1");

@@ -43,8 +43,7 @@ export function parseLyrics(raw: string, lrc: boolean): ImportPreview {
       }
     }
     for (const [t, values] of [...grouped].sort((a, b) => a[0] - b[0])) {
-      for (let i = 0; i < values.length; i += 2)
-        rows.push(lyric(values[i], values[i + 1] ?? "", t));
+      for (const value of values) rows.push(lyric(value, "", t));
     }
     if (rows.some((r) => r.time === null))
       warnings.push("无时间戳的行已保留，可稍后手动打点。");

@@ -10,7 +10,7 @@ export function suggestedDuration(bpm: string, beats: string): number | null {
   const b = Number(bpm.trim()),
     count = Number(beats.trim());
   return b > 0 && count > 0 && Number.isFinite(b) && Number.isFinite(count)
-    ? (count * 8 * 60) / b
+    ? (count * 60) / b
     : null;
 }
 export function intervalError(

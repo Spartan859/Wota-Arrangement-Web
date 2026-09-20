@@ -59,8 +59,7 @@ export function Preview({
         </table>
       </div>
       <p className="muted">
-        Excel 仅包含已编排段落。歌曲、时间标记和歌词池不在六列表格中，请另存
-        JSON 备份。
+        Excel 仅包含已编排段落。歌曲和时间标记不在六列表格中，请另存 JSON 备份。
       </p>
     </Modal>
   );

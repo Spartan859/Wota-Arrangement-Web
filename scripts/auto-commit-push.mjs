@@ -4,13 +4,14 @@ import { execFileSync } from "node:child_process";
 const [kind, message, ...files] = process.argv.slice(2);
 const allowed = new Set(["feat", "fix", "docs", "chore"]);
 if (!allowed.has(kind) || !message || files.length === 0) {
-  console.error("用法: npm run commit -- <feat|fix|docs|chore> \"说明\" <文件>...");
+  console.error(
+    '用法: npm run commit -- <feat|fix|docs|chore> "说明" <文件>...',
+  );
   process.exit(2);
 }
 const run = (args, options = {}) =>
   execFileSync("git", args, { stdio: "inherit", ...options });
-const output = (args) =>
-  execFileSync("git", args, { encoding: "utf8" }).trim();
+const output = (args) => execFileSync("git", args, { encoding: "utf8" }).trim();
 const status = output(["status", "--short"]);
 if (!status) {
   console.error("工作区没有可提交的修改。");

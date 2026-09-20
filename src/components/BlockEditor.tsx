@@ -1,8 +1,10 @@
+import { useMemo, useState } from "react";
 import {
   lyric,
   pureText,
-  sections,
+  sectionTypes,
   type Block,
+  type Lyric,
   type Project,
 } from "../core/model";
 import {
@@ -11,301 +13,291 @@ import {
   playable,
   suggestedDuration,
 } from "../core/timing";
-import { Field } from "./Fields";
+import { Field, Modal } from "./Fields";
+
+type Props = {
+  project: Project;
+  selected?: Block;
+  edit: (fn: (p: Project) => void) => void;
+  onSeek: (t: number) => void;
+  onLoop: (id: string) => void;
+  onError: (s: string) => void;
+  onLyricsImport: (rows: Lyric[]) => void;
+  onOpenLyricsImport?: () => void;
+  activeLyricId?: string;
+  audioReady: boolean;
+  time: number;
+};
 export function BlockEditor({
   project: p,
   selected: b,
   edit,
-  time,
   onSeek,
   onLoop,
   onError,
+  onLyricsImport,
+  onOpenLyricsImport,
   activeLyricId,
   audioReady,
-}: {
-  project: Project;
-  selected?: Block;
-  edit: (fn: (p: Project) => void) => void;
-  time: () => number;
-  onSeek: (t: number) => void;
-  onLoop: (id: string) => void;
-  onError: (s: string) => void;
-  activeLyricId?: string;
-  audioReady: boolean;
-}) {
+  time,
+}: Props) {
+  const [modal, setModal] = useState<
+    "type" | "lyrics" | "arrangement" | "remarks" | null
+  >(null);
+  const update = (patch: Partial<Block>) =>
+    edit((draft) =>
+      Object.assign(
+        draft.blocks.find((x) => x.id === b?.id)!,
+        patch,
+      ),
+    );
+  const rangeError = b ? intervalError(b, p.blocks, p.audio?.duration) : null;
+  const beatCount = Math.max(1, Number.parseInt(b?.beats ?? "0", 10) || 1);
+  const beatDuration = Number(p.bpm) > 0 ? 60 / Number(p.bpm) : 0;
+  const currentBeat =
+    b?.start !== null && b?.start !== undefined && time >= b.start
+      ? Math.floor((time - b.start) / beatDuration)
+      : -1;
+  const rows = useMemo(
+    () => b?.lyrics.filter((l) => l.jp || l.cn || l.time !== null) ?? [],
+    [b],
+  );
   if (!b)
     return (
-      <div className="empty editor-empty">
-        <span className="empty-symbol">✎</span>
-        <h3>把每一拍写清楚</h3>
-        <p>
-          选择一个段落，编辑歌词、动作和时间。
-          <br />
-          还没有段落？从左侧歌词开始。
-        </p>
+      <div className="editor-card empty">
+        <h2>选择或新建段落</h2>
+        <p>在下方时间轴点击空白处开始。</p>
       </div>
     );
-  const update = (patch: Partial<Block>) =>
-    edit((draft) => {
-      Object.assign(
-        draft.blocks.find((x) => x.id === b.id)!,
-        patch,
-      );
-    });
-  const setRange = (patch: Partial<Block>) => {
-    const next = { ...b, ...patch };
-    const error = intervalError(next, p.blocks, p.audio?.duration);
-    if (error) onError(error);
-    else update(patch);
-  };
-  const setLyricTime = (id: string, value: number | null) => {
-    if (
-      value !== null &&
-      (!Number.isFinite(value) ||
-        value < 0 ||
-        (p.audio && value > p.audio.duration))
-    ) {
-      onError("歌词时间必须在歌曲范围内。");
-      return;
-    }
-    update({
-      lyrics: b.lyrics.map((l) => (l.id === id ? { ...l, time: value } : l)),
-    });
-  };
-  const bpmDuration = suggestedDuration(p.bpm, b.beats);
-  const rangeError = intervalError(b, p.blocks, p.audio?.duration);
   return (
-    <>
-      <div className="panel-heading">
+    <div className="editor-card" data-testid="editor-card">
+      <div className="editor-card-head">
         <div>
-          <span className="eyebrow">DETAIL</span>
-          <h2>段落编辑</h2>
+          <span className="eyebrow">CURRENT BLOCK</span>
+          <h2>{b.type || "未命名"}</h2>
+          <button className="click-summary" onClick={() => setModal("type")}>
+            {b.beats} 拍 · 点击编辑
+          </button>
         </div>
-        <span className="badge">{b.type || "未命名"}</span>
+        <div className="beat-grid" aria-label={`${b.beats} 拍`}>
+          {Array.from({ length: Math.ceil(beatCount / 8) }, (_, row) => (
+            <div className="beat-row" key={row}>
+              {Array.from(
+                { length: Math.min(8, beatCount - row * 8) },
+                (_, col) => {
+                  const index = row * 8 + col;
+                  return (
+                    <i
+                      key={index}
+                      className={index === currentBeat ? "lit" : ""}
+                      aria-label={`第${index + 1}拍`}
+                    />
+                  );
+                },
+              )}
+            </div>
+          ))}
+        </div>
       </div>
-      <div className="editor-body" key={b.id}>
-        <div className="two-fields">
+      <div className="editor-card-main">
+        <button
+          className="edit-surface arrangement-surface"
+          onClick={() => setModal("arrangement")}
+        >
+          <span>技 / 动作编排</span>
+          <strong>{b.arrangement || "点击填写动作编排"}</strong>
+        </button>
+        <div className="editor-summary-grid">
+          <button className="edit-surface" onClick={() => setModal("lyrics")}>
+            <span>双语歌词</span>
+            <strong>
+              {rows.length
+                ? rows.map((l) => l.jp || l.cn).join(" / ")
+                : "点击添加歌词"}
+            </strong>
+          </button>
+          <button className="edit-surface" onClick={() => setModal("remarks")}>
+            <span>备注</span>
+            <strong>{b.remarks || "点击添加备注"}</strong>
+          </button>
+        </div>
+        <div className="editor-time-row">
+          <button
+            onClick={() => b.start !== null && onSeek(b.start)}
+            disabled={!audioReady || !playable(b, p.blocks, p.audio?.duration)}
+          >
+            {b.start === null
+              ? "未排时"
+              : `${formatTime(b.start)} — ${formatTime(b.end)}`}
+          </button>
+          <button
+            disabled={!audioReady || !playable(b, p.blocks, p.audio?.duration)}
+            onClick={() => onLoop(b.id)}
+          >
+            循环
+          </button>
+          {rangeError && <span className="error">{rangeError}</span>}
+        </div>
+      </div>
+      {modal === "type" && (
+        <Modal title="段落类型与拍数" onClose={() => setModal(null)}>
           <Field
             label="段落类型"
             value={b.type}
-            onCommit={(v) => update({ type: sections[v.toLowerCase()] ?? v })}
+            onCommit={(v) => update({ type: v })}
           />
+          <div className="preset-row">
+            {sectionTypes.map((name) => (
+              <button key={name} onClick={() => update({ type: name })}>
+                {name}
+              </button>
+            ))}
+          </div>
           <Field
-            label="拍数（八拍）"
+            label="拍数"
             value={b.beats}
-            onCommit={(v) => update({ beats: v })}
+            onCommit={(v) => {
+              if (!/^\d+$/.test(v) || Number(v) <= 0) {
+                onError("拍数必须是正整数。");
+                return;
+              }
+              update({ beats: v });
+            }}
           />
-        </div>
-        <div className="preset-row">
-          {Object.entries(sections).map(([code, name]) => (
-            <button key={code} onClick={() => update({ type: name })}>
-              {name}
-            </button>
-          ))}
-        </div>
-        <Field
-          label="技 / 动作编排"
-          multiline
-          value={b.arrangement}
-          onCommit={(v) => update({ arrangement: v })}
-          placeholder="写下这一段的动作、衔接与变化…"
+          <p className="muted">
+            BPM 建议时长：{suggestedDuration(p.bpm, b.beats)?.toFixed(2) ?? "—"}{" "}
+            秒
+          </p>
+          <button className="primary" onClick={() => setModal(null)}>
+            完成
+          </button>
+        </Modal>
+      )}
+      {modal === "arrangement" && (
+        <Modal title="技 / 动作编排" onClose={() => setModal(null)}>
+          <Field
+            label="技 / 动作编排"
+            multiline
+            value={b.arrangement}
+            onCommit={(v) => update({ arrangement: v })}
+            placeholder="动作、衔接、变化"
+          />
+          <button className="primary" onClick={() => setModal(null)}>
+            完成
+          </button>
+        </Modal>
+      )}
+      {modal === "remarks" && (
+        <Modal title="备注" onClose={() => setModal(null)}>
+          <Field
+            label="备注"
+            multiline
+            value={b.remarks}
+            onCommit={(v) => update({ remarks: v })}
+          />
+          <button className="primary" onClick={() => setModal(null)}>
+            完成
+          </button>
+        </Modal>
+      )}
+      {modal === "lyrics" && (
+        <LyricsEditor
+          block={b}
+          activeLyricId={activeLyricId}
+          edit={update}
+          onClose={() => setModal(null)}
+          onImport={(rows) => {
+            onLyricsImport(rows);
+            setModal(null);
+          }}
+          onOpenLrc={onOpenLyricsImport}
         />
-        <Field
-          label="备注"
-          multiline
-          value={b.remarks}
-          onCommit={(v) => update({ remarks: v })}
-          placeholder="队形、站位或需要留意的地方"
-        />
-        <section className="timing-section">
-          <div className="section-title">
-            <h3>歌曲对时</h3>
-            <span className="muted">秒 · 手动优先</span>
-          </div>
-          <div className="two-fields">
-            <Field
-              label="开始时间（秒）"
-              value={b.start === null ? "" : String(b.start)}
-              onCommit={(v) => setRange({ start: v.trim() ? Number(v) : null })}
-              placeholder="未设置"
-            />
-            <Field
-              label="结束时间（秒）"
-              value={b.end === null ? "" : String(b.end)}
-              onCommit={(v) => setRange({ end: v.trim() ? Number(v) : null })}
-              placeholder="未设置"
-            />
-          </div>
-          <div className="toolbar">
-            <button
-              disabled={!audioReady}
-              onClick={() => setRange({ start: time() })}
-            >
-              当前设为起点 [
-            </button>
-            <button
-              disabled={!audioReady}
-              onClick={() => setRange({ end: time() })}
-            >
-              当前设为终点 ]
-            </button>
-          </div>
-          <div className="toolbar">
-            <button
-              disabled={b.start === null || bpmDuration === null}
-              onClick={() =>
-                setRange({
-                  end: Math.round((b.start! + bpmDuration!) * 1000) / 1000,
-                })
-              }
-            >
-              采用 BPM 建议
-              {bpmDuration !== null ? ` · ${bpmDuration.toFixed(2)}s` : ""}
-            </button>
-            <button
-              onClick={() => {
-                const index = p.blocks.findIndex((x) => x.id === b.id);
-                const start = b.lyrics.find((l) => l.time !== null)?.time;
-                const end = p.blocks[index + 1]?.lyrics.find(
-                  (l) => l.time !== null,
-                )?.time;
-                if (start === undefined || start === null) {
-                  onError("本段歌词没有时间戳，请手动设置起点。");
-                  return;
-                }
-                setRange({
-                  start,
-                  ...(end !== undefined && end !== null ? { end } : {}),
-                });
-              }}
-            >
-              采用歌词时间
-            </button>
-          </div>
-          {rangeError && <p className="error">{rangeError}</p>}
-          <div className="toolbar">
-            <button
-              disabled={
-                !audioReady || !playable(b, p.blocks, p.audio?.duration)
-              }
-              onClick={() => onSeek(b.start!)}
-            >
-              定位此段
-            </button>
-            <button
-              disabled={
-                !audioReady || !playable(b, p.blocks, p.audio?.duration)
-              }
-              onClick={() => onLoop(b.id)}
-            >
-              循环此段
-            </button>
-            <button onClick={() => update({ start: null, end: null })}>
-              清除对时
-            </button>
-          </div>
-        </section>
-        <section>
-          <div className="section-title">
-            <h3>双语歌词</h3>
-            <button
-              onClick={() =>
-                update({
-                  lyrics:
-                    b.lyrics.length === 1 && b.lyrics[0].jp === pureText
-                      ? [lyric()]
-                      : [...b.lyrics, lyric()],
-                })
-              }
-            >
-              ＋ 歌词行
-            </button>
-          </div>
-          {b.lyrics.map((l, i) => (
-            <div
-              className={
-                "lyric-edit " + (activeLyricId === l.id ? "is-playing" : "")
-              }
-              key={l.id}
-            >
-              <div className="lyric-meta">
-                <span className="number">{String(i + 1).padStart(2, "0")}</span>
-                <button
-                  disabled={
-                    !audioReady ||
-                    l.time === null ||
-                    !p.audio ||
-                    l.time < 0 ||
-                    l.time > p.audio.duration
-                  }
-                  onClick={() => onSeek(l.time!)}
-                >
-                  {formatTime(l.time)}
-                </button>
-                <button
-                  aria-label={`在歌词${i + 1}前插入`}
-                  onClick={() => {
-                    const rows = [...b.lyrics];
-                    rows.splice(i, 0, lyric());
-                    update({ lyrics: rows });
-                  }}
-                >
-                  插入
-                </button>
-                <button
-                  aria-label={`删除歌词${i + 1}`}
-                  onClick={() => {
-                    const rest = b.lyrics.filter((x) => x.id !== l.id);
-                    update({
-                      lyrics: rest.length ? rest : [lyric(pureText, pureText)],
-                    });
-                  }}
-                >
-                  删除
-                </button>
-              </div>
-              <Field
-                label={`日文 ${i + 1}`}
-                value={l.jp}
-                onCommit={(v) =>
-                  update({
-                    lyrics: b.lyrics.map((x) =>
-                      x.id === l.id ? { ...x, jp: v } : x,
-                    ),
-                  })
-                }
-              />
-              <Field
-                label={`中文 ${i + 1}`}
-                value={l.cn}
-                onCommit={(v) =>
-                  update({
-                    lyrics: b.lyrics.map((x) =>
-                      x.id === l.id ? { ...x, cn: v } : x,
-                    ),
-                  })
-                }
-              />
-              <div className="two-fields">
-                <Field
-                  label={`歌词起点 ${i + 1}（秒）`}
-                  value={l.time === null ? "" : String(l.time)}
-                  onCommit={(v) =>
-                    setLyricTime(l.id, v.trim() ? Number(v) : null)
-                  }
-                />
-                <button
-                  className="align-bottom"
-                  disabled={!audioReady}
-                  onClick={() => setLyricTime(l.id, time())}
-                >
-                  当前打点
-                </button>
-              </div>
+      )}
+    </div>
+  );
+}
+function LyricsEditor({
+  block: b,
+  edit,
+  onClose,
+  onImport,
+  onOpenLrc,
+  activeLyricId,
+}: {
+  block: Block;
+  edit: (patch: Partial<Block>) => void;
+  onClose: () => void;
+  onImport: (rows: Lyric[]) => void;
+  onOpenLrc?: () => void;
+  activeLyricId?: string;
+}) {
+  const [rows, setRows] = useState(b.lyrics);
+  const commit = () => {
+    edit({ lyrics: rows.length ? rows : [lyric(pureText, pureText)] });
+    onClose();
+  };
+  return (
+    <Modal title="双语歌词" onClose={commit} wide>
+      <div className="lyrics-editor">
+        {rows.map((l, i) => (
+          <div
+            className={
+              "lyric-edit " + (l.id === activeLyricId ? "is-playing" : "")
+            }
+            key={l.id}
+          >
+            <div className="lyric-meta">
+              <span className="number">{i + 1}</span>
+              <button
+                onClick={() => setRows(rows.filter((x) => x.id !== l.id))}
+              >
+                删除
+              </button>
             </div>
-          ))}
-        </section>
+            <Field
+              label={`日文 ${i + 1}`}
+              value={l.jp}
+              onCommit={(v) =>
+                setRows(rows.map((x) => (x.id === l.id ? { ...x, jp: v } : x)))
+              }
+            />
+            <Field
+              label={`中文 ${i + 1}`}
+              value={l.cn}
+              onCommit={(v) =>
+                setRows(rows.map((x) => (x.id === l.id ? { ...x, cn: v } : x)))
+              }
+            />
+            <Field
+              label={`时间 ${i + 1}`}
+              value={l.time === null ? "" : String(l.time)}
+              onCommit={(v) =>
+                setRows(
+                  rows.map((x) =>
+                    x.id === l.id
+                      ? { ...x, time: v.trim() ? Number(v) : null }
+                      : x,
+                  ),
+                )
+              }
+            />
+          </div>
+        ))}
       </div>
-    </>
+      <div className="toolbar">
+        <button onClick={() => setRows([...rows, lyric()])}>添加一行</button>
+        <button
+          onClick={() => {
+            onClose();
+            onOpenLrc?.();
+          }}
+        >
+          打开 LRC
+        </button>
+        <button className="primary" onClick={commit}>
+          完成
+        </button>
+      </div>
+    </Modal>
   );
 }
