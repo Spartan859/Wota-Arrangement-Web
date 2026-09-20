@@ -387,3 +387,38 @@ test("LRC 原文与偏移保存、再次选词及左右多行编辑", async ({ p
   await page.getByRole("button", { name: "关闭对话框" }).click();
   await expect(page.locator(".topbar")).toContainText("remember.lrc");
 });
+
+test("播放头逐帧跟随音频且暂停定位不漂移", async ({ page }) => {
+  await boot(page);
+  await audio(page);
+  await page.getByRole("button", { name: "播放", exact: true }).click();
+  const samples = await page.evaluate(async () => {
+    const head = document.querySelector<HTMLElement>(".playhead")!;
+    const audio = document.querySelector<HTMLAudioElement>("audio")!;
+    const rows: { position: number; actual: number }[] = [];
+    for (let i = 0; i < 40; i++) {
+      await new Promise(requestAnimationFrame);
+      rows.push({
+        position: (parseFloat(head.style.left) / 100) * audio.duration,
+        actual: audio.currentTime,
+      });
+    }
+    return rows;
+  });
+  expect(new Set(samples.map((s) => s.position)).size).toBeGreaterThan(22);
+  expect(
+    Math.max(...samples.map((s) => Math.abs(s.actual - s.position))),
+  ).toBeLessThan(0.1);
+  await page.getByRole("button", { name: "暂停", exact: true }).click();
+  await position(page, 8);
+  await expect
+    .poll(() =>
+      page
+        .locator(".playhead")
+        .evaluate((el) => parseFloat((el as HTMLElement).style.left)),
+    )
+    .toBeCloseTo((100 * 8) / 12, 2);
+  const paused = await page.locator(".playhead").getAttribute("style");
+  await page.waitForTimeout(200);
+  expect(await page.locator(".playhead").getAttribute("style")).toBe(paused);
+});

@@ -63,6 +63,12 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
   },
   ref,
 ) {
+  const playhead = useRef<HTMLSpanElement>(null);
+  // Position is owned by the audio animation frame, not the throttled React state.
+  const drawPlayhead = (position: number, duration: number) => {
+    if (playhead.current)
+      playhead.current.style.left = `${duration > 0 ? Math.max(0, Math.min(100, (position / duration) * 100)) : 0}%`;
+  };
   const audio = useRef<HTMLAudioElement>(null),
     [source, setSource] = useState(""),
     [loaded, setLoaded] = useState(false),
@@ -108,6 +114,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     setPlaying(false);
     setSource("");
     restoredPosition.current = p.position;
+    drawPlayhead(p.position, p.audio?.duration ?? 0);
     setTime(p.position);
     callbacks.current.onTime(p.position, false);
     if (p.audio?.id)
@@ -148,6 +155,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
       setAbEnabled(false);
     }
     a.currentTime = t;
+    drawPlayhead(t, a.duration);
     setTime(t);
     callbacks.current.onTime(t, !a.paused);
     callbacks.current.onPersist(t);
@@ -177,6 +185,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
           (a.currentTime >= l.end! || a.currentTime < l.start!)
         )
           a.currentTime = l.start!;
+        drawPlayhead(a.currentTime, a.duration);
         if (stamp - lastDraw > 80) {
           setTime(a.currentTime);
           callbacks.current.onTime(a.currentTime, !a.paused);
@@ -195,6 +204,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
       if (!a || !readyRef.current) return;
       const l = loopRef.current;
       if (l && !a.paused && a.currentTime >= l.end!) a.currentTime = l.start!;
+      drawPlayhead(a.currentTime, a.duration);
       setTime(a.currentTime);
       callbacks.current.onTime(a.currentTime, !a.paused);
       callbacks.current.onPersist(a.currentTime);
@@ -705,13 +715,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
                 ))}
             </div>
           )}
-          <span
-            className="playhead"
-            data-testid="playhead"
-            style={{
-              left: `${duration ? Math.min(100, (time / duration) * 100) : 0}%`,
-            }}
-          >
+          <span className="playhead" data-testid="playhead" ref={playhead}>
             <span
               className="playhead-time"
               style={{
