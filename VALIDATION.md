@@ -13,3 +13,10 @@
 TypeScript 检查、生产构建和格式检查通过；`npm audit` 为 0 漏洞。
 
 生产构建产物位于 `dist/`；未部署站点，未创建远程仓库。
+
+## 2026-09-20 播放器交互修正
+
+- `npm run check`：13 项单元/集成测试通过，Python 专项默认跳过；类型检查与构建通过。
+- `npm run format:check` 与 `git diff --check` 通过。
+- Chrome Playwright：6 项通过。新增真实合成音频 A/B 回跳、反向区间拒绝、替换清除、播放跟随开关、精确出入点校验、缩放边缘拖动、重叠回退和撤销测试。
+- 本轮未运行 WebKit，未验证 Safari。

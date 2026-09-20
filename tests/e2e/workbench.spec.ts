@@ -89,3 +89,137 @@ test("时间轴拖动冲突被拒绝且手机无横向溢出", async ({ page }) 
     ),
   ).toBe(true);
 });
+
+async function timedProject(page: Page) {
+  await boot(page);
+  await page.getByLabel("打开项目文件").setInputFiles({
+    name: "synthetic.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(
+      JSON.stringify({
+        schemaVersion: 2,
+        id: "fixture",
+        songName: "合成对时",
+        bpm: "120",
+        audio: null,
+        position: 0,
+        updatedAt: 1,
+        blocks: [
+          { id: "a", type: "前奏", start: 0, end: 3 },
+          { id: "b", type: "副歌", start: 5, end: 9 },
+        ].map((b) => ({
+          ...b,
+          beats: "8",
+          arrangement: b.type,
+          remarks: "",
+          lyrics: [{ id: `lyric-${b.id}`, jp: "合成", cn: "", time: null }],
+        })),
+      }),
+    ),
+  });
+  await expect(page.getByLabel("歌曲名称")).toHaveValue("合成对时");
+  await audio(page);
+}
+async function position(page: Page, time: number) {
+  await page.getByLabel("播放进度", { exact: true }).fill(String(time));
+}
+async function rangeField(page: Page, name: string, value: string) {
+  await page.getByLabel(name, { exact: true }).fill(value);
+  await page.getByLabel(name, { exact: true }).press("Tab");
+}
+test("直接记录 AB，拒绝反向区间，循环和替换音频清除", async ({ page }) => {
+  await boot(page);
+  await expect(
+    page.getByRole("button", { name: "选 A", exact: true }),
+  ).toBeDisabled();
+  await audio(page);
+  await position(page, 2);
+  await page.getByRole("button", { name: "选 A", exact: true }).click();
+  await position(page, 1);
+  await page.getByRole("button", { name: "选 B", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("B 出点必须晚于 A 入点");
+  await expect(
+    page.getByRole("button", { name: "开始 A/B 循环" }),
+  ).toBeDisabled();
+  await position(page, 4);
+  await page.getByRole("button", { name: "选 B", exact: true }).click();
+  await page.getByRole("button", { name: "开始 A/B 循环" }).click();
+  await position(page, 3.95);
+  await expect
+    .poll(() =>
+      page.locator("audio").evaluate((a: HTMLAudioElement) => a.currentTime),
+    )
+    .toBeLessThan(3);
+  await page.getByRole("button", { name: "退出 A/B 循环" }).click();
+  await expect(
+    page.getByRole("button", { name: "开始 A/B 循环" }),
+  ).toBeEnabled();
+  await expect(page.locator(".ab-picker")).toHaveCount(0);
+  await audio(page, 10);
+  await expect(page.locator(".ab-marker")).toHaveCount(0);
+});
+test("播放覆盖手动选择，关闭跟随后保持选中段落", async ({ page }) => {
+  await timedProject(page);
+  await page.locator(".timeline-block").nth(1).click();
+  await position(page, 1);
+  await page.getByRole("button", { name: "播放", exact: true }).click();
+  await expect(page.getByTestId("editor-card").getByRole("heading")).toHaveText(
+    "前奏",
+  );
+  await position(page, 6);
+  await expect(page.getByTestId("editor-card").getByRole("heading")).toHaveText(
+    "副歌",
+  );
+  await page.getByRole("checkbox", { name: "跟随播放" }).uncheck();
+  await position(page, 1);
+  await expect(page.getByTestId("editor-card").getByRole("heading")).toHaveText(
+    "副歌",
+  );
+  await page.getByRole("button", { name: "暂停", exact: true }).click();
+});
+test("精确出入点校验，缩放拖动、冲突回退和撤销", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await timedProject(page);
+  await page.locator(".timeline-block").nth(1).click();
+  await rangeField(page, "入点（秒）", "2");
+  await expect(page.getByRole("alert")).toContainText("重叠");
+  await expect(page.getByLabel("入点（秒）")).toHaveValue("5");
+  await rangeField(page, "出点（秒）", "13");
+  await expect(page.getByRole("alert")).toContainText("范围");
+  await rangeField(page, "出点（秒）", "4");
+  await expect(page.getByRole("alert")).toContainText("晚于");
+  await rangeField(page, "入点（秒）", "6");
+  await expect(page.getByLabel("入点（秒）")).toHaveValue("6");
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(page.getByLabel("入点（秒）")).toHaveValue("5");
+  await page.getByLabel("时间轴缩放").fill("2");
+  const first = page.locator(".timeline-block").first();
+  let box = (await first.boundingBox())!;
+  const width = (await page.locator(".timeline").boundingBox())!.width;
+  await page.mouse.move(box.x + box.width - 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    box.x + box.width - 2 + width / 12,
+    box.y + box.height / 2,
+    { steps: 5 },
+  );
+  await page.mouse.up();
+  await first.click();
+  await expect(page.getByLabel("出点（秒）")).toHaveValue("4");
+  box = (await first.boundingBox())!;
+  await page.mouse.move(box.x + box.width - 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    box.x + box.width - 2 + width / 6,
+    box.y + box.height / 2,
+    { steps: 5 },
+  );
+  await page.mouse.up();
+  await expect(page.getByRole("alert")).toContainText("重叠");
+  await expect(page.getByLabel("出点（秒）")).toHaveValue("4");
+  expect(Math.abs((await first.boundingBox())!.width - box.width)).toBeLessThan(
+    1,
+  );
+  expect(errors).toEqual([]);
+});

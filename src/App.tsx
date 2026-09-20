@@ -46,6 +46,7 @@ export default function App() {
   const [selected, setSelected] = useState<string | null>(null),
     [time, setTime] = useState(0),
     [pendingTime, setPendingTime] = useState<number | null>(null);
+  const [follow, setFollow] = useState(true);
   const [audioReady, setAudioReady] = useState(false),
     [loop, setLoop] = useState<string | null>(null);
   const [modal, setModal] = useState<
@@ -352,7 +353,23 @@ export default function App() {
             project={p}
             loopId={loop}
             onLoop={setLoop}
-            onTime={setTime}
+            onTime={(position, playing) => {
+              setTime(position);
+              if (
+                playing &&
+                follow &&
+                !document.querySelector("dialog[open]") &&
+                !document.activeElement?.matches(
+                  "input:not([type=range]):not([type=checkbox]),textarea,select",
+                )
+              ) {
+                const active = activeBlock(
+                  store.latest.current.blocks,
+                  position,
+                );
+                setSelected(active?.id ?? null);
+              }
+            }}
             onPersist={(position) => {
               if (Math.abs(store.latest.current.position - position) > 0.05)
                 store.edit((d) => {
@@ -361,8 +378,8 @@ export default function App() {
             }}
             onError={fail}
             onUpload={(file) => void uploadAudio(file)}
-            follow
-            onFollow={() => {}}
+            follow={follow}
+            onFollow={setFollow}
             readOnly={readOnly}
             onReady={setAudioReady}
             selectedId={selected}

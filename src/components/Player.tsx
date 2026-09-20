@@ -7,6 +7,7 @@ import {
 } from "react";
 import { Music2, Pause, Play, Repeat2, Volume2 } from "lucide-react";
 import type { Project } from "../core/model";
+import { Field } from "./Fields";
 import { db } from "../core/storage";
 import { formatTime, playable } from "../core/timing";
 export type PlayerHandle = {
@@ -18,7 +19,7 @@ type Props = {
   project: Project;
   loopId: string | null;
   onLoop: (id: string | null) => void;
-  onTime: (time: number) => void;
+  onTime: (time: number, playing: boolean) => void;
   onPersist: (time: number) => void;
   onError: (message: string) => void;
   onUpload: (file: File) => void;
@@ -72,21 +73,10 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
   const readyRef = useRef(false);
   const [pointA, setPointA] = useState<number | null>(null);
   const [pointB, setPointB] = useState<number | null>(null);
-  const [picking, setPicking] = useState<"a" | "b" | null>(null);
   const [abEnabled, setAbEnabled] = useState(false);
   const [draftRanges, setDraftRanges] = useState<
     Record<string, { start: number; end: number }>
   >({});
-  const draftRangesRef = useRef(draftRanges);
-  draftRangesRef.current = draftRanges;
-  const dragRef = useRef<{
-    id: string;
-    mode: "move" | "start" | "end";
-    x: number;
-    start: number;
-    end: number;
-    width: number;
-  } | null>(null);
   const segmentLoop = p.blocks.find(
     (b) => b.id === loopId && playable(b, p.blocks, p.audio?.duration),
   );
@@ -100,14 +90,12 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
   useEffect(() => {
     if (loopId) {
       setAbEnabled(false);
-      setPicking(null);
     }
   }, [loopId]);
   useEffect(() => {
     setPointA(null);
     setPointB(null);
     setAbEnabled(false);
-    setPicking(null);
     let disposed = false;
     let url = "";
     readyRef.current = false;
@@ -117,7 +105,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     setSource("");
     restoredPosition.current = p.position;
     setTime(p.position);
-    callbacks.current.onTime(p.position);
+    callbacks.current.onTime(p.position, false);
     if (p.audio?.id)
       db.audio
         .get(p.audio.id)
@@ -157,7 +145,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     }
     a.currentTime = t;
     setTime(t);
-    callbacks.current.onTime(t);
+    callbacks.current.onTime(t, !a.paused);
     callbacks.current.onPersist(t);
     if (play)
       void a
@@ -187,7 +175,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
           a.currentTime = l.start!;
         if (stamp - lastDraw > 80) {
           setTime(a.currentTime);
-          callbacks.current.onTime(a.currentTime);
+          callbacks.current.onTime(a.currentTime, !a.paused);
           lastDraw = stamp;
         }
         if (!a.paused && stamp - lastSave > 5000) {
@@ -204,7 +192,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
       const l = loopRef.current;
       if (l && !a.paused && a.currentTime >= l.end!) a.currentTime = l.start!;
       setTime(a.currentTime);
-      callbacks.current.onTime(a.currentTime);
+      callbacks.current.onTime(a.currentTime, !a.paused);
       callbacks.current.onPersist(a.currentTime);
     };
     document.addEventListener("visibilitychange", visible);
@@ -214,26 +202,27 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     };
   }, []);
   const duration = p.audio?.duration ?? 0;
-  const choosePoint = (value: number) => {
-    if (!loaded || !picking) return;
-    const t = Math.min(duration, Math.max(0, Math.round(value * 100) / 100));
-    if (picking === "a") {
+  const choosePoint = (point: "a" | "b") => {
+    if (!loaded) return;
+    const t = audio.current!.currentTime;
+    if (point === "a") {
       if (t >= duration) {
-        onError("入点必须早于歌曲结束时间。");
+        onError("A 入点必须早于歌曲结束。");
         return;
       }
       setPointA(t);
-      setPointB(null);
-      setPicking("b");
+      if (pointB !== null && pointB <= t) setPointB(null);
     } else {
       if (pointA === null || t <= pointA) {
-        onError("B 出点必须晚于 A 入点，请重新选择。");
+        onError("B 出点必须晚于 A 入点。");
         return;
       }
       setPointB(t);
-      setPicking(null);
     }
+    onLoop(null);
+    setAbEnabled(false);
   };
+  const selectedBlock = p.blocks.find((b) => b.id === selectedId);
   const startAbLoop = () => {
     if (!loaded || pointA === null || pointB === null || pointB <= pointA)
       return;
@@ -404,57 +393,77 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
         onChange={(e) => seek(Number(e.target.value))}
       />
       <div className="ab-controls" aria-label="AB 点循环">
+        <button disabled={!loaded} onClick={() => choosePoint("a")}>
+          选 A
+        </button>
         <button
-          disabled={!loaded}
-          className={picking ? "active" : ""}
-          onClick={() => {
-            onLoop(null);
-            setAbEnabled(false);
-            setPointA(null);
-            setPointB(null);
-            setPicking("a");
-          }}
+          disabled={!loaded || pointA === null}
+          onClick={() => choosePoint("b")}
         >
-          选择 A/B 点
+          选 B
         </button>
         <span className="ab-status" role="status">
-          {picking === "a"
-            ? "点击时间轴设置 A 入点"
-            : picking === "b"
-              ? "点击时间轴设置 B 出点"
-              : "A/B 区间"}
-          {pointA !== null && ` · A ${formatTime(pointA)}`}
-          {pointB !== null && ` → B ${formatTime(pointB)}`}
+          A {formatTime(pointA)} · B {formatTime(pointB)}
         </span>
-        {picking && (
-          <button
-            disabled={!loaded}
-            onClick={() => choosePoint(audio.current?.currentTime ?? 0)}
-          >
-            当前设为 {picking.toUpperCase()} 点
-          </button>
-        )}
         <button
-          disabled={!loaded || pointA === null || pointB === null || abEnabled}
-          onClick={startAbLoop}
+          disabled={!loaded || pointA === null || pointB === null}
+          onClick={() => (abEnabled ? setAbEnabled(false) : startAbLoop())}
         >
-          {abEnabled ? "A/B 循环中" : "开始 A/B 循环"}
-        </button>
-        <button
-          disabled={pointA === null && picking === null}
-          onClick={() => {
-            setPointA(null);
-            setPointB(null);
-            setPicking(null);
-            setAbEnabled(false);
-          }}
-        >
-          清除 A/B
+          {abEnabled ? "退出 A/B 循环" : "开始 A/B 循环"}
         </button>
       </div>
+      {selectedBlock && (
+        <fieldset
+          disabled={readOnly}
+          className="range-controls"
+          aria-label="片段出入点"
+        >
+          <strong>{selectedBlock.type}</strong>
+          <Field
+            label="入点（秒）"
+            value={
+              selectedBlock.start === null ? "" : String(selectedBlock.start)
+            }
+            onCommit={(v) =>
+              onUpdateRange?.(selectedBlock.id, {
+                start: v.trim() ? Number(v) : null,
+              })
+            }
+          />
+          <Field
+            label="出点（秒）"
+            value={selectedBlock.end === null ? "" : String(selectedBlock.end)}
+            onCommit={(v) =>
+              onUpdateRange?.(selectedBlock.id, {
+                end: v.trim() ? Number(v) : null,
+              })
+            }
+          />
+          <button
+            disabled={!loaded}
+            onClick={() =>
+              onUpdateRange?.(selectedBlock.id, {
+                start: audio.current!.currentTime,
+              })
+            }
+          >
+            当前设为入点
+          </button>
+          <button
+            disabled={!loaded}
+            onClick={() =>
+              onUpdateRange?.(selectedBlock.id, {
+                end: audio.current!.currentTime,
+              })
+            }
+          >
+            当前设为出点
+          </button>
+        </fieldset>
+      )}
       <div className="timeline-top">
         <span>
-          歌曲时间轴 <span className="muted">· 点击段落定位</span>
+          歌曲时间轴 <span className="muted">· 选中编辑，拖动边缘对时</span>
         </span>
         <label>
           缩放{" "}
@@ -470,7 +479,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
       </div>
       <div className="timeline-scroll">
         <div
-          className={"timeline" + (picking ? " selecting-ab" : "")}
+          className="timeline"
           style={{ width: `${zoom * 100}%` }}
           onClick={(e) => {
             if ((e.target as HTMLElement).closest("button")) return;
@@ -492,40 +501,6 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
             );
           }}
         >
-          {picking && (
-            <div
-              className="ab-picker"
-              role="slider"
-              tabIndex={0}
-              aria-label={picking === "a" ? "选择 A 入点" : "选择 B 出点"}
-              aria-valuemin={0}
-              aria-valuemax={duration}
-              aria-valuenow={time}
-              onClick={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                choosePoint(((e.clientX - rect.left) / rect.width) * duration);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  choosePoint(time);
-                } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-                  e.preventDefault();
-                  seek(
-                    Math.min(
-                      duration,
-                      Math.max(
-                        0,
-                        time +
-                          (e.key === "ArrowRight" ? 1 : -1) *
-                            (e.shiftKey ? 0.1 : 1),
-                      ),
-                    ),
-                  );
-                }
-              }}
-            />
-          )}
           {pointA !== null && pointB !== null && duration > 0 && (
             <div
               className="ab-region"
@@ -569,10 +544,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
                 return (
                   <button
                     key={b.id}
-                    disabled={
-                      !loaded ||
-                      !playable({ ...b, ...range }, p.blocks, duration)
-                    }
+                    disabled={readOnly}
                     className={`timeline-block tone-${i % 4} ${selectedId === b.id ? "selected" : ""}`}
                     style={{
                       left: `${Math.min(100, (range.start / duration) * 100)}%`,
@@ -585,87 +557,79 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
                     onDoubleClick={() => seek(range.start, true)}
                     onPointerDown={(e) => {
                       e.stopPropagation();
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const edge = 12;
+                      if (
+                        (e.target as HTMLElement).closest(".timeline-delete") ||
+                        e.button !== 0
+                      )
+                        return;
+                      const element = e.currentTarget;
+                      const rect = element.getBoundingClientRect();
+                      const width =
+                        element.parentElement!.getBoundingClientRect().width;
+                      const startX = e.clientX;
                       const mode =
-                        e.clientX - rect.left < edge
+                        e.clientX - rect.left < 8
                           ? "start"
-                          : rect.right - e.clientX < edge
+                          : rect.right - e.clientX < 8
                             ? "end"
                             : "move";
-                      dragRef.current = {
-                        id: b.id,
-                        mode,
-                        x: e.clientX,
-                        start: range.start,
-                        end: range.end,
-                        width: rect.width,
-                      };
+                      let next = range;
+                      let moved = false;
                       const move = (ev: PointerEvent) => {
-                        const timelineRect =
-                          e.currentTarget.parentElement?.getBoundingClientRect();
+                        if (Math.abs(ev.clientX - startX) < 3 && !moved) return;
+                        moved = true;
                         const delta =
-                          ((ev.clientX - dragRef.current!.x) /
-                            (timelineRect?.width || rect.width)) *
-                          duration;
-                        const next =
-                          dragRef.current!.mode === "move"
+                          ((ev.clientX - startX) / width) * duration;
+                        const shift = Math.max(
+                          -range.start,
+                          Math.min(duration - range.end, delta),
+                        );
+                        next =
+                          mode === "move"
                             ? {
-                                start: Math.max(
-                                  0,
-                                  Math.min(
-                                    duration,
-                                    dragRef.current!.start + delta,
-                                  ),
-                                ),
-                                end: Math.max(
-                                  0,
-                                  Math.min(
-                                    duration,
-                                    dragRef.current!.end + delta,
-                                  ),
-                                ),
+                                start: range.start + shift,
+                                end: range.end + shift,
                               }
-                            : dragRef.current!.mode === "start"
+                            : mode === "start"
                               ? {
                                   start: Math.max(
                                     0,
                                     Math.min(
                                       range.end - 0.01,
-                                      dragRef.current!.start + delta,
+                                      range.start + delta,
                                     ),
                                   ),
                                   end: range.end,
                                 }
                               : {
                                   start: range.start,
-                                  end: Math.max(
-                                    range.start + 0.01,
-                                    Math.min(
-                                      duration,
-                                      dragRef.current!.end + delta,
+                                  end: Math.min(
+                                    duration,
+                                    Math.max(
+                                      range.start + 0.01,
+                                      range.end + delta,
                                     ),
                                   ),
                                 };
-                        draftRangesRef.current = {
-                          ...draftRangesRef.current,
-                          [b.id]: next,
-                        };
-                        setDraftRanges(draftRangesRef.current);
+                        setDraftRanges({ [b.id]: next });
                       };
-                      const up = () => {
-                        const next = draftRangesRef.current[b.id];
-                        if (next)
+                      const finish = (cancelled: boolean) => {
+                        if (moved && !cancelled)
                           onUpdateRange?.(b.id, {
-                            start: next.start,
-                            end: next.end,
+                            start: Math.round(next.start * 1000) / 1000,
+                            end: Math.round(next.end * 1000) / 1000,
                           });
-                        dragRef.current = null;
-                        window.removeEventListener("pointermove", move);
-                        window.removeEventListener("pointerup", up);
+                        setDraftRanges({});
+                        element.removeEventListener("pointermove", move);
+                        element.removeEventListener("pointerup", up);
+                        element.removeEventListener("pointercancel", cancel);
                       };
-                      window.addEventListener("pointermove", move);
-                      window.addEventListener("pointerup", up);
+                      const up = () => finish(false);
+                      const cancel = () => finish(true);
+                      element.setPointerCapture(e.pointerId);
+                      element.addEventListener("pointermove", move);
+                      element.addEventListener("pointerup", up);
+                      element.addEventListener("pointercancel", cancel);
                     }}
                     title={`${b.type} ${formatTime(range.start)} — ${formatTime(range.end)}`}
                   >
