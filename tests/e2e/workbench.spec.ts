@@ -443,3 +443,34 @@ test("空隙新建生成完整区间且刷新后仍位于原位置", async ({ pa
     /00:04.00 — 00:05.00/,
   );
 });
+
+test("编辑卡片随可用高度压缩，无需滚动查看对时按钮", async ({ page }) => {
+  await page.setViewportSize({ width: 922, height: 880 });
+  await timedProject(page);
+  await page.locator(".timeline-block").first().click();
+  await page.getByRole("button", { name: "编辑类型与拍数" }).click();
+  await page.getByLabel("拍数", { exact: true }).fill("32");
+  await page.getByRole("button", { name: "完成", exact: true }).click();
+  for (const viewport of [
+    { width: 922, height: 880 },
+    { width: 1282, height: 720 },
+    { width: 922, height: 720 },
+  ]) {
+    await page.setViewportSize(viewport);
+
+    await expect
+      .poll(() =>
+        page
+          .locator(".editor-card")
+          .evaluate((el) => el.scrollHeight - el.clientHeight),
+      )
+      .toBeLessThanOrEqual(1);
+    const overflow = await page.evaluate(() => ({
+      x: document.documentElement.scrollWidth - innerWidth,
+      y: document.documentElement.scrollHeight - innerHeight,
+    }));
+    expect(overflow.x).toBeLessThanOrEqual(1);
+    expect(overflow.y).toBeLessThanOrEqual(1);
+    await expect(page.locator(".editor-time-row")).toBeInViewport();
+  }
+});

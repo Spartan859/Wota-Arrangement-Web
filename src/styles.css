@@ -1859,3 +1859,103 @@ fieldset {
 .bilingual-inputs textarea {
   min-height: 240px;
 }
+
+/* Allocate the editor from the actual remaining height, including wrapped headers. */
+.editor-panel {
+  display: flex;
+  flex-direction: column;
+  container-type: size;
+}
+.editor-panel > .panel-heading {
+  flex: 0 0 auto;
+}
+.editor-panel > fieldset {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+.editor-card {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(8px, 3cqh, 24px);
+  padding: clamp(10px, 3cqh, 24px) clamp(14px, 3cqw, 28px);
+}
+.editor-card-head {
+  flex-shrink: 0;
+}
+.editor-card-main {
+  margin-top: 0;
+  width: 100%;
+}
+.edit-surface {
+  padding: clamp(8px, 2cqh, 18px);
+  gap: clamp(4px, 1cqh, 10px);
+  margin-bottom: clamp(6px, 1.5cqh, 12px);
+}
+.arrangement-surface {
+  min-height: clamp(68px, 24cqh, 130px);
+}
+.editor-time-row {
+  margin-top: clamp(2px, 1cqh, 12px);
+}
+@container (max-height: 430px) {
+  .editor-card-head {
+    align-items: center;
+  }
+  .beat-grid {
+    min-width: 136px;
+    width: 136px;
+  }
+  .editor-card-head h2,
+  .block-beat-count {
+    font-size: 24px;
+  }
+  .arrangement-surface > strong {
+    font-size: 18px;
+  }
+}
+@media (max-width: 850px) {
+  .editor-card-head {
+    flex-direction: row;
+    gap: 10px;
+  }
+  .beat-grid {
+    min-width: 104px;
+    width: 104px;
+    flex-shrink: 0;
+  }
+  .editor-summary-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+}
+@container (max-height: 430px) {
+  .editor-card {
+    padding-block: 8px;
+    gap: 8px;
+  }
+  .arrangement-surface {
+    min-height: 60px;
+  }
+  .edit-surface {
+    padding: 8px 12px;
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+  .editor-time-row {
+    margin-top: 2px;
+  }
+}
+@container (max-height: 350px) {
+  .editor-card {
+    gap: 6px;
+    padding-block: 6px;
+  }
+  .edit-surface {
+    padding-block: 5px;
+    margin-bottom: 4px;
+  }
+  .arrangement-surface {
+    min-height: 54px;
+  }
+}
