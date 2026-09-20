@@ -7,9 +7,8 @@ import {
 } from "react";
 import { Music2, Pause, Play, Repeat2, Volume2 } from "lucide-react";
 import type { Project } from "../core/model";
-import { Field } from "./Fields";
 import { db } from "../core/storage";
-import { formatTime, playable } from "../core/timing";
+import { draggedRange, formatTime, playable } from "../core/timing";
 export type PlayerHandle = {
   seek: (time: number, play?: boolean) => void;
   getTime: () => number;
@@ -230,6 +229,33 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     seek(pointA, true);
     setAbEnabled(true);
   };
+  const markRange = (edge: "start" | "end") => {
+    if (!loaded || readOnly || !selectedBlock) return;
+    onUpdateRange?.(selectedBlock.id, { [edge]: audio.current!.currentTime });
+  };
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (
+        e.isComposing ||
+        e.repeat ||
+        e.ctrlKey ||
+        e.metaKey ||
+        e.altKey ||
+        document.querySelector("dialog[open]") ||
+        (e.target as HTMLElement)?.closest(
+          "input,textarea,select,[contenteditable=true]",
+        )
+      )
+        return;
+      const key = e.key.toLowerCase();
+      if (!["a", "b", "[", "]"].includes(key)) return;
+      e.preventDefault();
+      if (key === "a" || key === "b") choosePoint(key);
+      else markRange(key === "[" ? "start" : "end");
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  });
   return (
     <footer className="player" aria-label="歌曲播放器">
       <audio
@@ -393,14 +419,21 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
         onChange={(e) => seek(Number(e.target.value))}
       />
       <div className="ab-controls" aria-label="AB 点循环">
-        <button disabled={!loaded} onClick={() => choosePoint("a")}>
-          选 A
+        <button
+          aria-label="选 A"
+          aria-keyshortcuts="a"
+          disabled={!loaded}
+          onClick={() => choosePoint("a")}
+        >
+          选 A <kbd>A</kbd>
         </button>
         <button
+          aria-label="选 B"
+          aria-keyshortcuts="b"
           disabled={!loaded || pointA === null}
           onClick={() => choosePoint("b")}
         >
-          选 B
+          选 B <kbd>B</kbd>
         </button>
         <span className="ab-status" role="status">
           A {formatTime(pointA)} · B {formatTime(pointB)}
@@ -411,56 +444,23 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
         >
           {abEnabled ? "退出 A/B 循环" : "开始 A/B 循环"}
         </button>
-      </div>
-      {selectedBlock && (
-        <fieldset
-          disabled={readOnly}
-          className="range-controls"
-          aria-label="片段出入点"
+        <button
+          className="primary"
+          aria-keyshortcuts="["
+          disabled={!loaded || readOnly || !selectedBlock}
+          onClick={() => markRange("start")}
         >
-          <strong>{selectedBlock.type}</strong>
-          <Field
-            label="入点（秒）"
-            value={
-              selectedBlock.start === null ? "" : String(selectedBlock.start)
-            }
-            onCommit={(v) =>
-              onUpdateRange?.(selectedBlock.id, {
-                start: v.trim() ? Number(v) : null,
-              })
-            }
-          />
-          <Field
-            label="出点（秒）"
-            value={selectedBlock.end === null ? "" : String(selectedBlock.end)}
-            onCommit={(v) =>
-              onUpdateRange?.(selectedBlock.id, {
-                end: v.trim() ? Number(v) : null,
-              })
-            }
-          />
-          <button
-            disabled={!loaded}
-            onClick={() =>
-              onUpdateRange?.(selectedBlock.id, {
-                start: audio.current!.currentTime,
-              })
-            }
-          >
-            当前设为入点
-          </button>
-          <button
-            disabled={!loaded}
-            onClick={() =>
-              onUpdateRange?.(selectedBlock.id, {
-                end: audio.current!.currentTime,
-              })
-            }
-          >
-            当前设为出点
-          </button>
-        </fieldset>
-      )}
+          当前作为入点 <kbd>[</kbd>
+        </button>
+        <button
+          className="primary"
+          aria-keyshortcuts="]"
+          disabled={!loaded || readOnly || !selectedBlock}
+          onClick={() => markRange("end")}
+        >
+          当前作为出点 <kbd>]</kbd>
+        </button>
+      </div>
       <div className="timeline-top">
         <span>
           歌曲时间轴 <span className="muted">· 选中编辑，拖动边缘对时</span>
@@ -580,44 +580,20 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
                         moved = true;
                         const delta =
                           ((ev.clientX - startX) / width) * duration;
-                        const shift = Math.max(
-                          -range.start,
-                          Math.min(duration - range.end, delta),
+                        next = draggedRange(
+                          { ...b, ...range },
+                          p.blocks,
+                          duration,
+                          mode,
+                          delta,
                         );
-                        next =
-                          mode === "move"
-                            ? {
-                                start: range.start + shift,
-                                end: range.end + shift,
-                              }
-                            : mode === "start"
-                              ? {
-                                  start: Math.max(
-                                    0,
-                                    Math.min(
-                                      range.end - 0.01,
-                                      range.start + delta,
-                                    ),
-                                  ),
-                                  end: range.end,
-                                }
-                              : {
-                                  start: range.start,
-                                  end: Math.min(
-                                    duration,
-                                    Math.max(
-                                      range.start + 0.01,
-                                      range.end + delta,
-                                    ),
-                                  ),
-                                };
                         setDraftRanges({ [b.id]: next });
                       };
                       const finish = (cancelled: boolean) => {
                         if (moved && !cancelled)
                           onUpdateRange?.(b.id, {
-                            start: Math.round(next.start * 1000) / 1000,
-                            end: Math.round(next.end * 1000) / 1000,
+                            start: next.start,
+                            end: next.end,
                           });
                         setDraftRanges({});
                         element.removeEventListener("pointermove", move);

@@ -1684,24 +1684,18 @@ fieldset {
   }
 }
 
-.range-controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin: 8px 0;
-}
-.range-controls .field {
-  width: 120px;
-  margin: 0;
-}
-.range-controls strong {
-  font-size: 12px;
-}
 .timeline-block {
   touch-action: none;
 }
 .timeline-edge {
   background: #4568d444;
   width: 5px;
+}
+
+.ab-controls kbd {
+  font: inherit;
+  opacity: 0.8;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  padding: 0 4px;
 }

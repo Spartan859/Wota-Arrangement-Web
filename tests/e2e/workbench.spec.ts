@@ -123,10 +123,6 @@ async function timedProject(page: Page) {
 async function position(page: Page, time: number) {
   await page.getByLabel("播放进度", { exact: true }).fill(String(time));
 }
-async function rangeField(page: Page, name: string, value: string) {
-  await page.getByLabel(name, { exact: true }).fill(value);
-  await page.getByLabel(name, { exact: true }).press("Tab");
-}
 test("直接记录 AB，拒绝反向区间，循环和替换音频清除", async ({ page }) => {
   await boot(page);
   await expect(
@@ -177,49 +173,72 @@ test("播放覆盖手动选择，关闭跟随后保持选中段落", async ({ pa
   );
   await page.getByRole("button", { name: "暂停", exact: true }).click();
 });
-test("精确出入点校验，缩放拖动、冲突回退和撤销", async ({ page }) => {
+test("快捷键打点、输入保护和相邻边界拖动", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await timedProject(page);
   await page.locator(".timeline-block").nth(1).click();
-  await rangeField(page, "入点（秒）", "2");
-  await expect(page.getByRole("alert")).toContainText("重叠");
-  await expect(page.getByLabel("入点（秒）")).toHaveValue("5");
-  await rangeField(page, "出点（秒）", "13");
-  await expect(page.getByRole("alert")).toContainText("范围");
-  await rangeField(page, "出点（秒）", "4");
-  await expect(page.getByRole("alert")).toContainText("晚于");
-  await rangeField(page, "入点（秒）", "6");
-  await expect(page.getByLabel("入点（秒）")).toHaveValue("6");
+  await expect(page.getByLabel("入点（秒）")).toHaveCount(0);
+  await expect(page.locator(".ab-controls .primary")).toHaveCount(2);
+  await position(page, 6);
+  await page.locator(".timeline-block").nth(1).focus();
+  await page.keyboard.press("[");
+  await expect(page.locator(".timeline-block").nth(1)).toHaveAttribute(
+    "title",
+    /00:06.00/,
+  );
+  await position(page, 10);
+  await page.locator(".timeline-block").nth(1).focus();
+  await page.keyboard.press("]");
+  await expect(page.locator(".timeline-block").nth(1)).toHaveAttribute(
+    "title",
+    /00:10.00/,
+  );
   await page.getByRole("button", { name: "撤销", exact: true }).click();
-  await expect(page.getByLabel("入点（秒）")).toHaveValue("5");
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await position(page, 2);
+  await page.locator(".timeline-block").nth(1).focus();
+  await page.keyboard.press("a");
+  await position(page, 4);
+  await page.locator(".timeline-block").nth(1).focus();
+  await page.keyboard.press("b");
+  await expect(page.locator(".ab-status")).toContainText(
+    "A 00:02.00 · B 00:04.00",
+  );
+  await page.getByLabel("歌曲名称").focus();
+  await page.keyboard.press("a");
+  await page.keyboard.press("[");
+  await expect(page.locator(".ab-status")).toContainText("A 00:02.00");
+  await expect(page.locator(".timeline-block").nth(1)).toHaveAttribute(
+    "title",
+    /00:05.00/,
+  );
   await page.getByLabel("时间轴缩放").fill("2");
   const first = page.locator(".timeline-block").first();
-  let box = (await first.boundingBox())!;
   const width = (await page.locator(".timeline").boundingBox())!.width;
+  const box = (await first.boundingBox())!;
   await page.mouse.move(box.x + box.width - 2, box.y + box.height / 2);
   await page.mouse.down();
   await page.mouse.move(
-    box.x + box.width - 2 + width / 12,
+    box.x + box.width - 2 + width / 3,
     box.y + box.height / 2,
     { steps: 5 },
   );
   await page.mouse.up();
-  await first.click();
-  await expect(page.getByLabel("出点（秒）")).toHaveValue("4");
-  box = (await first.boundingBox())!;
-  await page.mouse.move(box.x + box.width - 2, box.y + box.height / 2);
+  await expect(first).toHaveAttribute("title", /00:05.00/);
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  const second = page.locator(".timeline-block").nth(1);
+  const nextBox = (await second.boundingBox())!;
+  await page.mouse.move(nextBox.x + 2, nextBox.y + nextBox.height / 2);
   await page.mouse.down();
   await page.mouse.move(
-    box.x + box.width - 2 + width / 6,
-    box.y + box.height / 2,
+    nextBox.x + 2 - width / 3,
+    nextBox.y + nextBox.height / 2,
     { steps: 5 },
   );
   await page.mouse.up();
-  await expect(page.getByRole("alert")).toContainText("重叠");
-  await expect(page.getByLabel("出点（秒）")).toHaveValue("4");
-  expect(Math.abs((await first.boundingBox())!.width - box.width)).toBeLessThan(
-    1,
-  );
+  await expect(second).toHaveAttribute("title", /00:03.00/);
+  await expect(page.getByRole("alert")).toHaveCount(0);
   expect(errors).toEqual([]);
 });

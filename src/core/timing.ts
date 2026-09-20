@@ -84,3 +84,44 @@ export function orderConflict(blocks: Block[]): boolean {
   const timed = blocks.filter((b) => b.start !== null);
   return timed.some((b, i) => i > 0 && b.start! < timed[i - 1].start!);
 }
+
+/** Clamp a drag to the neighbouring time intervals, independently of list order. */
+export function draggedRange(
+  block: Block,
+  blocks: Block[],
+  duration: number,
+  mode: "start" | "end" | "move",
+  delta: number,
+): { start: number; end: number } {
+  const start = block.start!,
+    end = block.end!;
+  const others = blocks.filter(
+    (b) => b.id !== block.id && b.start !== null && b.end !== null,
+  );
+  const lower = Math.max(
+    0,
+    ...others.filter((b) => b.end! <= start).map((b) => b.end!),
+  );
+  const upper = Math.min(
+    duration,
+    ...others.filter((b) => b.start! >= end).map((b) => b.start!),
+  );
+  const clamp = (value: number, min: number, max: number) =>
+    Math.max(min, Math.min(max, value));
+  if (mode === "start")
+    return {
+      start: clamp(
+        start + delta,
+        lower,
+        end - Math.min(0.01, (end - start) / 2),
+      ),
+      end,
+    };
+  if (mode === "end")
+    return {
+      start,
+      end: clamp(end + delta, start + Math.min(0.01, (end - start) / 2), upper),
+    };
+  const shift = clamp(delta, lower - start, upper - end);
+  return { start: start + shift, end: end + shift };
+}

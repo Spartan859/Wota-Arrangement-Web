@@ -1,3 +1,5 @@
+import { draggedRange } from "../src/core/timing";
+
 import { describe, expect, it } from "vitest";
 import {
   backup,
@@ -90,5 +92,32 @@ describe("时间轴模型", () => {
     h.record(s);
     s = { value: 1 };
     expect(h.undo(s).value).toBe(0);
+  });
+});
+
+describe("时间轴拖动边界", () => {
+  it("按照时间而非数组顺序限制边缘和整体移动", () => {
+    const left = { ...block(), start: 1, end: 3 };
+    const current = { ...block(), start: 5, end: 7 };
+    const right = { ...block(), start: 9, end: 11 };
+    const blocks = [right, current, left];
+    expect(draggedRange(current, blocks, 12, "start", -10)).toEqual({
+      start: 3,
+      end: 7,
+    });
+    expect(draggedRange(current, blocks, 12, "end", 10)).toEqual({
+      start: 5,
+      end: 9,
+    });
+    expect(draggedRange(current, blocks, 12, "move", 10)).toEqual({
+      start: 7,
+      end: 9,
+    });
+    expect(draggedRange(current, blocks, 12, "move", -10)).toEqual({
+      start: 3,
+      end: 5,
+    });
+    expect(draggedRange(left, blocks, 12, "start", -10).start).toBe(0);
+    expect(draggedRange(right, blocks, 12, "end", 10).end).toBe(12);
   });
 });
