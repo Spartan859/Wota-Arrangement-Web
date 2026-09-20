@@ -77,8 +77,8 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     const viewport = timelineScroll.current;
     if (
       !viewport ||
-      !follow ||
-      zoom <= 1 ||
+      !followRef.current ||
+      zoomRef.current <= 1 ||
       duration <= 0 ||
       audio.current?.paused ||
       !playhead.current
@@ -103,6 +103,10 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     [zoom, setZoom] = useState(1),
     [rate, setRate] = useState(1),
     [volume, setVolume] = useState(0.8);
+  const followRef = useRef(follow);
+  const zoomRef = useRef(zoom);
+  followRef.current = follow;
+  zoomRef.current = zoom;
   const callbacks = useRef({ onTime, onPersist, onError });
   callbacks.current = { onTime, onPersist, onError };
   const restoredPosition = useRef(p.position);

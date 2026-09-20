@@ -499,3 +499,29 @@ test("缩放时间轴跟随播放分页，暂停后不强制滚动", async ({ pa
   await page.waitForTimeout(200);
   expect(await scroll.evaluate((el) => el.scrollLeft)).toBe(paused);
 });
+
+test("跟随播放读取最新缩放和开关状态", async ({ page }) => {
+  await boot(page);
+  await audio(page, 12);
+  const scroll = page.locator(".timeline-scroll");
+  await page.getByLabel("时间轴缩放").fill("8");
+  await expect
+    .poll(() => scroll.evaluate((el) => el.scrollWidth - el.clientWidth))
+    .toBeGreaterThan(20);
+  await page.getByRole("button", { name: "播放", exact: true }).click();
+  await page.getByLabel("播放进度", { exact: true }).fill("10");
+  await expect
+    .poll(() => scroll.evaluate((el) => el.scrollLeft))
+    .toBeGreaterThan(0);
+  await page.getByRole("checkbox", { name: "跟随播放" }).uncheck();
+  const stopped = await scroll.evaluate((el) => el.scrollLeft);
+  await page.getByLabel("播放进度", { exact: true }).fill("2");
+  await page.waitForTimeout(200);
+  expect(await scroll.evaluate((el) => el.scrollLeft)).toBe(stopped);
+  await page.getByRole("checkbox", { name: "跟随播放" }).check();
+  await page.getByLabel("播放进度", { exact: true }).fill("11");
+  await expect
+    .poll(() => scroll.evaluate((el) => el.scrollLeft))
+    .toBeGreaterThan(stopped);
+  await page.getByRole("button", { name: "暂停", exact: true }).click();
+});
