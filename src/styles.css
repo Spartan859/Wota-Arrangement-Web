@@ -1485,23 +1485,37 @@ fieldset {
   max-width: 300px;
 }
 .beat-row {
+  --beat-idle: #dfe6f4;
+  --beat-active: #4568d4;
   display: grid;
   grid-template-columns: repeat(8, 1fr);
   gap: 4px;
+}
+.beat-row:nth-child(4n + 2) {
+  --beat-idle: #cce9df;
+  --beat-active: #168267;
+}
+.beat-row:nth-child(4n + 3) {
+  --beat-idle: #e4d8f4;
+  --beat-active: #8751bf;
+}
+.beat-row:nth-child(4n + 4) {
+  --beat-idle: #f7e0c3;
+  --beat-active: #c77720;
 }
 .beat-row i {
   display: block;
   aspect-ratio: 1;
   border-radius: 3px;
-  background: #dfe6f4;
+  background: var(--beat-idle);
   transition:
     background 0.08s,
     transform 0.08s;
 }
 .beat-row i.lit {
-  background: var(--blue);
+  background: var(--beat-active);
   transform: translateY(-2px);
-  box-shadow: 0 3px 8px #4568d455;
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--beat-active) 35%, transparent);
 }
 .editor-card-main {
   max-width: 880px;
