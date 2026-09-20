@@ -15,7 +15,8 @@
     "test:e2e": "playwright test",
     "check": "npm run test && npm run build",
     "format": "prettier --write src tests scripts/*.mjs *.json *.ts *.html *.md .github/workflows/*.yml",
-    "format:check": "prettier --check src tests scripts/*.mjs *.json *.ts *.html *.md .github/workflows/*.yml"
+    "format:check": "prettier --check src tests scripts/*.mjs *.json *.ts *.html *.md .github/workflows/*.yml",
+    "commit": "node scripts/auto-commit-push.mjs"
   },
   "dependencies": {
     "dexie": "^4.4.6",
