@@ -62,16 +62,16 @@ jobs:
           chmod 600 ~/.ssh/known_hosts
       - name: Upload release and deployment script
         run: |
-          ssh -i ~/.ssh/deploy_key root@120.77.57.144 'install -d -m 700 /opt/wota-arrangement-web'
+          ssh -i ~/.ssh/deploy_key wota-deploy@120.77.57.144 'install -d -m 700 /opt/wota-arrangement-web'
           scp -i ~/.ssh/deploy_key \
             /tmp/wota-arrangement-web.tar.gz \
             deploy/deploy.sh \
-            root@120.77.57.144:/opt/wota-arrangement-web/
+            wota-deploy@120.77.57.144:/opt/wota-arrangement-web/
       - name: Activate and verify
         env:
           RELEASE_ID: ${{ steps.revision.outputs.sha }}
         run: |
-          ssh -i ~/.ssh/deploy_key root@120.77.57.144 \
+          ssh -i ~/.ssh/deploy_key wota-deploy@120.77.57.144 \
             "/opt/wota-arrangement-web/deploy.sh /opt/wota-arrangement-web/wota-arrangement-web.tar.gz '$RELEASE_ID'"
           curl --fail --silent --show-error --retry 10 --retry-delay 2 \
             https://wota.satintin.com/healthz
