@@ -1,0 +1,75 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-wota-satintin
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy wota.satintin.com
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://wota.satintin.com
+    steps:
+      - name: Resolve revision
+        id: revision
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          WORKFLOW_SHA: ${{ github.event.workflow_run.head_sha }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          if [[ "$EVENT_NAME" == "workflow_run" ]]; then
+            echo "sha=$WORKFLOW_SHA" >> "$GITHUB_OUTPUT"
+          else
+            echo "sha=$CURRENT_SHA" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.revision.outputs.sha }}
+      - name: Build deployment image
+        env:
+          IMAGE_TAG: wota-arrangement-web:${{ steps.revision.outputs.sha }}
+        run: |
+          docker build --tag "$IMAGE_TAG" .
+          docker save "$IMAGE_TAG" | gzip -1 > /tmp/wota-arrangement-web.tar.gz
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Upload image and deployment files
+        run: |
+          ssh -i ~/.ssh/deploy_key root@120.77.57.144 'install -d -m 700 /opt/wota-arrangement-web'
+          scp -i ~/.ssh/deploy_key \
+            /tmp/wota-arrangement-web.tar.gz \
+            deploy/compose.yaml \
+            deploy/deploy.sh \
+            root@120.77.57.144:/opt/wota-arrangement-web/
+      - name: Activate and verify
+        env:
+          IMAGE_TAG: wota-arrangement-web:${{ steps.revision.outputs.sha }}
+        run: |
+          ssh -i ~/.ssh/deploy_key root@120.77.57.144 \
+            "/opt/wota-arrangement-web/deploy.sh /opt/wota-arrangement-web/wota-arrangement-web.tar.gz '$IMAGE_TAG'"
+          curl --fail --silent --show-error --retry 10 --retry-delay 2 \
+            https://wota.satintin.com/healthz
