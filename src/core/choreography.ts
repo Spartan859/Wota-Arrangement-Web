@@ -42,6 +42,24 @@ export const poseSchema = z.object({
   right: color,
   visible: z.boolean(),
 });
+const positionKeyframeSchema = z.object({
+  id: z.string().min(1),
+  time: z.number().finite().nonnegative(),
+  x: z.number().finite().min(0.03).max(0.97),
+  y: z.number().finite().min(0.04).max(0.96),
+  visible: z.boolean(),
+});
+const colorKeyframeSchema = z.object({
+  id: z.string().min(1),
+  time: z.number().finite().nonnegative(),
+  left: color,
+  right: color,
+});
+const dancerTrackSchema = z.object({
+  dancerId: z.string().min(1),
+  positionFrames: z.array(positionKeyframeSchema),
+  colorFrames: z.array(colorKeyframeSchema),
+});
 export const canvasSchema = z.object({
   width: z.number().int().min(320).max(4000),
   height: z.number().int().min(240).max(3000),
@@ -59,9 +77,18 @@ export const choreographySchema = z
         poses: z.array(poseSchema),
       }),
     ),
+    tracks: z.array(dancerTrackSchema).default([]),
   })
   .superRefine((c, ctx) => {
-    const ids = [...c.dancers.map((d) => d.id), ...c.frames.map((f) => f.id)];
+    const trackFrames = c.tracks.flatMap((track) => [
+      ...track.positionFrames,
+      ...track.colorFrames,
+    ]);
+    const ids = [
+      ...c.dancers.map((d) => d.id),
+      ...c.frames.map((f) => f.id),
+      ...trackFrames.map((frame) => frame.id),
+    ];
     const invalid =
       new Set(ids).size !== ids.length ||
       new Set(c.frames.map((f) => Math.round(f.time * 1000))).size !==
@@ -71,16 +98,33 @@ export const choreographySchema = z
           f.poses.length !== c.dancers.length ||
           new Set(f.poses.map((p) => p.dancerId)).size !== f.poses.length ||
           f.poses.some((p) => !c.dancers.some((d) => d.id === p.dancerId)),
+      ) ||
+      new Set(c.tracks.map((track) => track.dancerId)).size !==
+        c.tracks.length ||
+      c.tracks.some(
+        (track) =>
+          !c.dancers.some((d) => d.id === track.dancerId) ||
+          new Set(
+            track.positionFrames.map((frame) => Math.round(frame.time * 1000)),
+          ).size !== track.positionFrames.length ||
+          new Set(
+            track.colorFrames.map((frame) => Math.round(frame.time * 1000)),
+          ).size !== track.colorFrames.length,
       );
     if (invalid)
       ctx.addIssue({ code: "custom", message: "队形 ID、时间或舞者引用无效" });
   });
 export type Choreography = z.infer<typeof choreographySchema>;
 export type Pose = z.infer<typeof poseSchema>;
+export type PositionKeyframe = z.infer<typeof positionKeyframeSchema>;
+export type ColorKeyframe = z.infer<typeof colorKeyframeSchema>;
+export type DancerTrack = z.infer<typeof dancerTrackSchema>;
+export type TrackKind = "position" | "color";
 export const emptyChoreography = (): Choreography => ({
   canvas: { width: 800, height: 600 },
   dancers: [],
   frames: [],
+  tracks: [],
 });
 export const defaultPose = (dancerId: string): Pose => ({
   dancerId,
@@ -102,6 +146,155 @@ export const colorHex = (name: StickColor | string) => {
   const canonical = normalizeStickColor(name);
   return colors.find((c) => c[0] === canonical)![1];
 };
+const sameTime = (a: number, b: number) =>
+  Math.round(a * 1000) === Math.round(b * 1000);
+const clonePose = (pose: Pose, dancerId = pose.dancerId): Pose => ({
+  ...pose,
+  dancerId,
+});
+const derivedTrackFrameId = (
+  frameId: string,
+  dancerId: string,
+  kind: TrackKind,
+) => `${frameId}:${dancerId}:${kind}`;
+
+/** Build per-dancer tracks from the original aggregate frame format on demand. */
+export function ensureTracks(c: Choreography): DancerTrack[] {
+  c.tracks ??= [];
+  for (const dancer of c.dancers) {
+    if (c.tracks.some((track) => track.dancerId === dancer.id)) continue;
+    c.tracks.push({
+      dancerId: dancer.id,
+      positionFrames: c.frames.flatMap((frame) => {
+        const pose = frame.poses.find((item) => item.dancerId === dancer.id);
+        return pose
+          ? [
+              {
+                id: derivedTrackFrameId(frame.id, dancer.id, "position"),
+                time: frame.time,
+                x: pose.x,
+                y: pose.y,
+                visible: pose.visible,
+              },
+            ]
+          : [];
+      }),
+      colorFrames: c.frames.flatMap((frame) => {
+        const pose = frame.poses.find((item) => item.dancerId === dancer.id);
+        return pose
+          ? [
+              {
+                id: derivedTrackFrameId(frame.id, dancer.id, "color"),
+                time: frame.time,
+                left: pose.left,
+                right: pose.right,
+              },
+            ]
+          : [];
+      }),
+    });
+  }
+  c.tracks = c.tracks.filter((track) =>
+    c.dancers.some((dancer) => dancer.id === track.dancerId),
+  );
+  return c.tracks;
+}
+export function getDancerFrames(
+  c: Choreography,
+  dancerId: string,
+  kind: TrackKind,
+) {
+  const track = c.tracks?.find((item) => item.dancerId === dancerId);
+  if (track)
+    return [
+      ...(kind === "position" ? track.positionFrames : track.colorFrames),
+    ].sort((a, b) => a.time - b.time);
+  return c.frames
+    .flatMap((frame) => {
+      const pose = frame.poses.find((item) => item.dancerId === dancerId);
+      return pose
+        ? [
+            {
+              id: derivedTrackFrameId(frame.id, dancerId, kind),
+              time: frame.time,
+              ...(kind === "position"
+                ? { x: pose.x, y: pose.y, visible: pose.visible }
+                : { left: pose.left, right: pose.right }),
+            },
+          ]
+        : [];
+    })
+    .sort((a, b) => a.time - b.time);
+}
+function samplePosition(track: DancerTrack | undefined, time: number) {
+  const frames = track?.positionFrames ?? [];
+  const before = frames.filter((frame) => frame.time <= time).at(-1);
+  if (!before) return { x: 0.5, y: 0.5, visible: false };
+  const after = frames.find((frame) => frame.time > time);
+  if (!after || !before.visible || !after.visible)
+    return { x: before.x, y: before.y, visible: before.visible };
+  const ratio = (time - before.time) / (after.time - before.time);
+  return {
+    x: before.x + (after.x - before.x) * ratio,
+    y: before.y + (after.y - before.y) * ratio,
+    visible: before.visible,
+  };
+}
+function sampleColor(track: DancerTrack | undefined, time: number) {
+  const before = (track?.colorFrames ?? [])
+    .filter((frame) => frame.time <= time)
+    .at(-1);
+  return before
+    ? { left: before.left, right: before.right }
+    : { left: "极橙" as StickColor, right: "极橙" as StickColor };
+}
+export function sampleDancer(c: Choreography, dancerId: string, time: number) {
+  const track = c.tracks?.find((item) => item.dancerId === dancerId);
+  if (track || c.tracks?.length) {
+    if (!c.dancers.some((dancer) => dancer.id === dancerId)) return undefined;
+    return {
+      dancerId,
+      ...samplePosition(track, time),
+      ...sampleColor(track, time),
+    };
+  }
+  const frames = [...c.frames].sort((a, b) => a.time - b.time);
+  const before = frames.filter((frame) => frame.time <= time).at(-1);
+  if (!before)
+    return c.dancers.some((dancer) => dancer.id === dancerId)
+      ? defaultPose(dancerId)
+      : undefined;
+  const pose = before.poses.find((item) => item.dancerId === dancerId);
+  if (!pose) return undefined;
+  const after = frames.find((frame) => frame.time > time);
+  const next = after?.poses.find((item) => item.dancerId === dancerId);
+  if (!after || !pose.visible || !next?.visible)
+    return clonePose(pose, dancerId);
+  const ratio = (time - before.time) / (after.time - before.time);
+  return {
+    ...clonePose(pose, dancerId),
+    x: pose.x + (next.x - pose.x) * ratio,
+    y: pose.y + (next.y - pose.y) * ratio,
+  };
+}
+function rebuildFrames(c: Choreography) {
+  const tracks = ensureTracks(c);
+  const times = [
+    ...new Set(
+      tracks.flatMap((track) => [
+        ...track.positionFrames.map((frame) => frame.time),
+        ...track.colorFrames.map((frame) => frame.time),
+      ]),
+    ),
+  ].sort((a, b) => a - b);
+  c.frames = times.map((time) => ({
+    id:
+      c.frames.find((frame) => sameTime(frame.time, time))?.id ??
+      crypto.randomUUID(),
+    time,
+    poses: c.dancers.map((dancer) => sampleDancer(c, dancer.id, time)!),
+  }));
+}
 export function frameTime(time: number, duration?: number) {
   if (
     !Number.isFinite(time) ||
@@ -112,6 +305,11 @@ export function frameTime(time: number, duration?: number) {
   return Math.round(time * 1000) / 1000;
 }
 export function sampleFormation(c: Choreography, time: number): Pose[] {
+  if (c.tracks?.length)
+    return c.dancers.flatMap((dancer) => {
+      const pose = sampleDancer(c, dancer.id, time);
+      return pose ? [pose] : [];
+    });
   const frames = [...c.frames].sort((a, b) => a.time - b.time);
   const before = frames.filter((f) => f.time <= time).at(-1);
   if (!before) return c.dancers.map((d) => defaultPose(d.id));
@@ -133,30 +331,74 @@ export function saveFrame(
   poses = sampleFormation(c, time),
 ) {
   const t = frameTime(time);
-  if (!c.frames.length && t > 0)
-    c.frames.push({
-      id: crypto.randomUUID(),
-      time: 0,
-      poses: c.dancers.map((d) => defaultPose(d.id)),
-    });
-  const existing = c.frames.find(
-    (f) => Math.round(f.time * 1000) === Math.round(t * 1000),
-  );
-  if (existing) existing.poses = structuredClone(poses);
-  else
-    c.frames.push({
-      id: crypto.randomUUID(),
-      time: t,
-      poses: structuredClone(poses),
-    });
-  c.frames.sort((a, b) => a.time - b.time);
+  const tracks = ensureTracks(c);
+  for (const dancer of c.dancers) {
+    const pose =
+      poses.find((item) => item.dancerId === dancer.id) ??
+      defaultPose(dancer.id);
+    saveDancerFrame(c, dancer.id, "position", t, pose, false);
+    saveDancerFrame(c, dancer.id, "color", t, pose, false);
+  }
+  rebuildFrames(c);
+}
+export function saveDancerFrame(
+  c: Choreography,
+  dancerId: string,
+  kind: TrackKind,
+  time: number,
+  pose = sampleDancer(c, dancerId, time),
+  rebuild = true,
+) {
+  if (!pose) throw new Error("舞者不存在。");
+  const t = frameTime(time),
+    tracks = ensureTracks(c),
+    track = tracks.find((item) => item.dancerId === dancerId);
+  if (!track) throw new Error("舞者不存在。");
+  if (kind === "position") {
+    if (!track.positionFrames.length && t > 0)
+      track.positionFrames.push({
+        id: crypto.randomUUID(),
+        time: 0,
+        x: 0.5,
+        y: 0.5,
+        visible: false,
+      });
+    const existing = track.positionFrames.find((frame) =>
+      sameTime(frame.time, t),
+    );
+    const next = { x: pose.x, y: pose.y, visible: pose.visible };
+    if (existing) Object.assign(existing, next);
+    else
+      track.positionFrames.push({ id: crypto.randomUUID(), time: t, ...next });
+    track.positionFrames.sort((a, b) => a.time - b.time);
+  } else {
+    if (!track.colorFrames.length && t > 0)
+      track.colorFrames.push({
+        id: crypto.randomUUID(),
+        time: 0,
+        left: "极橙",
+        right: "极橙",
+      });
+    const existing = track.colorFrames.find((frame) => sameTime(frame.time, t));
+    const next = { left: pose.left, right: pose.right };
+    if (existing) Object.assign(existing, next);
+    else track.colorFrames.push({ id: crypto.randomUUID(), time: t, ...next });
+    track.colorFrames.sort((a, b) => a.time - b.time);
+  }
+  if (rebuild) rebuildFrames(c);
 }
 export function addDancer(c: Choreography, name: string, time: number) {
   if (!name.trim()) throw new Error("请输入姓名。");
   const id = crypto.randomUUID();
+  const tracks = ensureTracks(c);
   c.dancers.push({ id, name: name.trim() });
-  for (const frame of c.frames) frame.poses.push(defaultPose(id));
+  tracks.push({
+    dancerId: id,
+    positionFrames: [],
+    colorFrames: [],
+  });
   setVisibility(c, id, time, true);
+  saveDancerFrame(c, id, "color", time);
   return id;
 }
 export function setVisibility(
@@ -166,12 +408,13 @@ export function setVisibility(
   visible: boolean,
 ) {
   const t = frameTime(time);
-  saveFrame(c, t);
-  for (const frame of c.frames)
-    if (frame.time >= t) {
-      const pose = frame.poses.find((p) => p.dancerId === id);
-      if (pose) pose.visible = visible;
-    }
+  const pose = sampleDancer(c, id, t);
+  if (!pose) throw new Error("舞者不存在。");
+  saveDancerFrame(c, id, "position", t, { ...pose, visible }, false);
+  const track = ensureTracks(c).find((item) => item.dancerId === id)!;
+  for (const frame of track.positionFrames)
+    if (frame.time >= t) frame.visible = visible;
+  rebuildFrames(c);
 }
 export function changePose(
   c: Choreography,
@@ -179,17 +422,21 @@ export function changePose(
   time: number,
   patch: Partial<Omit<Pose, "dancerId">>,
 ) {
-  const poses = sampleFormation(c, time);
-  const pose = poses.find((p) => p.dancerId === id);
+  const pose = sampleDancer(c, id, time);
   if (!pose) throw new Error("舞者不存在。");
   Object.assign(pose, patch);
   poseSchema.parse(pose);
-  saveFrame(c, time, poses);
+  if ("x" in patch || "y" in patch || "visible" in patch)
+    saveDancerFrame(c, id, "position", time, pose, false);
+  if ("left" in patch || "right" in patch)
+    saveDancerFrame(c, id, "color", time, pose, false);
+  rebuildFrames(c);
 }
 export function deleteDancer(c: Choreography, id: string) {
+  ensureTracks(c);
   c.dancers = c.dancers.filter((d) => d.id !== id);
-  for (const frame of c.frames)
-    frame.poses = frame.poses.filter((p) => p.dancerId !== id);
+  c.tracks = c.tracks.filter((track) => track.dancerId !== id);
+  rebuildFrames(c);
 }
 export function moveFrame(
   c: Choreography,
@@ -209,6 +456,50 @@ export function moveFrame(
   f.time = t;
   c.frames.sort((a, b) => a.time - b.time);
 }
+export function moveDancerFrame(
+  c: Choreography,
+  dancerId: string,
+  kind: TrackKind,
+  id: string,
+  time: number,
+  duration?: number,
+) {
+  const t = frameTime(time, duration),
+    track = ensureTracks(c).find((item) => item.dancerId === dancerId);
+  if (!track) throw new Error("舞者不存在。");
+  const frames = kind === "position" ? track.positionFrames : track.colorFrames;
+  if (frames.some((frame) => frame.id !== id && sameTime(frame.time, t)))
+    throw new Error(
+      `该舞者在此时刻已有${kind === "position" ? "位置" : "颜色"}关键帧。`,
+    );
+  const frame = frames.find((item) => item.id === id);
+  if (!frame) throw new Error("关键帧不存在。");
+  frame.time = t;
+  frames.sort((a, b) => a.time - b.time);
+  rebuildFrames(c);
+}
+export function removeDancerFrame(
+  c: Choreography,
+  dancerId: string,
+  kind: TrackKind,
+  id: string,
+) {
+  const track = ensureTracks(c).find((item) => item.dancerId === dancerId);
+  if (!track) throw new Error("舞者不存在。");
+  const frames = kind === "position" ? track.positionFrames : track.colorFrames;
+  const before = frames.length;
+  if (kind === "position")
+    track.positionFrames = track.positionFrames.filter(
+      (frame) => frame.id !== id,
+    );
+  else track.colorFrames = track.colorFrames.filter((frame) => frame.id !== id);
+  if (
+    (kind === "position" ? track.positionFrames : track.colorFrames).length ===
+    before
+  )
+    throw new Error("关键帧不存在。");
+  rebuildFrames(c);
+}
 
 /** Resize every formation; unscaled coordinates preserve offsets from the stage center. */
 export function resizeCanvas(
@@ -220,18 +511,20 @@ export function resizeCanvas(
   const next = canvasSchema.parse({ width, height });
   const previous = c.canvas ?? { width: 800, height: 600 };
   if (previous.width === width && previous.height === height) return;
+  const tracks = ensureTracks(c);
   if (!scalePositions) {
-    for (const frame of c.frames)
-      for (const pose of frame.poses) {
-        pose.x = Math.max(
+    for (const track of tracks)
+      for (const frame of track.positionFrames) {
+        frame.x = Math.max(
           0.03,
-          Math.min(0.97, 0.5 + ((pose.x - 0.5) * previous.width) / width),
+          Math.min(0.97, 0.5 + ((frame.x - 0.5) * previous.width) / width),
         );
-        pose.y = Math.max(
+        frame.y = Math.max(
           0.04,
-          Math.min(0.96, 0.5 + ((pose.y - 0.5) * previous.height) / height),
+          Math.min(0.96, 0.5 + ((frame.y - 0.5) * previous.height) / height),
         );
       }
   }
   c.canvas = next;
+  rebuildFrames(c);
 }

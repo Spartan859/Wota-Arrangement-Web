@@ -25,6 +25,7 @@ type Props = {
   getTime: () => number;
   pause: () => void;
   onError: (message: string) => void;
+  onDancerSelect?: (id: string | null) => void;
 };
 export function FormationCanvas({
   project,
@@ -33,6 +34,7 @@ export function FormationCanvas({
   getTime,
   pause,
   onError,
+  onDancerSelect,
 }: Props) {
   const c = project.choreography ?? emptyChoreography();
   const stageWidth = c.canvas?.width ?? 800,
@@ -161,7 +163,11 @@ export function FormationCanvas({
           <select
             aria-label="选择舞者"
             value={selectedDancer?.id ?? ""}
-            onChange={(e) => setSelected(e.target.value || null)}
+            onChange={(e) => {
+              const id = e.target.value || null;
+              setSelected(id);
+              onDancerSelect?.(id);
+            }}
           >
             <option value="">选择舞者</option>
             {c.dancers.map((d) => (
@@ -306,6 +312,7 @@ export function FormationCanvas({
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !readOnly) {
                     setSelected(d.id);
+                    onDancerSelect?.(d.id);
                     freeze();
                     setHand("left");
                     setModal("color");
@@ -316,6 +323,7 @@ export function FormationCanvas({
                   e.preventDefault();
                   const wasSelected = selected === d.id;
                   setSelected(d.id);
+                  onDancerSelect?.(d.id);
                   const t = freeze();
                   const current = sampleFormation(c, t).find(
                     (p) => p.dancerId === d.id,
@@ -499,15 +507,21 @@ export function FormationCanvas({
             className="primary"
             disabled={!name.trim() || readOnly}
             onClick={() => {
-              if (modal === "add")
+              if (modal === "add") {
+                let addedId = "";
                 run((c) => {
-                  setSelected(addDancer(c, name, frozenTime.current));
+                  addedId = addDancer(c, name, frozenTime.current);
                 });
-              else
+                if (addedId) {
+                  setSelected(addedId);
+                  onDancerSelect?.(addedId);
+                }
+              } else {
                 run((c) => {
                   const d = c.dancers.find((d) => d.id === selected);
                   if (d) d.name = name.trim();
                 });
+              }
               setModal(modal === "rename" && renameFromColor ? "color" : null);
             }}
           >
@@ -523,6 +537,7 @@ export function FormationCanvas({
             onClick={() => {
               run((c) => deleteDancer(c, selected!));
               setSelected(null);
+              onDancerSelect?.(null);
               setModal(null);
             }}
           >

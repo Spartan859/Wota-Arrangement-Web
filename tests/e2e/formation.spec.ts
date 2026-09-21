@@ -81,7 +81,9 @@ test("舞者双手颜色、拖动建帧、插值、登退场、撤销和刷新",
   });
   await page.mouse.up();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(page.locator(".formation-key")).toHaveCount(2);
+  await expect(
+    page.getByLabel("位置关键帧").locator(".formation-key"),
+  ).toHaveCount(2);
   const finalX = await getX(page, "小一");
   expect(finalX).toBeGreaterThan(400);
   await at(page, 2);
@@ -96,10 +98,13 @@ test("舞者双手颜色、拖动建帧、插值、登退场、撤销和刷新",
   await expect(page.locator(".save-state")).toContainText("已保存");
   await page.reload();
   await expect(dancer).toBeVisible();
-  await expect(page.locator(".formation-key")).toHaveCount(2);
+  await page.getByLabel("选择舞者").selectOption({ label: "小一" });
+  await expect(
+    page.getByLabel("位置关键帧").locator(".formation-key"),
+  ).toHaveCount(2);
   expect(errors).toEqual([]);
 });
-test("共享轨道改时冲突、越界保留、删除与窄屏切换", async ({ page }) => {
+test("独立轨道改时冲突、越界保留、删除与窄屏切换", async ({ page }) => {
   await page.setViewportSize({ width: 922, height: 880 });
   await boot(page);
   await page
@@ -109,9 +114,12 @@ test("共享轨道改时冲突、越界保留、删除与窄屏切换", async ({
   await song(page);
   await at(page, 2);
   await add(page, "入场者");
-  await expect(page.locator(".formation-key")).toHaveCount(2);
-  await page.locator(".formation-key").nth(1).click();
-  await page.getByRole("button", { name: "关键帧时间", exact: true }).click();
+  await expect(
+    page.getByLabel("位置关键帧").locator(".formation-key"),
+  ).toHaveCount(2);
+  await page
+    .getByRole("button", { name: "位置关键帧时间", exact: true })
+    .click();
   await page.getByLabel("关键帧秒数").fill("0");
   await page
     .getByRole("button", { name: "保存关键帧时间", exact: true })
@@ -124,12 +132,23 @@ test("共享轨道改时冲突、越界保留、删除与窄屏切换", async ({
     .getByRole("button", { name: "保存关键帧时间", exact: true })
     .click();
   await song(page, 3);
-  await expect(page.locator(".formation-key.out-of-range")).toHaveCount(1);
-  await page.locator(".formation-key.out-of-range").click();
-  await page.getByRole("button", { name: "删除关键帧", exact: true }).click();
-  await expect(page.locator(".formation-key")).toHaveCount(1);
+  await expect(
+    page.getByLabel("位置关键帧").locator(".formation-key.out-of-range"),
+  ).toHaveCount(1);
+  await page
+    .getByLabel("位置关键帧")
+    .locator(".formation-key.out-of-range")
+    .click();
+  await page
+    .getByRole("button", { name: "位置切换当前关键帧", exact: true })
+    .click();
+  await expect(
+    page.getByLabel("位置关键帧").locator(".formation-key"),
+  ).toHaveCount(1);
   await page.getByRole("button", { name: "撤销", exact: true }).click();
-  await expect(page.locator(".formation-key")).toHaveCount(2);
+  await expect(
+    page.getByLabel("位置关键帧").locator(".formation-key"),
+  ).toHaveCount(2);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByLabel("舞台俯视图")).toBeVisible();
   expect(
@@ -137,6 +156,38 @@ test("共享轨道改时冲突、越界保留、删除与窄屏切换", async ({
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
+});
+
+test("位置与颜色轨道的当前帧菱形独立添加和删除", async ({ page }) => {
+  await formationFixture(page);
+  await at(page, 2);
+  const position = page.getByLabel("位置关键帧").locator(".formation-key"),
+    color = page.getByLabel("颜色关键帧").locator(".formation-key");
+  await expect(position).toHaveCount(2);
+  await expect(color).toHaveCount(2);
+  const layers = await page.evaluate(() => ({
+    playhead: Number(
+      getComputedStyle(document.querySelector(".playhead")!).zIndex,
+    ),
+    keyframe: Number(
+      getComputedStyle(document.querySelector(".formation-key")!).zIndex,
+    ),
+  }));
+  expect(layers.playhead).toBeGreaterThan(layers.keyframe);
+  await page
+    .getByRole("button", { name: "位置切换当前关键帧", exact: true })
+    .click();
+  await expect(position).toHaveCount(3);
+  await expect(color).toHaveCount(2);
+  await page
+    .getByRole("button", { name: "颜色切换当前关键帧", exact: true })
+    .click();
+  await expect(color).toHaveCount(3);
+  await page
+    .getByRole("button", { name: "位置切换当前关键帧", exact: true })
+    .click();
+  await expect(position).toHaveCount(2);
+  await expect(color).toHaveCount(3);
 });
 
 async function formationFixture(page: Page) {
@@ -175,6 +226,7 @@ async function formationFixture(page: Page) {
     ),
   });
   await expect(page.getByLabel("歌曲名称")).toHaveValue("队形测试");
+  await page.getByLabel("选择舞者").selectOption("alice");
   await song(page);
 }
 test("多人同步播放、变速与AB回跳，拖动关键帧和边界限制", async ({ page }) => {
@@ -200,8 +252,11 @@ test("多人同步播放、变速与AB回跳，拖动关键帧和边界限制", 
     .click();
   await page.getByRole("button", { name: "暂停", exact: true }).click();
   await page.getByLabel("时间轴缩放").fill("2");
-  const key = page.locator(".formation-key").nth(1),
-    lane = (await page.locator(".formation-key-lane").boundingBox())!,
+  const key = page.getByLabel("位置关键帧").locator(".formation-key").nth(1),
+    lane = (await page
+      .getByLabel("位置关键帧")
+      .locator(".formation-key-lane")
+      .boundingBox())!,
     box = (await key.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
@@ -212,6 +267,9 @@ test("多人同步播放、变速与AB回跳，拖动关键帧和边界限制", 
   );
   await page.mouse.up();
   await expect(key).toHaveAttribute("title", "00:05.00");
+  await expect(
+    page.getByLabel("颜色关键帧").locator(".formation-key").nth(1),
+  ).toHaveAttribute("title", "00:04.00");
   await expect(page.locator(".timeline-block")).toHaveCount(0);
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await at(page, 5);
@@ -240,8 +298,12 @@ test("冲突后禁止队形修改，可另存副本，全曲删除可撤销", as
   await expect(
     second.getByRole("button", { name: "添加舞者", exact: true }),
   ).toBeDisabled();
+  await second.getByLabel("选择舞者").selectOption("alice");
   await expect(
-    second.getByRole("button", { name: "记录队形", exact: true }),
+    second.getByRole("button", {
+      name: "位置切换当前关键帧",
+      exact: true,
+    }),
   ).toBeDisabled();
   await second.getByRole("button", { name: "保留副本", exact: true }).click();
   await second.getByLabel("选择舞者").selectOption("alice");
@@ -410,7 +472,7 @@ test("尺寸弹窗选择缩放站位，标题栏操作及全帧保留坐标", as
 
 test("关键帧捕获丢失后松手保存，全局松开只提交一次", async ({ page }) => {
   await formationFixture(page);
-  const key = page.locator(".formation-key").nth(1);
+  const key = page.getByLabel("位置关键帧").locator(".formation-key").nth(1);
   await key.evaluate((el) =>
     el.addEventListener("pointerdown", (e) => {
       (el as HTMLElement).dataset.pointerId = String(
@@ -595,7 +657,10 @@ test("旧本地草稿导出文件后立即导入保留队形", async ({ page }) 
       }),
   );
   await page.reload();
-  await expect(page.locator(".formation-key")).toHaveCount(2);
+  await page.getByLabel("选择舞者").selectOption("alice");
+  await expect(
+    page.getByLabel("位置关键帧").locator(".formation-key"),
+  ).toHaveCount(2);
   await page.getByRole("button", { name: "导出", exact: true }).click();
   const downloaded = page.waitForEvent("download");
   await page
@@ -610,7 +675,10 @@ test("旧本地草稿导出文件后立即导入保留队形", async ({ page }) 
   await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
   await page.getByLabel("打开项目文件").setInputFiles((await file.path())!);
   await expect(page.getByRole("alert")).toHaveCount(0);
-  await expect(page.locator(".formation-key")).toHaveCount(2);
+  await page.getByLabel("选择舞者").selectOption("alice");
+  await expect(
+    page.getByLabel("位置关键帧").locator(".formation-key"),
+  ).toHaveCount(2);
   await expect(page.getByLabel("歌曲名称")).toHaveValue("队形测试");
   await expect(page.getByLabel("选择舞者").locator("option")).toHaveCount(3);
   await expect(
@@ -788,7 +856,6 @@ test("换棒列表隐藏黑色并在同一Excel表底部附简化圆点", async 
   // Both empty hands discard sticks; taking the original colors again consumes new ones.
   await at(page, 1);
   const dancer = page.getByRole("button", { name: "舞者 甲", exact: true });
-  await dancer.click();
   await dancer.click();
   await page
     .getByRole("dialog")

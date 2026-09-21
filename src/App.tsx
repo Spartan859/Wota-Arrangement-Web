@@ -49,6 +49,7 @@ export default function App() {
     [time, setTime] = useState(0),
     [pendingTime, setPendingTime] = useState<number | null>(null);
   const [workspaceView, setWorkspaceView] = useState("blocks");
+  const [formationDancer, setFormationDancer] = useState<string | null>(null);
   const [follow, setFollow] = useState(true);
   const [audioReady, setAudioReady] = useState(false),
     [loop, setLoop] = useState<string | null>(null);
@@ -80,6 +81,7 @@ export default function App() {
   }
   useEffect(() => {
     setSelected(null);
+    setFormationDancer(null);
     setLoop(null);
     setModal(null);
     audioRequest.current++;
@@ -387,6 +389,7 @@ export default function App() {
             getTime={() => (audioReady ? (player.current?.getTime() ?? 0) : 0)}
             pause={() => player.current?.pause()}
             onError={fail}
+            onDancerSelect={setFormationDancer}
           />
         </div>
         <section className="timeline-panel">
@@ -395,6 +398,7 @@ export default function App() {
             ref={player}
             project={p}
             edit={store.edit}
+            formationDancerId={formationDancer}
             loopId={loop}
             onLoop={setLoop}
             onTime={(position, playing) => {

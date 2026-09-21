@@ -11,6 +11,9 @@ import {
   moveFrame,
   deleteDancer,
   colors,
+  getDancerFrames,
+  moveDancerFrame,
+  removeDancerFrame,
 } from "../src/core/choreography";
 import { backup, parseProject, project, History } from "../src/core/model";
 describe("全员队形", () => {
@@ -75,6 +78,33 @@ describe("全员队形", () => {
     addDancer(p.choreography, "A", 10);
     p.audio = { id: null, name: "short", duration: 3 };
     expect(parseProject(backup(p)).choreography).toEqual(p.choreography);
+  });
+  it("每位舞者的位置与颜色关键帧独立增删、移动和采样", () => {
+    const c = emptyChoreography(),
+      a = addDancer(c, "A", 0),
+      b = addDancer(c, "B", 0);
+    changePose(c, a, 2, { x: 0.8 });
+    changePose(c, a, 3, { left: "极蓝" });
+    changePose(c, b, 4, { x: 0.2, left: "极红" });
+    expect(
+      getDancerFrames(c, a, "position").map((frame) => frame.time),
+    ).toEqual([0, 2]);
+    expect(getDancerFrames(c, a, "color").map((frame) => frame.time)).toEqual([
+      0, 3,
+    ]);
+    expect(
+      sampleFormation(c, 2.5).find((pose) => pose.dancerId === a),
+    ).toMatchObject({
+      x: 0.8,
+      left: "极橙",
+    });
+    const position = getDancerFrames(c, a, "position")[1];
+    moveDancerFrame(c, a, "position", position.id, 5, 10);
+    expect(getDancerFrames(c, a, "position")[1].time).toBe(5);
+    expect(getDancerFrames(c, a, "color")[1].time).toBe(3);
+    removeDancerFrame(c, a, "color", getDancerFrames(c, a, "color")[1].id);
+    expect(getDancerFrames(c, a, "color")).toHaveLength(1);
+    expect(getDancerFrames(c, b, "position")).toHaveLength(2);
   });
 });
 

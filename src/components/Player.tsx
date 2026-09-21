@@ -24,6 +24,7 @@ export type PlayerHandle = {
 type Props = {
   project: Project;
   edit: (fn: (p: Project) => void) => void;
+  formationDancerId?: string | null;
   loopId: string | null;
   onLoop: (id: string | null) => void;
   onTime: (time: number, playing: boolean) => void;
@@ -48,6 +49,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
   {
     project: p,
     edit,
+    formationDancerId,
     loopId,
     onLoop,
     onTime,
@@ -798,6 +800,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
             key={p.id}
             project={p}
             edit={edit}
+            selectedDancerId={formationDancerId}
             readOnly={readOnly}
             duration={duration}
             loaded={loaded}

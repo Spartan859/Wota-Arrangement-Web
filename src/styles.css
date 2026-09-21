@@ -2369,3 +2369,79 @@ fieldset {
   font-size: 12px;
   padding: 6px 9px;
 }
+/* Selected-dancer PR-style tracks. */
+.formation-track.has-dancer {
+  top: 94px;
+  height: 76px;
+}
+.formation-track-name {
+  position: sticky;
+  left: 4px;
+  width: max-content;
+  max-width: 140px;
+  height: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 700;
+  color: #34445e;
+  z-index: 4;
+}
+.formation-subtrack {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 26px;
+}
+.formation-track-row-tools {
+  position: sticky;
+  left: 4px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  width: max-content;
+  height: 24px;
+  gap: 3px;
+  padding: 1px 4px;
+  background: color-mix(in srgb, #f7f9fc 92%, transparent);
+  border: 1px solid #d7dfeb;
+  border-radius: 4px;
+}
+.formation-track-row-tools strong {
+  width: 24px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.formation-track-row-tools button {
+  min-width: 20px;
+  padding: 2px 4px;
+  font-size: 10px;
+  line-height: 1.2;
+}
+.formation-subtrack .formation-key-lane {
+  position: absolute;
+  top: 2px;
+  left: 0;
+  right: 0;
+  height: 22px;
+}
+.formation-subtrack:nth-of-type(2) {
+  top: 20px;
+}
+.formation-subtrack:nth-of-type(3) {
+  top: 48px;
+}
+.formation-track-empty {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  color: var(--muted);
+  font-size: 10px;
+}
+.playhead {
+  z-index: 30;
+}
+.formation-track {
+  z-index: 11;
+}
