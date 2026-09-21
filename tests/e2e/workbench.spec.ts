@@ -525,3 +525,61 @@ test("跟随播放读取最新缩放和开关状态", async ({ page }) => {
     .toBeGreaterThan(stopped);
   await page.getByRole("button", { name: "暂停", exact: true }).click();
 });
+
+test("段落拖动丢失捕获或失焦后停止，无按键移动不继续拖动", async ({ page }) => {
+  await timedProject(page);
+  const clip = page.locator(".timeline-block").first();
+  const original = await clip.getAttribute("title");
+  for (const reason of ["lostpointercapture", "blur", "pointercancel"]) {
+    const box = (await clip.boundingBox())!;
+    await clip.evaluate((el) =>
+      el.addEventListener("pointerdown", (e) => {
+        (el as HTMLElement).dataset.pointerId = String(
+          (e as PointerEvent).pointerId,
+        );
+      }),
+    );
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 30, box.y + box.height / 2, {
+      steps: 4,
+    });
+    await expect(clip).not.toHaveAttribute("title", original!);
+    await clip.evaluate((el, reason) => {
+      const id = Number((el as HTMLElement).dataset.pointerId);
+      if (reason === "blur") window.dispatchEvent(new Event("blur"));
+      else if (reason === "lostpointercapture") el.releasePointerCapture(id);
+      else
+        window.dispatchEvent(
+          new PointerEvent("pointercancel", { pointerId: id }),
+        );
+    }, reason);
+    await expect(clip).toHaveAttribute("title", original!);
+    await page.mouse.up();
+    await page.mouse.move(box.x + box.width / 2 + 50, box.y + box.height / 2);
+    await expect(clip).toHaveAttribute("title", original!);
+  }
+  const box = (await clip.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 25, box.y + box.height / 2, {
+    steps: 3,
+  });
+  const preview = await clip.getAttribute("title");
+  await clip.evaluate((el) =>
+    window.dispatchEvent(
+      new PointerEvent("pointermove", {
+        pointerId: Number((el as HTMLElement).dataset.pointerId),
+        buttons: 0,
+        clientX: 900,
+        clientY: 500,
+      }),
+    ),
+  );
+  await expect(clip).toHaveAttribute("title", preview!);
+  await page.mouse.up();
+  await page.mouse.move(box.x + box.width / 2 + 55, box.y + box.height / 2);
+  await expect(clip).toHaveAttribute("title", preview!);
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(clip).toHaveAttribute("title", original!);
+});

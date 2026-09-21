@@ -1,3 +1,4 @@
+import { usePointerDrag } from "./usePointerDrag";
 import { useRef, useState } from "react";
 import type { Project } from "../core/model";
 import {
@@ -29,6 +30,10 @@ export function FormationTrack({
   seek: (time: number) => void;
   onError: (message: string) => void;
 }) {
+  const beginDrag = usePointerDrag(
+    `${p.id}:${p.audio?.id}`,
+    readOnly || !loaded,
+  );
   const [selected, setSelected] = useState<string | null>(null),
     [editing, setEditing] = useState(false),
     [value, setValue] = useState("");
@@ -141,7 +146,8 @@ export function FormationTrack({
               if (loaded && f.time <= duration) seek(f.time);
             }}
             onPointerDown={(e) => {
-              if (readOnly || !loaded || e.button !== 0) return;
+              if (readOnly || !loaded || e.button !== 0 || !e.isPrimary) return;
+              suppressClick.current = false;
               pause();
               setSelected(f.id);
               const element = e.currentTarget,
@@ -161,8 +167,9 @@ export function FormationTrack({
                 );
                 setPreview({ id: f.id, time });
               };
-              const finish = (cancel: boolean) => {
+              beginDrag(e, move, (cancel) => {
                 suppressClick.current = moved;
+                setPreview(null);
                 if (moved && !cancel)
                   attempt(() =>
                     edit((d) => {
@@ -170,17 +177,7 @@ export function FormationTrack({
                         moveFrame(d.choreography, f.id, time, duration);
                     }),
                   );
-                setPreview(null);
-                element.removeEventListener("pointermove", move);
-                element.removeEventListener("pointerup", up);
-                element.removeEventListener("pointercancel", abort);
-              };
-              const up = () => finish(false),
-                abort = () => finish(true);
-              element.setPointerCapture(e.pointerId);
-              element.addEventListener("pointermove", move);
-              element.addEventListener("pointerup", up);
-              element.addEventListener("pointercancel", abort);
+              });
             }}
           >
             ◆

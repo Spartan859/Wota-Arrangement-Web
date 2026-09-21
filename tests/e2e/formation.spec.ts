@@ -403,3 +403,53 @@ test("尺寸弹窗选择缩放站位，按钮相邻及全帧保留坐标", async
   await page.reload();
   await expect.poll(() => getX(page, "甲")).toBeCloseTo(1200, 0);
 });
+
+test("关键帧拖动全局松开只提交一次，捕获丢失回退", async ({ page }) => {
+  await formationFixture(page);
+  const key = page.locator(".formation-key").nth(1);
+  await key.evaluate((el) =>
+    el.addEventListener("pointerdown", (e) => {
+      (el as HTMLElement).dataset.pointerId = String(
+        (e as PointerEvent).pointerId,
+      );
+    }),
+  );
+  let box = (await key.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 50, box.y + box.height / 2, {
+    steps: 4,
+  });
+  await key.evaluate((el) =>
+    el.releasePointerCapture(Number((el as HTMLElement).dataset.pointerId)),
+  );
+  await expect
+    .poll(() =>
+      key.evaluate((el) => parseFloat((el as HTMLElement).style.left)),
+    )
+    .toBeCloseTo(100 / 3, 2);
+  await page.mouse.up();
+  await page.mouse.move(box.x + box.width / 2 + 80, box.y + box.height / 2);
+  await expect(key).toHaveAttribute("title", "00:04.00");
+  box = (await key.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 30, box.y + box.height / 2, {
+    steps: 4,
+  });
+  await key.evaluate((el) =>
+    document.body.dispatchEvent(
+      new PointerEvent("pointerup", {
+        bubbles: true,
+        pointerId: Number((el as HTMLElement).dataset.pointerId),
+      }),
+    ),
+  );
+  await expect(key).not.toHaveAttribute("title", "00:04.00");
+  const committed = await key.getAttribute("title");
+  await page.mouse.up();
+  await page.mouse.move(box.x + box.width / 2 + 100, box.y + box.height / 2);
+  await expect(key).toHaveAttribute("title", committed!);
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(key).toHaveAttribute("title", "00:04.00");
+});

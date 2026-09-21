@@ -1,3 +1,4 @@
+import { usePointerDrag } from "./usePointerDrag";
 import { FormationTrack } from "./FormationTrack";
 import {
   forwardRef,
@@ -66,6 +67,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
   },
   ref,
 ) {
+  const beginDrag = usePointerDrag(`${p.id}:${p.audio?.id}`, readOnly);
   const playhead = useRef<HTMLSpanElement>(null);
   const timelineScroll = useRef<HTMLDivElement>(null);
   // Position is owned by the audio animation frame, not the throttled React state.
@@ -642,9 +644,12 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
                       e.stopPropagation();
                       if (
                         (e.target as HTMLElement).closest(".timeline-delete") ||
-                        e.button !== 0
+                        e.button !== 0 ||
+                        !e.isPrimary ||
+                        readOnly
                       )
                         return;
+                      audio.current?.pause();
                       const element = e.currentTarget;
                       const rect = element.getBoundingClientRect();
                       const width =
@@ -672,23 +677,14 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
                         );
                         setDraftRanges({ [b.id]: next });
                       };
-                      const finish = (cancelled: boolean) => {
+                      beginDrag(e, move, (cancelled) => {
+                        setDraftRanges({});
                         if (moved && !cancelled)
                           onUpdateRange?.(b.id, {
                             start: next.start,
                             end: next.end,
                           });
-                        setDraftRanges({});
-                        element.removeEventListener("pointermove", move);
-                        element.removeEventListener("pointerup", up);
-                        element.removeEventListener("pointercancel", cancel);
-                      };
-                      const up = () => finish(false);
-                      const cancel = () => finish(true);
-                      element.setPointerCapture(e.pointerId);
-                      element.addEventListener("pointermove", move);
-                      element.addEventListener("pointerup", up);
-                      element.addEventListener("pointercancel", cancel);
+                      });
                     }}
                     title={`${b.type} ${formatTime(range.start)} — ${formatTime(range.end)}`}
                   >
