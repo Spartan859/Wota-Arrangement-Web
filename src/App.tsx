@@ -17,7 +17,6 @@ import {
   insertAt,
   parseProject,
   project,
-  removeBlock,
   sectionTypes,
   uid,
   type Block,
@@ -45,10 +44,13 @@ export default function App() {
     p = store.document;
   const player = useRef<PlayerHandle>(null),
     audioRequest = useRef(0);
-  const [selected, setSelected] = useState<string | null>(null),
+  const [selectedIds, setSelectedIds] = useState<string[]>([]),
+    [primarySelectedId, setPrimarySelectedId] = useState<string | null>(null),
+    [selectionAnchor, setSelectionAnchor] = useState<string | null>(null),
     [time, setTime] = useState(0),
     [pendingTime, setPendingTime] = useState<number | null>(null);
   const [workspaceView, setWorkspaceView] = useState("blocks");
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [formationDancer, setFormationDancer] = useState<string | null>(null);
   const [follow, setFollow] = useState(true);
   const [audioReady, setAudioReady] = useState(false),
@@ -60,7 +62,8 @@ export default function App() {
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false);
   const currentBlock =
-    p.blocks.find((b) => b.id === selected) ?? activeBlock(p.blocks, time);
+    p.blocks.find((b) => b.id === primarySelectedId) ??
+    activeBlock(p.blocks, time);
   const currentLyric = activeLyric(p.blocks, time, p.audio?.duration ?? 0);
   const readOnly = store.conflict || busy;
   const fail = (message: string) => setError(message);
@@ -80,12 +83,87 @@ export default function App() {
     }
   }
   useEffect(() => {
-    setSelected(null);
+    setSelectedIds([]);
+    setPrimarySelectedId(null);
+    setSelectionAnchor(null);
+    setMultiSelectMode(false);
     setFormationDancer(null);
     setLoop(null);
     setModal(null);
     audioRequest.current++;
   }, [p.id]);
+  useEffect(() => {
+    const valid = new Set(p.blocks.map((b) => b.id));
+    const nextSelected = selectedIds.filter((id) => valid.has(id));
+    if (nextSelected.length !== selectedIds.length)
+      setSelectedIds(nextSelected);
+    setPrimarySelectedId((id) =>
+      id && valid.has(id) ? id : (nextSelected[0] ?? null),
+    );
+    setSelectionAnchor((id) => (id && valid.has(id) ? id : null));
+  }, [p.blocks, selectedIds]);
+  const selectSingle = (id: string | null) => {
+    setSelectedIds((current) =>
+      id && current.length === 1 && current[0] === id
+        ? current
+        : id
+          ? [id]
+          : [],
+    );
+    setPrimarySelectedId((current) => (current === id ? current : id));
+    setSelectionAnchor((current) => (current === id ? current : id));
+  };
+  const selectBlock = (
+    id: string,
+    gesture: { additive?: boolean; range?: boolean } = {},
+  ) => {
+    const selectedBlock = p.blocks.find((b) => b.id === id);
+    if (!selectedBlock) return;
+    if (selectedBlock.start === null || selectedBlock.end === null) {
+      selectSingle(id);
+      return;
+    }
+    const ordered = p.blocks
+      .map((b, index) => ({ b, index }))
+      .filter(({ b }) => b.start !== null && b.end !== null)
+      .sort((a, b) => a.b.start! - b.b.start! || a.index - b.index)
+      .map(({ b }) => b);
+    if (gesture.range && selectionAnchor) {
+      const anchorIndex = ordered.findIndex((b) => b.id === selectionAnchor);
+      const targetIndex = ordered.findIndex((b) => b.id === id);
+      if (anchorIndex >= 0 && targetIndex >= 0) {
+        const [from, to] = [anchorIndex, targetIndex].sort((a, b) => a - b);
+        setSelectedIds(ordered.slice(from, to + 1).map((b) => b.id));
+        setPrimarySelectedId(id);
+        return;
+      }
+    }
+    if (gesture.additive) {
+      const next = selectedIds.includes(id)
+        ? selectedIds.filter((selectedId) => selectedId !== id)
+        : [...selectedIds, id];
+      setSelectedIds(next);
+      setPrimarySelectedId(next.includes(id) ? id : (next[0] ?? null));
+      setSelectionAnchor(id);
+      return;
+    }
+    selectSingle(id);
+  };
+  const deleteBlocks = (ids: string[]) => {
+    const removeIds = new Set(ids);
+    if (!removeIds.size) return;
+    store.edit((d) => {
+      d.blocks = d.blocks.filter((b) => !removeIds.has(b.id));
+    });
+    const remaining = selectedIds.filter((id) => !removeIds.has(id));
+    setSelectedIds(remaining);
+    setPrimarySelectedId((id) =>
+      id && !removeIds.has(id) ? id : (remaining[0] ?? null),
+    );
+    setSelectionAnchor((id) =>
+      id && !removeIds.has(id) ? id : (remaining[0] ?? null),
+    );
+  };
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (
@@ -102,18 +180,17 @@ export default function App() {
         store.travel(e.shiftKey ? "redo" : "undo");
       }
       if (
-        e.key === "Delete" &&
-        selected &&
+        (e.key === "Backspace" || e.key === "Delete") &&
+        selectedIds.length > 0 &&
         !(e.target as HTMLElement)?.closest(".formation-panel,.formation-track")
       ) {
         e.preventDefault();
-        store.edit((d) => removeBlock(d, selected));
-        setSelected(null);
+        deleteBlocks(selectedIds);
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [readOnly, selected, p]);
+  }, [readOnly, selectedIds, p]);
   async function uploadAudio(file: File) {
     const request = ++audioRequest.current,
       projectId = p.id;
@@ -196,7 +273,30 @@ export default function App() {
         patch,
       ),
     );
-    setSelected(id);
+    selectSingle(id);
+  };
+  const updateRanges = (
+    ranges: Record<string, { start: number; end: number }>,
+  ) => {
+    const ids = Object.keys(ranges);
+    if (!ids.length) return;
+    const nextBlocks = p.blocks.map((b) =>
+      ranges[b.id] ? { ...b, ...ranges[b.id] } : b,
+    );
+    const err = nextBlocks.reduce<string | null>((message, b) => {
+      if (message || !ranges[b.id]) return message;
+      return intervalError(b, nextBlocks, p.audio?.duration);
+    }, null);
+    if (err) {
+      fail(err);
+      return;
+    }
+    store.edit((d) => {
+      for (const [id, range] of Object.entries(ranges)) {
+        const target = d.blocks.find((b) => b.id === id);
+        if (target) Object.assign(target, range);
+      }
+    });
   };
   if (!store.ready) return <main className="loading">正在打开编排工作台…</main>;
   return (
@@ -364,7 +464,9 @@ export default function App() {
                 onLyricsImport={(rows) => {
                   if (rows.length)
                     store.edit((d) => {
-                      const b = d.blocks.find((x) => x.id === selected);
+                      const b = d.blocks.find(
+                        (x) => x.id === primarySelectedId,
+                      );
                       if (b)
                         b.lyrics = [
                           ...b.lyrics.filter(
@@ -415,7 +517,7 @@ export default function App() {
                   store.latest.current.blocks,
                   position,
                 );
-                setSelected(active?.id ?? null);
+                selectSingle(active?.id ?? null);
               }
             }}
             onPersist={(position) => {
@@ -431,17 +533,19 @@ export default function App() {
             onFollow={setFollow}
             readOnly={readOnly}
             onReady={setAudioReady}
-            selectedId={selected}
-            onSelect={(id) => setSelected(id)}
+            selectedIds={selectedIds}
+            primarySelectedId={primarySelectedId}
+            multiSelectMode={multiSelectMode}
+            onMultiSelectModeChange={setMultiSelectMode}
+            onSelect={selectBlock}
             onInsert={(t) => {
               setPendingTime(t);
               setModal("create");
             }}
             onUpdateRange={updateRange}
-            onDelete={(id) => {
-              store.edit((d) => removeBlock(d, id));
-              if (selected === id) setSelected(null);
-            }}
+            onUpdateRanges={updateRanges}
+            onDelete={(id) => deleteBlocks([id])}
+            onDeleteSelected={deleteBlocks}
             onCreate={() => {
               setPendingTime(null);
               setModal("create");
@@ -551,7 +655,7 @@ export default function App() {
           onClose={() => setModal(null)}
           onCreate={(b, t) => {
             store.edit((d) => insertAt(d, b, t));
-            setSelected(b.id);
+            selectSingle(b.id);
             setModal(null);
           }}
         />

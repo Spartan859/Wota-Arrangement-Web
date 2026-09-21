@@ -134,3 +134,5 @@ npm run commit -- <feat|fix|docs|chore> "简短说明" <文件>...
 ```
 
 脚本只会暂存命令中明确列出的文件，提交前运行 `git diff --check` 并验证暂存区；不会提交依赖、构建产物、个人媒体、日志、账号数据或凭据。脚本在暂存或提交前拒绝 `main`，配置 `origin` 时会自动 push 当前任务分支；未配置 remote 或当前为 detached HEAD 时脚本只完成本地提交并明确报告原因。每次运行前仍需先检查 `git status --short`，不要把已有的无关修改带入提交。push 后仍须获得用户对创建 Pull Request 的明确授权；即使 PR 已创建且全部门禁通过，合并前也须另行获得用户明确授权。禁止让脚本或代理直接向 `main` 提交或 push。
+
+当 GitHub 连接器的 PR 操作因权限审批超时不可用时，若提权执行 `gh auth status` 明确显示有效账号和 `repo` 权限，可使用提权 `gh pr create` 或 `gh pr merge` 作为 fallback。不得输出或写入 token；仍须遵守 CI、Copilot review、冲突检查和 PR 创建/合并授权门禁。

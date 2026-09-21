@@ -6,11 +6,20 @@ import {
   useImperativeHandle,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
-import { Music2, Pause, Play, Repeat2, Volume2 } from "lucide-react";
+import {
+  ListChecks,
+  Music2,
+  Pause,
+  Play,
+  Repeat2,
+  Volume2,
+} from "lucide-react";
 import type { Project } from "../core/model";
 import { db } from "../core/storage";
 import {
+  draggedGroupRanges,
   draggedRange,
   formatTime,
   insertionStart,
@@ -22,6 +31,7 @@ export type PlayerHandle = {
   getTime: () => number;
   pause: () => void;
 };
+type SelectionGesture = { additive?: boolean; range?: boolean };
 type Props = {
   project: Project;
   edit: (fn: (p: Project) => void) => void;
@@ -37,14 +47,21 @@ type Props = {
   onFollow: (follow: boolean) => void;
   readOnly: boolean;
   onReady: (ready: boolean) => void;
-  selectedId?: string | null;
-  onSelect?: (id: string) => void;
+  selectedIds?: string[];
+  primarySelectedId?: string | null;
+  multiSelectMode?: boolean;
+  onMultiSelectModeChange?: (enabled: boolean) => void;
+  onSelect?: (id: string, gesture?: SelectionGesture) => void;
   onInsert?: (time: number | null) => void;
   onUpdateRange?: (
     id: string,
     patch: { start?: number | null; end?: number | null },
   ) => void;
+  onUpdateRanges?: (
+    ranges: Record<string, { start: number; end: number }>,
+  ) => void;
   onDelete?: (id: string) => void;
+  onDeleteSelected?: (ids: string[]) => void;
   onCreate?: () => void;
 };
 export const Player = forwardRef<PlayerHandle, Props>(function Player(
@@ -63,19 +80,39 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     onFollow,
     readOnly,
     onReady,
-    selectedId,
+    selectedIds = [],
+    primarySelectedId,
+    multiSelectMode = false,
+    onMultiSelectModeChange,
     onSelect,
     onInsert,
     onUpdateRange,
+    onUpdateRanges,
     onDelete,
+    onDeleteSelected,
     onCreate,
   },
   ref,
 ) {
   const beginDrag = usePointerDrag(`${p.id}:${p.audio?.id}`, readOnly);
   const consumedSpace = useRef(false);
+  const suppressTimelineClick = useRef(false);
   const playhead = useRef<HTMLSpanElement>(null);
   const timelineScroll = useRef<HTMLDivElement>(null);
+  const handleBlockKeyDown = (
+    event: ReactKeyboardEvent<HTMLElement>,
+    id: string,
+  ) => {
+    if (
+      event.nativeEvent.isComposing ||
+      (event.key !== "Backspace" && event.key !== "Delete") ||
+      readOnly
+    )
+      return;
+    event.preventDefault();
+    event.stopPropagation();
+    onDeleteSelected?.(selectedIds.includes(id) ? selectedIds : [id]);
+  };
   // Position is owned by the audio animation frame, not the throttled React state.
   const drawPlayhead = (position: number, duration: number) => {
     if (playhead.current)
@@ -277,7 +314,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     onLoop(null);
     setAbEnabled(false);
   };
-  const selectedBlock = p.blocks.find((b) => b.id === selectedId);
+  const selectedBlock = p.blocks.find((b) => b.id === primarySelectedId);
   const startAbLoop = () => {
     if (!loaded || pointA === null || pointB === null || pointB <= pointA)
       return;
@@ -599,20 +636,37 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
         </button>
       </div>
       <div className="timeline-top">
-        <span>
+        <span className="timeline-heading">
           歌曲时间轴 <span className="muted">· 选中编辑，拖动边缘对时</span>
+          {selectedIds.length > 1 && (
+            <strong className="timeline-selection-count" role="status">
+              已选 {selectedIds.length} 段
+            </strong>
+          )}
         </span>
-        <label>
-          缩放{" "}
-          <input
-            aria-label="时间轴缩放"
-            type="range"
-            min="1"
-            max="8"
-            value={zoom}
-            onChange={(e) => setZoom(Number(e.target.value))}
-          />
-        </label>
+        <div className="timeline-tools">
+          <button
+            className={multiSelectMode ? "active" : ""}
+            aria-label="多选模式"
+            aria-pressed={multiSelectMode}
+            title="触屏时点按段落加入或移出选择"
+            onClick={() => onMultiSelectModeChange?.(!multiSelectMode)}
+          >
+            <ListChecks size={14} />
+            多选
+          </button>
+          <label>
+            缩放{" "}
+            <input
+              aria-label="时间轴缩放"
+              type="range"
+              min="1"
+              max="8"
+              value={zoom}
+              onChange={(e) => setZoom(Number(e.target.value))}
+            />
+          </label>
+        </div>
       </div>
       <div className="timeline-scroll" ref={timelineScroll}>
         <div className="timeline" style={{ width: `${zoom * 100}%` }}>
@@ -682,20 +736,31 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
                   start: b.start!,
                   end: b.end!,
                 };
+                const isSelected = selectedIds.includes(b.id);
+                const isPrimary = primarySelectedId === b.id;
                 return (
                   <button
                     key={b.id}
                     disabled={readOnly}
-                    className={`timeline-block tone-${i % 4} ${selectedId === b.id ? "selected" : ""}`}
+                    className={`timeline-block tone-${i % 4} ${isSelected ? "selected" : ""} ${isPrimary ? "primary-selected" : ""}`}
+                    aria-pressed={isSelected}
                     style={{
                       left: `${Math.min(100, (range.start / duration) * 100)}%`,
                       width: `${(Math.max(0, Math.min(duration, range.end) - range.start) / duration) * 100}%`,
                     }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      onSelect?.(b.id);
+                      if (suppressTimelineClick.current) {
+                        suppressTimelineClick.current = false;
+                        return;
+                      }
+                      onSelect?.(b.id, {
+                        additive: multiSelectMode || e.ctrlKey || e.metaKey,
+                        range: e.shiftKey,
+                      });
                     }}
                     onDoubleClick={() => seek(range.start, true)}
+                    onKeyDown={(e) => handleBlockKeyDown(e, b.id)}
                     onPointerDown={(e) => {
                       e.stopPropagation();
                       if (
@@ -705,7 +770,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
                         readOnly
                       )
                         return;
-                      audio.current?.pause();
+                      suppressTimelineClick.current = false;
                       const element = e.currentTarget;
                       const rect = element.getBoundingClientRect();
                       const width =
@@ -717,29 +782,62 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
                           : rect.right - e.clientX < 8
                             ? "end"
                             : "move";
+                      if (
+                        mode === "move" &&
+                        multiSelectMode &&
+                        !selectedIds.includes(b.id)
+                      )
+                        return;
+                      audio.current?.pause();
+                      const movingIds =
+                        mode === "move" && selectedIds.includes(b.id)
+                          ? selectedIds.filter((id) =>
+                              p.blocks.some(
+                                (candidate) =>
+                                  candidate.id === id &&
+                                  candidate.start !== null &&
+                                  candidate.end !== null,
+                              ),
+                            )
+                          : [b.id];
                       let next = range;
+                      let nextRanges = { [b.id]: range };
                       let moved = false;
                       const move = (ev: PointerEvent) => {
                         if (Math.abs(ev.clientX - startX) < 3 && !moved) return;
                         moved = true;
+                        suppressTimelineClick.current = true;
                         const delta =
                           ((ev.clientX - startX) / width) * duration;
-                        next = draggedRange(
-                          { ...b, ...range },
-                          p.blocks,
-                          duration,
-                          mode,
-                          delta,
-                        );
-                        setDraftRanges({ [b.id]: next });
+                        if (mode === "move" && movingIds.length > 1) {
+                          nextRanges = draggedGroupRanges(
+                            p.blocks,
+                            movingIds,
+                            duration,
+                            delta,
+                          );
+                          next = nextRanges[b.id] ?? range;
+                        } else {
+                          next = draggedRange(
+                            { ...b, ...range },
+                            p.blocks,
+                            duration,
+                            mode,
+                            delta,
+                          );
+                          nextRanges = { [b.id]: next };
+                        }
+                        setDraftRanges(nextRanges);
                       };
                       beginDrag(e, move, (cancelled) => {
                         setDraftRanges({});
                         if (moved && !cancelled)
-                          onUpdateRange?.(b.id, {
-                            start: next.start,
-                            end: next.end,
-                          });
+                          mode === "move" && movingIds.length > 1
+                            ? onUpdateRanges?.(nextRanges)
+                            : onUpdateRange?.(b.id, {
+                                start: next.start,
+                                end: next.end,
+                              });
                       });
                     }}
                     title={`${b.type} ${formatTime(range.start)} — ${formatTime(range.end)}`}
@@ -775,9 +873,16 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
                 .map((b) => (
                   <span
                     key={b.id}
-                    className={selectedId === b.id ? "selected" : ""}
+                    className={
+                      selectedIds.includes(b.id)
+                        ? primarySelectedId === b.id
+                          ? "selected primary-selected"
+                          : "selected"
+                        : ""
+                    }
                   >
                     <button
+                      onKeyDown={(e) => handleBlockKeyDown(e, b.id)}
                       onClick={(e) => {
                         e.stopPropagation();
                         onSelect?.(b.id);
