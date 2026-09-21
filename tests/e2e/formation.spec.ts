@@ -179,17 +179,36 @@ test("位置与颜色轨道的当前帧菱形独立添加和删除", async ({ pa
     .click();
   await expect(position).toHaveCount(3);
   await expect(color).toHaveCount(2);
+  await expect(page.locator(".formation-track-name")).toHaveText("甲 关键帧");
   const headerBox = (await page
       .locator(".formation-track-header")
+      .boundingBox())!,
+    dancerNameBox = (await page
+      .locator(".formation-track-name")
+      .boundingBox())!,
+    positionToolsBox = (await page
+      .locator(".formation-track-row-tools")
+      .first()
       .boundingBox())!,
     positionLaneBox = (await page
       .getByLabel("位置关键帧")
       .locator(".formation-key-lane")
       .boundingBox())!,
     currentKeyBox = (await position.nth(1).boundingBox())!,
-    playheadBox = (await page.getByTestId("playhead").boundingBox())!;
+    playheadBox = (await page.getByTestId("playhead").boundingBox())!,
+    colorToolsBox = (await page
+      .locator(".formation-track-row-tools")
+      .nth(1)
+      .boundingBox())!,
+    cleanupBox = (await page.locator(".formation-cleanup").boundingBox())!;
   expect(headerBox.y + headerBox.height).toBeLessThanOrEqual(
     positionLaneBox.y + 1,
+  );
+  expect(
+    positionToolsBox.x - (dancerNameBox.x + dancerNameBox.width),
+  ).toBeLessThan(6);
+  expect(cleanupBox.x - (colorToolsBox.x + colorToolsBox.width)).toBeLessThan(
+    8,
   );
   expect(
     Math.abs(

@@ -2382,7 +2382,7 @@ fieldset {
   z-index: 4;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 3px;
   height: 24px;
   padding: 0 4px;
   overflow-x: auto;
@@ -2391,8 +2391,8 @@ fieldset {
   border-radius: 4px;
 }
 .formation-track-name {
-  flex: 0 1 140px;
-  min-width: 44px;
+  flex: 0 0 auto;
+  max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2426,7 +2426,6 @@ fieldset {
 }
 .formation-cleanup {
   flex-shrink: 0;
-  margin-left: auto;
   padding: 2px 6px;
   font-size: 10px;
 }

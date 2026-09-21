@@ -278,7 +278,7 @@ export function FormationTrack({
             role="group"
             aria-label="关键帧操作"
           >
-            <div className="formation-track-name">{dancer.name}</div>
+            <div className="formation-track-name">{dancer.name} 关键帧</div>
             {trackControls("position")}
             {trackControls("color")}
             <button
