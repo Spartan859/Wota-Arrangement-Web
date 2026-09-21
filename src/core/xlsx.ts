@@ -1,3 +1,4 @@
+import { appendBatonUsage } from "./xlsxBatonUsage";
 import ExcelJS from "exceljs";
 import {
   block,
@@ -147,6 +148,7 @@ export async function writeXlsx(p: Project): Promise<ArrayBuffer> {
   [14, 12, 40, 40, 30, 26].forEach((width, i) => {
     ws.getColumn(i + 1).width = width;
   });
+  appendBatonUsage(wb, p);
   const buffer = await wb.xlsx.writeBuffer();
   return new Uint8Array(buffer).buffer;
 }

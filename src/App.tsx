@@ -1,3 +1,4 @@
+import { BatonUsage } from "./components/BatonUsage";
 import { FormationCanvas } from "./components/FormationCanvas";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -476,7 +477,7 @@ export default function App() {
         <Preview project={p} onClose={() => setModal(null)} />
       )}{" "}
       {modal === "export" && (
-        <Modal title="导出" onClose={() => setModal(null)}>
+        <Modal title="导出" onClose={() => setModal(null)} wide>
           <div className="export-option">
             <h3>Excel 编排表</h3>
             <button
@@ -513,6 +514,7 @@ export default function App() {
               下载 JSON 备份
             </button>
           </div>
+          <BatonUsage project={p} />
         </Modal>
       )}
       {modal === "projects" && (

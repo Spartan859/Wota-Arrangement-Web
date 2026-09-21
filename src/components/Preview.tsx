@@ -59,7 +59,9 @@ export function Preview({
         </table>
       </div>
       <p className="muted">
-        Excel 仅包含已编排段落。歌曲和时间标记不在六列表格中，请另存 JSON 备份。
+        Excel
+        首张表为段落编排，最后一张表为光棒用量与切换顺序。歌曲、走位坐标及完整关键帧请另存
+        JSON 备份。
       </p>
     </Modal>
   );

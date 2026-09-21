@@ -2254,3 +2254,38 @@ fieldset {
     max-width: 100%;
   }
 }
+.baton-usage {
+  margin-top: 18px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+.baton-usage p {
+  margin: 8px 0;
+}
+.baton-usage table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 12px;
+}
+.baton-usage th,
+.baton-usage td {
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  text-align: left;
+}
+.baton-usage th {
+  background: #f0f4fb;
+}
+.baton-usage td {
+  overflow-wrap: anywhere;
+}
+.baton-dancer {
+  margin: 10px 0;
+}
+.baton-dancer summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}

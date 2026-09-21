@@ -617,3 +617,44 @@ test("旧本地草稿导出文件后立即导入保留队形", async ({ page }) 
     page.getByRole("button", { name: "播放", exact: true }),
   ).toBeDisabled();
 });
+
+test("一次性光棒统计与Excel尾页一致，切换顺序保留", async ({ page }) => {
+  await formationFixture(page);
+  // Existing fixture: two dancers start blue/green, then both switch left to red.
+  await page.getByRole("button", { name: "导出", exact: true }).click();
+  const usage = page.getByRole("region", { name: "光棒用量统计" });
+  await expect(usage).toContainText("共 6 根");
+  await expect(usage.locator("table").first()).toContainText("极蓝");
+  await usage.locator("summary").first().click();
+  await expect(usage.locator("details").first()).toContainText("00:04.000");
+  await expect(usage.locator("details").first()).toContainText("极红");
+  await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
+  // Add an arrangement so the standard six-column export is available.
+  const lane = (await page.locator(".timeline-gap-target").boundingBox())!;
+  await page.mouse.click(lane.x + lane.width * 0.1, lane.y + lane.height / 2);
+  await page.getByRole("button", { name: "创建", exact: true }).click();
+  await page.getByRole("button", { name: "导出", exact: true }).click();
+  const downloaded = page.waitForEvent("download");
+  await page.getByRole("button", { name: "下载 Excel", exact: true }).click();
+  const file = await downloaded;
+  const ExcelJS = (await import("exceljs")).default;
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.readFile((await file.path())!);
+  expect(wb.worksheets.at(-1)!.name).toBe("光棒用量统计");
+  const totals = wb.worksheets.at(-1)!;
+  expect(totals.getCell("C8").value).toBe(6);
+  expect(wb.worksheets[0].getCell("A2").value).toBe("段落");
+  const { readFile } = await import("node:fs/promises");
+  await page.getByLabel("打开项目文件").setInputFiles({
+    name: file.suggestedFilename(),
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    buffer: await readFile((await file.path())!),
+  });
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(
+    page
+      .locator(".untimed-strip")
+      .getByRole("button", { name: "副歌", exact: true }),
+  ).toBeVisible();
+});

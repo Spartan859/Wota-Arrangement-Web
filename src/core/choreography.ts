@@ -32,7 +32,7 @@ export type StickColor = (typeof colors)[number][0];
 const color = z.custom<StickColor | string>(
   (value) =>
     colors.some(([name]) => name === value) ||
-    (typeof value === "string" && value in legacyColorAliases),
+    (typeof value === "string" && Object.hasOwn(legacyColorAliases, value)),
 );
 export const poseSchema = z.object({
   dancerId: z.string().min(1),
@@ -90,9 +90,17 @@ export const defaultPose = (dancerId: string): Pose => ({
   right: "极橙",
   visible: false,
 });
+export function normalizeStickColor(name: string): StickColor {
+  const canonical = Object.hasOwn(legacyColorAliases, name)
+    ? legacyColorAliases[name]
+    : name;
+  const color = colors.find((c) => c[0] === canonical);
+  if (!color) throw new Error("未知光棒颜色。");
+  return color[0];
+}
 export const colorHex = (name: StickColor | string) => {
-  const canonical = legacyColorAliases[name] ?? name;
-  return colors.find((c) => c[0] === canonical)?.[1] ?? "#111827";
+  const canonical = normalizeStickColor(name);
+  return colors.find((c) => c[0] === canonical)![1];
 };
 export function frameTime(time: number, duration?: number) {
   if (

@@ -77,3 +77,54 @@ it("保留空歌词块及合并块内空行，与纯动作块区分", async () =
   ]);
   expect(result.blocks[2].lyrics[0].jp).toBe(pureText);
 });
+
+it("尾部统计页包含一次性消耗和逐人顺序，原六列仍可往返", async () => {
+  const { emptyChoreography, addDancer, changePose } =
+    await import("../src/core/choreography");
+  const p = project();
+  p.songName = "=1+1";
+  p.blocks = [block("副歌", "8")];
+  p.choreography = emptyChoreography();
+  const id = addDancer(p.choreography, "=SUM(A1:A2)", 0);
+  changePose(p.choreography, id, 1.001, { left: "极蓝" });
+  changePose(p.choreography, id, 2.002, { left: "极橙", right: "黑" });
+  const bytes = await writeXlsx(p),
+    wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(bytes);
+  expect(wb.worksheets.map((s) => s.name)).toEqual([
+    "打艺编排脚本",
+    "光棒用量统计",
+  ]);
+  const original = wb.worksheets[0];
+  expect(original.rowCount).toBe(3);
+  expect(original.getRow(2).values).toEqual([undefined, ...headers]);
+  const stats = wb.worksheets.at(-1)!;
+  expect(stats.getCell("B5").value).toBe("极橙");
+  expect(stats.getCell("C5").value).toBe(3);
+  expect(stats.getCell("B6").value).toBe("极蓝");
+  expect(stats.getCell("C6").value).toBe(1);
+  expect(stats.getCell("C7").value).toBe(4);
+  const rows: unknown[][] = [];
+  stats.eachRow((row) => rows.push(row.values as unknown[]));
+  expect(
+    rows.some(
+      (row) =>
+        row.includes("00:01.001") && row.includes("极蓝") && row[6] === 1,
+    ),
+  ).toBe(true);
+  expect(
+    rows.some(
+      (row) =>
+        row.includes("00:02.002") && row.includes("未持棒") && row[6] === 1,
+    ),
+  ).toBe(true);
+  expect(stats.getCell("A2").type).toBe(ExcelJS.ValueType.String);
+  stats.eachRow((row) =>
+    row.eachCell((cell) =>
+      expect(cell.type).not.toBe(ExcelJS.ValueType.Formula),
+    ),
+  );
+  const imported = await readXlsx(bytes);
+  expect(imported.blocks).toHaveLength(1);
+  expect(imported.choreography).toBeUndefined();
+});
