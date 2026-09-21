@@ -41,12 +41,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ steps.revision.outputs.sha }}
-      - name: Build deployment image
-        env:
-          IMAGE_TAG: wota-arrangement-web:${{ steps.revision.outputs.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Build static site
         run: |
-          docker build --tag "$IMAGE_TAG" .
-          docker save "$IMAGE_TAG" | gzip -1 > /tmp/wota-arrangement-web.tar.gz
+          npm ci
+          npm run build
+          tar -czf /tmp/wota-arrangement-web.tar.gz -C dist .
       - name: Configure SSH
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
@@ -57,19 +60,18 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
-      - name: Upload image and deployment files
+      - name: Upload release and deployment script
         run: |
           ssh -i ~/.ssh/deploy_key root@120.77.57.144 'install -d -m 700 /opt/wota-arrangement-web'
           scp -i ~/.ssh/deploy_key \
             /tmp/wota-arrangement-web.tar.gz \
-            deploy/compose.yaml \
             deploy/deploy.sh \
             root@120.77.57.144:/opt/wota-arrangement-web/
       - name: Activate and verify
         env:
-          IMAGE_TAG: wota-arrangement-web:${{ steps.revision.outputs.sha }}
+          RELEASE_ID: ${{ steps.revision.outputs.sha }}
         run: |
           ssh -i ~/.ssh/deploy_key root@120.77.57.144 \
-            "/opt/wota-arrangement-web/deploy.sh /opt/wota-arrangement-web/wota-arrangement-web.tar.gz '$IMAGE_TAG'"
+            "/opt/wota-arrangement-web/deploy.sh /opt/wota-arrangement-web/wota-arrangement-web.tar.gz '$RELEASE_ID'"
           curl --fail --silent --show-error --retry 10 --retry-delay 2 \
             https://wota.satintin.com/healthz

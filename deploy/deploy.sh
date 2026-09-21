@@ -2,35 +2,56 @@
 set -euo pipefail
 
 if [[ $# -ne 2 ]]; then
-  echo "Usage: $0 <image-archive.tar.gz> <image-tag>" >&2
+  echo "Usage: $0 <site-archive.tar.gz> <release-id>" >&2
   exit 2
 fi
 
 archive=$1
-image_tag=$2
+release_id=$2
 app_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-previous_image=$(docker inspect --format '{{.Config.Image}}' wota-arrangement-web-web-1 2>/dev/null || true)
+releases_dir="$app_dir/releases"
+release_dir="$releases_dir/$release_id"
+current_link="$app_dir/current"
+previous_target=$(readlink "$current_link" 2>/dev/null || true)
+
+case "$release_id" in
+  ''|*[!A-Za-z0-9._-]*)
+    echo "Invalid release id: $release_id" >&2
+    exit 2
+    ;;
+esac
 
 rollback() {
-  if [[ -n "$previous_image" ]]; then
-    echo "Health check failed; rolling back to $previous_image" >&2
-    WOTA_IMAGE="$previous_image" docker compose --project-directory "$app_dir" -f "$app_dir/compose.yaml" up -d --force-recreate
+  if [[ -n "$previous_target" ]]; then
+    ln -sfn "$previous_target" "$current_link"
+  else
+    rm -f -- "$current_link"
   fi
 }
 trap rollback ERR
 
-gzip -dc "$archive" | docker load
-WOTA_IMAGE="$image_tag" docker compose --project-directory "$app_dir" -f "$app_dir/compose.yaml" up -d --force-recreate --remove-orphans
+install -d -m 755 "$releases_dir"
+rm -rf -- "$release_dir"
+install -d -m 755 "$release_dir"
+tar -xzf "$archive" -C "$release_dir"
+test -f "$release_dir/index.html"
+ln -sfn "$release_dir" "$current_link"
 
-for attempt in {1..30}; do
-  if curl --fail --silent --show-error http://127.0.0.1:18080/healthz >/dev/null; then
+for attempt in {1..20}; do
+  if curl --fail --silent --show-error \
+    --header 'Host: wota.satintin.com' \
+    http://127.0.0.1/healthz >/dev/null; then
     rm -f -- "$archive"
+    find "$releases_dir" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
+      | sort -nr \
+      | tail -n +6 \
+      | cut -d' ' -f2- \
+      | xargs -r rm -rf --
     trap - ERR
-    echo "Deployed $image_tag"
+    echo "Deployed release $release_id"
     exit 0
   fi
   sleep 1
 done
 
-docker compose --project-directory "$app_dir" -f "$app_dir/compose.yaml" logs --tail=100 web >&2
 false
