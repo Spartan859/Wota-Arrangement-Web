@@ -38,14 +38,13 @@ export const poseSchema = z.object({
   right: color,
   visible: z.boolean(),
 });
+export const canvasSchema = z.object({
+  width: z.number().int().min(320).max(4000),
+  height: z.number().int().min(240).max(3000),
+});
 export const choreographySchema = z
   .object({
-    canvas: z
-      .object({
-        width: z.number().int().min(320).max(4000),
-        height: z.number().int().min(240).max(3000),
-      })
-      .default({ width: 800, height: 600 }),
+    canvas: canvasSchema.default({ width: 800, height: 600 }),
     dancers: z.array(
       z.object({ id: z.string().min(1), name: z.string().min(1) }),
     ),
@@ -195,4 +194,30 @@ export function moveFrame(
   if (!f) throw new Error("关键帧不存在。");
   f.time = t;
   c.frames.sort((a, b) => a.time - b.time);
+}
+
+/** Resize every formation; unscaled coordinates use the top-left stage origin. */
+export function resizeCanvas(
+  c: Choreography,
+  width: number,
+  height: number,
+  scalePositions: boolean,
+) {
+  const next = canvasSchema.parse({ width, height });
+  const previous = c.canvas ?? { width: 800, height: 600 };
+  if (previous.width === width && previous.height === height) return;
+  if (!scalePositions) {
+    for (const frame of c.frames)
+      for (const pose of frame.poses) {
+        pose.x = Math.max(
+          0.03,
+          Math.min(0.97, (pose.x * previous.width) / width),
+        );
+        pose.y = Math.max(
+          0.04,
+          Math.min(0.96, (pose.y * previous.height) / height),
+        );
+      }
+  }
+  c.canvas = next;
 }

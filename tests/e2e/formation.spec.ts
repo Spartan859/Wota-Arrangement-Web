@@ -364,3 +364,42 @@ test("画布尺寸校验、实时坐标、拖动、撤销和刷新", async ({ pa
   await expect(stage).toHaveAttribute("viewBox", "0 0 800 600");
   await expect(dancer).toHaveAttribute("transform", /translate\(400 300\)/);
 });
+
+test("尺寸弹窗选择缩放站位，按钮相邻及全帧保留坐标", async ({ page }) => {
+  await formationFixture(page);
+  const addButton = page.getByRole("button", { name: "添加舞者", exact: true });
+  const sizeButton = page.getByRole("button", {
+    name: "画布尺寸",
+    exact: true,
+  });
+  const a = (await addButton.boundingBox())!,
+    b = (await sizeButton.boundingBox())!;
+  expect(Math.abs(a.y - b.y)).toBeLessThan(1);
+  expect(b.x - (a.x + a.width)).toBeLessThan(12);
+  await at(page, 0);
+  await sizeButton.click();
+  await expect(
+    page.getByRole("checkbox", { name: "按比例缩放舞者站位" }),
+  ).toBeChecked();
+  await page.getByLabel("画布宽度").fill("1600");
+  await page.getByLabel("画布高度").fill("1200");
+  await page.getByRole("checkbox", { name: "按比例缩放舞者站位" }).uncheck();
+  await expect(page.getByRole("dialog")).toContainText("左上角");
+  await page.getByRole("button", { name: "保存尺寸", exact: true }).click();
+  await expect.poll(() => getX(page, "甲")).toBeCloseTo(200, 0);
+  await at(page, 4);
+  await expect.poll(() => getX(page, "甲")).toBeCloseTo(600, 0);
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(page.getByLabel("舞台俯视图")).toHaveAttribute(
+    "viewBox",
+    "0 0 800 600",
+  );
+  await sizeButton.click();
+  await page.getByLabel("画布宽度").fill("1600");
+  await page.getByLabel("画布高度").fill("1200");
+  await page.getByRole("button", { name: "保存尺寸", exact: true }).click();
+  await expect.poll(() => getX(page, "甲")).toBeCloseTo(1200, 0);
+  await expect(page.locator(".save-state")).toContainText("已保存");
+  await page.reload();
+  await expect.poll(() => getX(page, "甲")).toBeCloseTo(1200, 0);
+});

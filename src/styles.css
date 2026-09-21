@@ -2170,3 +2170,8 @@ fieldset {
 .formation-track-tools > * {
   flex-shrink: 0;
 }
+.formation-heading-actions {
+  margin-left: auto;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+}

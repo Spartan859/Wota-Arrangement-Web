@@ -1,3 +1,4 @@
+import { resizeCanvas } from "../src/core/choreography";
 import { describe, it, expect } from "vitest";
 import {
   addDancer,
@@ -102,5 +103,48 @@ describe("画布尺寸", () => {
         false,
       );
     }
+  });
+});
+
+describe("画布缩放站位选项", () => {
+  it("勾选时保留归一化坐标，取消时保留全帧绝对坐标且支持撤销", () => {
+    const c = emptyChoreography();
+    const id = addDancer(c, "A", 0);
+    changePose(c, id, 2, { x: 0.75, y: 0.8, left: "黑", visible: false });
+    const before = structuredClone(c);
+    resizeCanvas(c, 1600, 1200, true);
+    expect(c.frames).toEqual(before.frames);
+    const h = new History<typeof c>();
+    h.record(c);
+    resizeCanvas(c, 800, 600, false);
+    expect(c.frames[0].poses[0]).toMatchObject({ x: 0.97, y: 0.96 });
+    expect(h.undo(c)).toEqual({
+      ...before,
+      canvas: { width: 1600, height: 1200 },
+    });
+    const preserved = structuredClone(before);
+    resizeCanvas(preserved, 1600, 1200, false);
+    expect(preserved.frames.map((f) => f.poses[0])).toEqual(
+      before.frames.map((f) => ({
+        ...f.poses[0],
+        x: f.poses[0].x / 2,
+        y: f.poses[0].y / 2,
+      })),
+    );
+    expect(preserved.frames[1].poses[0]).toMatchObject({
+      left: "黑",
+      visible: false,
+    });
+  });
+  it("无效尺寸不修改数据，旧画布使用默认长宽", () => {
+    const c = emptyChoreography();
+    addDancer(c, "A", 0);
+    const before = structuredClone(c);
+    expect(() => resizeCanvas(c, 0, 300, false)).toThrow();
+    expect(c).toEqual(before);
+    delete (c as Partial<typeof c>).canvas;
+    resizeCanvas(c, 1600, 1200, false);
+    expect(c.frames[0].poses[0]).toMatchObject({ x: 0.25, y: 0.25 });
+    expect(choreographySchema.safeParse(c).success).toBe(true);
   });
 });

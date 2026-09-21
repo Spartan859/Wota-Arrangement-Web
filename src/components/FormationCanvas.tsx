@@ -8,6 +8,7 @@ import {
   deleteDancer,
   emptyChoreography,
   sampleFormation,
+  resizeCanvas,
   setVisibility,
   type Choreography,
   type Pose,
@@ -41,6 +42,7 @@ export function FormationCanvas({
   >(null);
   const [canvasWidth, setCanvasWidth] = useState(String(stageWidth));
   const [canvasHeight, setCanvasHeight] = useState(String(stageHeight));
+  const [scalePositions, setScalePositions] = useState(true);
   const [sizeError, setSizeError] = useState("");
   const [name, setName] = useState("");
   const [hand, setHand] = useState<"left" | "right">("left");
@@ -132,28 +134,31 @@ export function FormationCanvas({
     <section className="formation-panel" aria-label="队形画布">
       <div className="panel-heading">
         <h2>队形画布</h2>
-        <button
-          disabled={readOnly}
-          onClick={() => {
-            freeze();
-            setName("");
-            setModal("add");
-          }}
-        >
-          添加舞者
-        </button>
-        <button
-          disabled={readOnly}
-          onClick={() => {
-            freeze();
-            setSizeError("");
-            setCanvasWidth(String(stageWidth));
-            setCanvasHeight(String(stageHeight));
-            setModal("size");
-          }}
-        >
-          画布尺寸
-        </button>
+        <div className="toolbar formation-heading-actions">
+          <button
+            disabled={readOnly}
+            onClick={() => {
+              freeze();
+              setName("");
+              setModal("add");
+            }}
+          >
+            添加舞者
+          </button>
+          <button
+            disabled={readOnly}
+            onClick={() => {
+              freeze();
+              setSizeError("");
+              setScalePositions(true);
+              setCanvasWidth(String(stageWidth));
+              setCanvasHeight(String(stageHeight));
+              setModal("size");
+            }}
+          >
+            画布尺寸
+          </button>
+        </div>
       </div>
       <div className="formation-tools">
         <select
@@ -436,7 +441,19 @@ export function FormationCanvas({
               />
             </label>
           </div>
-          <p className="muted">舞者位置按比例保存，修改尺寸不会改变走位。</p>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={scalePositions}
+              onChange={(e) => setScalePositions(e.target.checked)}
+            />
+            按比例缩放舞者站位
+          </label>
+          <p className="muted">
+            {scalePositions
+              ? "所有关键帧按新画布比例缩放站位。"
+              : "所有关键帧保留相对左上角的坐标；越界舞者移至最近边界。"}
+          </p>
           {sizeError && (
             <p className="error" role="alert">
               {sizeError}
@@ -462,7 +479,7 @@ export function FormationCanvas({
                 return;
               }
               run((c) => {
-                c.canvas = { width, height };
+                resizeCanvas(c, width, height, scalePositions);
               });
               setModal(null);
             }}
