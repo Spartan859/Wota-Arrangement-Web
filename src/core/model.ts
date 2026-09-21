@@ -54,8 +54,9 @@ export const blockSchema = z.object({
   start: time,
   end: time,
 });
+export const currentSchemaVersion = 2;
 export const projectSchema = z.object({
-  schemaVersion: z.literal(2),
+  schemaVersion: z.literal(currentSchemaVersion),
   id: z.string().min(1),
   songName: z.string(),
   bpm: z.string(),
@@ -102,7 +103,7 @@ export const block = (type = "副歌", beats = "8", pure = false): Block => ({
   end: null,
 });
 export const project = (): Project => ({
-  schemaVersion: 2,
+  schemaVersion: currentSchemaVersion,
   id: uid(),
   songName: "未命名歌曲",
   bpm: "120",
@@ -112,21 +113,51 @@ export const project = (): Project => ({
   updatedAt: Date.now(),
 });
 export function parseProject(text: string): Project {
-  const result = projectSchema.safeParse(JSON.parse(text));
-  if (!result.success)
-    throw new Error("项目格式或版本不受支持，请导入本工具导出的 JSON。");
+  let input: unknown;
+  try {
+    input = JSON.parse(text.replace(/^\uFEFF/, ""));
+  } catch {
+    throw new Error("JSON 无法解析，请检查文件是否完整。");
+  }
+  const result = projectSchema.safeParse(input);
+  if (!result.success) {
+    const issue = result.error.issues[0];
+    if (issue.path[0] === "schemaVersion")
+      throw new Error(
+        "项目版本不受支持（当前为 v2）。旧页面导出的备份请回到原项目重新导出。",
+      );
+    const path =
+      issue.path.reduce<string>(
+        (s, part) =>
+          typeof part === "number"
+            ? `${s}[${part}]`
+            : `${s}${s ? "." : ""}${String(part)}`,
+        "",
+      ) || "项目";
+    throw new Error(`项目数据校验失败：${path} — ${issue.message}`);
+  }
   const p = result.data;
   const ids = p.blocks.flatMap((b) => [b.id, ...b.lyrics.map((l) => l.id)]);
   if (new Set(ids).size !== ids.length) throw new Error("项目存在重复 ID。");
   return p;
 }
 export function backup(p: Project): string {
-  return JSON.stringify(
-    { ...p, audio: p.audio ? { ...p.audio, id: null } : null },
+  // Older IndexedDB drafts can retain their original version even after editing
+  // in the current UI. Serialize the current model with the current format tag.
+  const exported = JSON.stringify(
+    {
+      ...p,
+      schemaVersion: currentSchemaVersion,
+      audio: p.audio ? { ...p.audio, id: null } : null,
+    },
     null,
     2,
   );
+  // Use the same validation as import so we never report a broken backup as valid.
+  parseProject(exported);
+  return exported;
 }
+
 export function insertAt(
   p: Project,
   b: Block,

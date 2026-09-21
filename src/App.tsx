@@ -501,10 +501,12 @@ export default function App() {
             <h3>项目 JSON</h3>
             <button
               onClick={() =>
-                download(
-                  backup(p),
-                  `${safeName(p.songName)}.wota.json`,
-                  `application/json`,
+                void attempt(() =>
+                  download(
+                    backup(store.latest.current),
+                    `${safeName(p.songName)}.wota.json`,
+                    `application/json`,
+                  ),
                 )
               }
             >

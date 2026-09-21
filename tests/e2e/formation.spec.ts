@@ -564,3 +564,56 @@ test("圆点第一次点击只选中，第二次点击打开颜色并可重命�
     page.getByRole("button", { name: "舞者 第二人改名", exact: true }),
   ).toBeVisible();
 });
+
+test("旧本地草稿导出文件后立即导入保留队形", async ({ page }) => {
+  await formationFixture(page);
+  await expect(page.locator(".save-state")).toContainText("已保存");
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const open = indexedDB.open("wota-workbench");
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const db = open.result,
+            tx = db.transaction("projects", "readwrite"),
+            store = tx.objectStore("projects"),
+            cursor = store.openCursor();
+          cursor.onsuccess = () => {
+            const current = cursor.result;
+            if (!current) return;
+            const value = current.value;
+            value.document.schemaVersion = 1;
+            current.update(value);
+            current.continue();
+          };
+          tx.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+          tx.onerror = () => reject(tx.error);
+        };
+      }),
+  );
+  await page.reload();
+  await expect(page.locator(".formation-key")).toHaveCount(2);
+  await page.getByRole("button", { name: "导出", exact: true }).click();
+  const downloaded = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "下载 JSON 备份", exact: true })
+    .click();
+  const file = await downloaded;
+  const { readFile } = await import("node:fs/promises");
+  const parsed = JSON.parse(await readFile((await file.path())!, "utf8"));
+  expect(parsed.schemaVersion).toBe(2);
+  expect(parsed.choreography.dancers).toHaveLength(2);
+  expect(parsed.audio.id).toBeNull();
+  await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
+  await page.getByLabel("打开项目文件").setInputFiles((await file.path())!);
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.locator(".formation-key")).toHaveCount(2);
+  await expect(page.getByLabel("歌曲名称")).toHaveValue("队形测试");
+  await expect(page.getByLabel("选择舞者").locator("option")).toHaveCount(3);
+  await expect(
+    page.getByRole("button", { name: "播放", exact: true }),
+  ).toBeDisabled();
+});
