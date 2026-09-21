@@ -389,7 +389,6 @@ export default function App() {
             getTime={() => (audioReady ? (player.current?.getTime() ?? 0) : 0)}
             pause={() => player.current?.pause()}
             onError={fail}
-            onNotice={setNotice}
             onDancerSelect={setFormationDancer}
           />
         </div>
@@ -426,6 +425,7 @@ export default function App() {
                 }, false);
             }}
             onError={fail}
+            onNotice={setNotice}
             onUpload={(file) => void uploadAudio(file)}
             follow={follow}
             onFollow={setFollow}

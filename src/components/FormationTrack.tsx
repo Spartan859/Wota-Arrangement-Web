@@ -2,6 +2,7 @@ import { usePointerDrag } from "./usePointerDrag";
 import { useRef, useState } from "react";
 import type { Project } from "../core/model";
 import {
+  cleanupRedundantKeyframes,
   emptyChoreography,
   frameTime,
   getDancerFrames,
@@ -23,6 +24,7 @@ type Props = {
   pause: () => void;
   seek: (t: number) => void;
   onError: (m: string) => void;
+  onNotice: (m: string) => void;
   selectedDancerId?: string | null;
 };
 
@@ -36,6 +38,7 @@ export function FormationTrack({
   pause,
   seek,
   onError,
+  onNotice,
   selectedDancerId,
 }: Props) {
   const beginDrag = usePointerDrag(
@@ -270,10 +273,34 @@ export function FormationTrack({
     >
       {dancer ? (
         <>
-          <div className="formation-track-header">
+          <div
+            className="formation-track-header"
+            role="group"
+            aria-label="关键帧操作"
+          >
             <div className="formation-track-name">{dancer.name}</div>
             {trackControls("position")}
             {trackControls("color")}
+            <button
+              className="formation-cleanup"
+              disabled={readOnly}
+              title="删除不会改变队形渲染结果的关键帧"
+              onClick={() => {
+                pause();
+                let removed = { position: 0, color: 0, total: 0 };
+                edit((draft) => {
+                  if (draft.choreography)
+                    removed = cleanupRedundantKeyframes(draft.choreography);
+                });
+                onNotice(
+                  removed.total
+                    ? `已清理 ${removed.total} 个多余关键帧（位置 ${removed.position}，颜色 ${removed.color}）。`
+                    : "没有可清理的多余关键帧。",
+                );
+              }}
+            >
+              清理关键帧
+            </button>
           </div>
           {track("position")}
           {track("color")}

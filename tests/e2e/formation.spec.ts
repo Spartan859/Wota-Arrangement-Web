@@ -938,7 +938,16 @@ test("清理旧集体帧展开产生的冗余关键帧并支持撤销", async ({
   await expect(
     page.getByLabel("颜色关键帧").locator(".formation-key"),
   ).toHaveCount(2);
-  await page.getByRole("button", { name: "清理关键帧", exact: true }).click();
+  await expect(
+    page
+      .getByRole("group", { name: "舞者操作" })
+      .getByRole("button", { name: "清理关键帧", exact: true }),
+  ).toHaveCount(0);
+  const cleanup = page
+    .getByRole("group", { name: "关键帧操作" })
+    .getByRole("button", { name: "清理关键帧", exact: true });
+  await expect(cleanup).toBeVisible();
+  await cleanup.click();
   await expect(page.locator(".message.toast")).toContainText(
     "已清理 3 个多余关键帧",
   );

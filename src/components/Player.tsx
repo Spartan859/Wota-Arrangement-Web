@@ -30,6 +30,7 @@ type Props = {
   onTime: (time: number, playing: boolean) => void;
   onPersist: (time: number) => void;
   onError: (message: string) => void;
+  onNotice: (message: string) => void;
   onUpload: (file: File) => void;
   follow: boolean;
   onFollow: (follow: boolean) => void;
@@ -55,6 +56,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     onTime,
     onPersist,
     onError,
+    onNotice,
     onUpload,
     follow,
     onFollow,
@@ -808,6 +810,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
             pause={() => audio.current?.pause()}
             seek={(t) => seek(t)}
             onError={onError}
+            onNotice={onNotice}
           />
           <span
             className="playhead"

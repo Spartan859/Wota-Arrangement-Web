@@ -5,7 +5,6 @@ import type { Project } from "../core/model";
 import {
   addDancer,
   changePose,
-  cleanupRedundantKeyframes,
   colorHex,
   colors,
   deleteDancer,
@@ -26,7 +25,6 @@ type Props = {
   getTime: () => number;
   pause: () => void;
   onError: (message: string) => void;
-  onNotice?: (message: string) => void;
   onDancerSelect?: (id: string | null) => void;
 };
 export function FormationCanvas({
@@ -36,7 +34,6 @@ export function FormationCanvas({
   getTime,
   pause,
   onError,
-  onNotice,
   onDancerSelect,
 }: Props) {
   const c = project.choreography ?? emptyChoreography();
@@ -243,24 +240,6 @@ export function FormationCanvas({
             }}
           >
             画布尺寸
-          </button>
-          <button
-            disabled={readOnly || !c.dancers.length}
-            title="删除不会改变队形渲染结果的关键帧"
-            onClick={() => {
-              pause();
-              let removed = { position: 0, color: 0, total: 0 };
-              run((choreography) => {
-                removed = cleanupRedundantKeyframes(choreography);
-              });
-              onNotice?.(
-                removed.total
-                  ? `已清理 ${removed.total} 个多余关键帧（位置 ${removed.position}，颜色 ${removed.color}）。`
-                  : "没有可清理的多余关键帧。",
-              );
-            }}
-          >
-            清理关键帧
           </button>
           <label className="check">
             <input
