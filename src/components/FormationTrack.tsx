@@ -124,49 +124,56 @@ export function FormationTrack({
       }),
     );
   };
+  const trackControls = (kind: TrackKind) => {
+    const frames = framesFor(kind);
+    const atCurrent = currentFrame(kind);
+    const label = kind === "position" ? "位置" : "颜色";
+    return (
+      <div className="formation-track-row-tools">
+        <strong>{label}</strong>
+        <button
+          aria-label={`${label}上一个关键帧`}
+          disabled={!frames.some((frame) => frame.time < current)}
+          onClick={() => moveFrameBy(kind, -1)}
+        >
+          &lt;
+        </button>
+        <button
+          aria-label={`${label}切换当前关键帧`}
+          className={atCurrent ? "active" : ""}
+          disabled={readOnly}
+          onClick={() => toggleCurrentFrame(kind)}
+        >
+          ◆
+        </button>
+        <button
+          aria-label={`${label}下一个关键帧`}
+          disabled={!frames.some((frame) => frame.time > current)}
+          onClick={() => moveFrameBy(kind, 1)}
+        >
+          &gt;
+        </button>
+        <button
+          aria-label={`${label}关键帧时间`}
+          disabled={!atCurrent}
+          onClick={() => {
+            if (!atCurrent) return;
+            setValue(String(atCurrent.time));
+            setError("");
+            setEditing({ kind, id: atCurrent.id });
+          }}
+        >
+          时间
+        </button>
+      </div>
+    );
+  };
   const track = (kind: TrackKind) => {
     const frames = framesFor(kind);
     const atCurrent = currentFrame(kind);
     const label = kind === "position" ? "位置" : "颜色";
     return (
       <div className="formation-subtrack" aria-label={`${label}关键帧`}>
-        <div className="formation-track-row-tools">
-          <strong>{label}</strong>
-          <button
-            aria-label={`${label}上一个关键帧`}
-            disabled={!frames.some((frame) => frame.time < current)}
-            onClick={() => moveFrameBy(kind, -1)}
-          >
-            &lt;
-          </button>
-          <button
-            aria-label={`${label}切换当前关键帧`}
-            className={atCurrent ? "active" : ""}
-            disabled={readOnly}
-            onClick={() => toggleCurrentFrame(kind)}
-          >
-            ◆
-          </button>
-          <button
-            aria-label={`${label}下一个关键帧`}
-            disabled={!frames.some((frame) => frame.time > current)}
-            onClick={() => moveFrameBy(kind, 1)}
-          >
-            &gt;
-          </button>
-          <button
-            aria-label={`${label}关键帧时间`}
-            disabled={!atCurrent}
-            onClick={() => {
-              if (!atCurrent) return;
-              setValue(String(atCurrent.time));
-              setError("");
-              setEditing({ kind, id: atCurrent.id });
-            }}
-          >
-            时间
-          </button>
-        </div>
         <div className="formation-key-lane">
           {frames.map((frame) => {
             const outOfRange = duration > 0 && frame.time > duration;
@@ -263,7 +270,11 @@ export function FormationTrack({
     >
       {dancer ? (
         <>
-          <div className="formation-track-name">{dancer.name}</div>
+          <div className="formation-track-header">
+            <div className="formation-track-name">{dancer.name}</div>
+            {trackControls("position")}
+            {trackControls("color")}
+          </div>
           {track("position")}
           {track("color")}
         </>

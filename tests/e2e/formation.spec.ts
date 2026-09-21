@@ -179,6 +179,25 @@ test("位置与颜色轨道的当前帧菱形独立添加和删除", async ({ pa
     .click();
   await expect(position).toHaveCount(3);
   await expect(color).toHaveCount(2);
+  const headerBox = (await page
+      .locator(".formation-track-header")
+      .boundingBox())!,
+    positionLaneBox = (await page
+      .getByLabel("位置关键帧")
+      .locator(".formation-key-lane")
+      .boundingBox())!,
+    currentKeyBox = (await position.nth(1).boundingBox())!,
+    playheadBox = (await page.getByTestId("playhead").boundingBox())!;
+  expect(headerBox.y + headerBox.height).toBeLessThanOrEqual(
+    positionLaneBox.y + 1,
+  );
+  expect(
+    Math.abs(
+      currentKeyBox.x +
+        currentKeyBox.width / 2 -
+        (playheadBox.x + playheadBox.width / 2),
+    ),
+  ).toBeLessThan(2);
   await page
     .getByRole("button", { name: "颜色切换当前关键帧", exact: true })
     .click();
