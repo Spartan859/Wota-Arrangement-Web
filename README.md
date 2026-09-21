@@ -38,7 +38,9 @@ docker compose down
 
 可用 `WOTA_WEB_PORT` 修改宿主机端口，例如 `WOTA_WEB_PORT=8088 docker compose up --build -d`。容器以只读根文件系统运行，Nginx 的临时目录使用内存文件系统；项目数据仍保存在浏览器 IndexedDB，不写入容器。
 
-GitHub Actions 位于 `.github/workflows/ci.yml`：所有分支和 PR 执行单元测试、类型检查、构建、格式检查、Chromium/WebKit 测试、Python XLSX 兼容测试和容器构建；推送到 `main` 或 `v*` 标签时，额外将镜像发布到 GitHub Container Registry。工作流只交付静态站点产物和容器镜像，不自动登录或部署任何服务器。
+GitHub Actions 的 CI 位于 `.github/workflows/ci.yml`：所有分支和 PR 执行单元测试、类型检查、构建、格式检查、Chromium/WebKit 测试、Python XLSX 兼容测试和容器构建；推送到 `main` 或 `v*` 标签时，额外将镜像发布到 GitHub Container Registry。
+
+生产发布位于 `.github/workflows/deploy.yml`。`main` 的 CI 全部通过后，Actions 构建固定提交镜像，通过专用 SSH 密钥传到 `satintin`，运行健康检查并在失败时恢复上一镜像。生产地址为 `https://wota.satintin.com`。仓库的 `production` Environment 需要配置 `DEPLOY_SSH_KEY` 和 `DEPLOY_KNOWN_HOSTS`；服务器部署文件位于 `/opt/wota-arrangement-web`，应用仅监听 `127.0.0.1:18080`，由宿主机 Nginx 终止 TLS。也可从 Actions 手动触发 Deploy 工作流。
 
 ## 一次编排
 
