@@ -762,3 +762,49 @@ test("空格播放暂停，不重复触发按钮且输入弹窗不响应", async
   await page.keyboard.press("Space"); // Native close still works; playback remains paused.
   expect(await paused()).toBe(true);
 });
+
+test("复选框滑块和下拉框获得焦点后空格仍播放暂停", async ({ page }) => {
+  await boot(page);
+  await audio(page);
+  const paused = () =>
+    page.locator("audio").evaluate((a: HTMLAudioElement) => a.paused);
+  const follow = page.getByRole("checkbox", { name: "跟随播放" });
+  await follow.click();
+  await expect(follow).not.toBeChecked();
+  await page.keyboard.press("Space");
+  await expect.poll(paused).toBe(false);
+  await expect(follow).not.toBeChecked();
+  await page.keyboard.press("Space");
+  await expect.poll(paused).toBe(true);
+  await expect(follow).not.toBeChecked();
+  const zoom = page.getByLabel("时间轴缩放");
+  await zoom.fill("2");
+  await zoom.focus();
+  await page.keyboard.press("Space");
+  await expect.poll(paused).toBe(false);
+  await expect(zoom).toHaveValue("2");
+  await page.keyboard.press("Space");
+  await expect.poll(paused).toBe(true);
+  const speed = page.getByLabel("播放速度");
+  await speed.selectOption("1.5");
+  await speed.focus();
+  await page.keyboard.press("Space");
+  await expect.poll(paused).toBe(false);
+  await expect(speed).toHaveValue("1.5");
+  await page.keyboard.press("Space");
+  await expect.poll(paused).toBe(true);
+  const names = page.getByRole("checkbox", { name: "显示名字" });
+  await names.check();
+  await page.keyboard.press("Space");
+  await expect.poll(paused).toBe(false);
+  await expect(names).toBeChecked();
+  await page.keyboard.press("Space");
+  await expect.poll(paused).toBe(true);
+  await page.getByLabel("歌曲名称", { exact: true }).fill("合成");
+  await page.keyboard.press("End");
+  await page.keyboard.press("Space");
+  await expect(page.getByLabel("歌曲名称", { exact: true })).toHaveValue(
+    "合成 ",
+  );
+  expect(await paused()).toBe(true);
+});

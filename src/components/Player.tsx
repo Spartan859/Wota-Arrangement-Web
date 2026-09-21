@@ -68,6 +68,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
   ref,
 ) {
   const beginDrag = usePointerDrag(`${p.id}:${p.audio?.id}`, readOnly);
+  const consumedSpace = useRef(false);
   const playhead = useRef<HTMLSpanElement>(null);
   const timelineScroll = useRef<HTMLDivElement>(null);
   // Position is owned by the audio animation frame, not the throttled React state.
@@ -319,29 +320,72 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
   };
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      const target = e.target instanceof Element ? e.target : null;
       if (
         e.isComposing ||
         e.ctrlKey ||
         e.metaKey ||
         e.altKey ||
-        document.querySelector("dialog[open]") ||
-        (e.target as HTMLElement)?.closest(
-          "input,textarea,select,[contenteditable=true]",
-        )
+        document.querySelector("dialog[open]")
       )
         return;
-      const key = e.key.toLowerCase();
-      if (!["a", "b", "[", "]", "l", "e", " "].includes(key)) return;
+      if (key === " ") {
+        const input = target?.closest("input");
+        const textInput =
+          input &&
+          ![
+            "checkbox",
+            "radio",
+            "range",
+            "button",
+            "submit",
+            "reset",
+            "file",
+            "color",
+          ].includes(input.type);
+        if (
+          textInput ||
+          target?.closest("textarea") ||
+          (target instanceof HTMLElement && target.isContentEditable)
+        )
+          return;
+        // Capture before controls handle Space; suppress their keyup activation too.
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.repeat) return;
+        consumedSpace.current = true;
+        togglePlayback();
+        return;
+      }
+      if (target?.closest("input,textarea,select,[contenteditable=true]"))
+        return;
+      if (!["a", "b", "[", "]", "l", "e"].includes(key)) return;
       e.preventDefault();
       if (e.repeat) return;
-      if (key === " ") togglePlayback();
-      else if (key === "a" || key === "b") choosePoint(key);
+      if (key === "a" || key === "b") choosePoint(key);
       else if (key === "l") toggleAb();
       else if (key === "e") setSuggestedEnd();
       else markRange(key === "[" ? "start" : "end");
     };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
+    const release = (e: KeyboardEvent) => {
+      if (e.key === " " && consumedSpace.current) {
+        consumedSpace.current = false;
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    const blur = () => {
+      consumedSpace.current = false;
+    };
+    document.addEventListener("keydown", handler, true);
+    document.addEventListener("keyup", release, true);
+    window.addEventListener("blur", blur);
+    return () => {
+      document.removeEventListener("keydown", handler, true);
+      document.removeEventListener("keyup", release, true);
+      window.removeEventListener("blur", blur);
+    };
   });
   return (
     <footer className="player" aria-label="歌曲播放器">
