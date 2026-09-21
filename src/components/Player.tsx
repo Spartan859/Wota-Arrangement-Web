@@ -298,6 +298,21 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
       end: selectedBlock.start! + suggested,
     });
   };
+  const togglePlayback = () => {
+    const a = audio.current;
+    if (!a || !readyRef.current) return;
+    if (!a.paused) {
+      a.pause();
+      return;
+    }
+    const currentLoop = loopRef.current;
+    if (
+      currentLoop &&
+      (a.currentTime < currentLoop.start! || a.currentTime >= currentLoop.end!)
+    )
+      a.currentTime = currentLoop.start!;
+    void a.play().catch(() => onError("无法播放，请重新点击或选择其他歌曲。"));
+  };
   const toggleAb = () => {
     if (abEnabled) setAbEnabled(false);
     else startAbLoop();
@@ -306,7 +321,6 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     const handler = (e: KeyboardEvent) => {
       if (
         e.isComposing ||
-        e.repeat ||
         e.ctrlKey ||
         e.metaKey ||
         e.altKey ||
@@ -317,9 +331,11 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
       )
         return;
       const key = e.key.toLowerCase();
-      if (!["a", "b", "[", "]", "l", "e"].includes(key)) return;
+      if (!["a", "b", "[", "]", "l", "e", " "].includes(key)) return;
       e.preventDefault();
-      if (key === "a" || key === "b") choosePoint(key);
+      if (e.repeat) return;
+      if (key === " ") togglePlayback();
+      else if (key === "a" || key === "b") choosePoint(key);
       else if (key === "l") toggleAb();
       else if (key === "e") setSuggestedEnd();
       else markRange(key === "[" ? "start" : "end");
@@ -405,19 +421,9 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
           className="play-button"
           aria-label={playing ? "暂停" : "播放"}
           disabled={!loaded}
-          onClick={() => {
-            const a = audio.current!;
-            if (a.paused) {
-              if (
-                loop &&
-                (a.currentTime < loop.start! || a.currentTime >= loop.end!)
-              )
-                a.currentTime = loop.start!;
-              void a
-                .play()
-                .catch(() => onError("无法播放，请重新点击或选择其他歌曲。"));
-            } else a.pause();
-          }}
+          title="播放 / 暂停（空格）"
+          aria-keyshortcuts="Space"
+          onClick={togglePlayback}
         >
           {playing ? <Pause size={20} /> : <Play size={20} />}
         </button>

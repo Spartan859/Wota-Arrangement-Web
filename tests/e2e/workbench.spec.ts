@@ -729,3 +729,36 @@ test("拖动播放头暂停、限制歌曲边界、不产生撤销；失焦后�
   ).toBe(stopped);
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
+
+test("空格播放暂停，不重复触发按钮且输入弹窗不响应", async ({ page }) => {
+  await boot(page);
+  await page.locator("body").click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press("Space");
+  await expect(
+    page.getByRole("button", { name: "播放", exact: true }),
+  ).toBeDisabled();
+  await audio(page);
+  const paused = () =>
+    page.locator("audio").evaluate((a: HTMLAudioElement) => a.paused);
+  await page.getByRole("button", { name: "播放", exact: true }).focus();
+  await page.keyboard.press("Space");
+  await expect.poll(paused).toBe(false);
+  await page.keyboard.down("Space");
+  await expect.poll(paused).toBe(true);
+  await page.keyboard.down("Space");
+  await page.keyboard.up("Space");
+  await expect.poll(paused).toBe(true);
+  await page.getByLabel("歌曲名称", { exact: true }).focus();
+  await page.keyboard.press("Space");
+  expect(await paused()).toBe(true);
+  await page.getByRole("button", { name: "新建", exact: true }).focus();
+  await page.keyboard.press("Space");
+  await expect.poll(paused).toBe(false);
+  await expect(page.getByLabel("歌曲名称")).not.toHaveValue("未命名歌曲");
+  await page.keyboard.press("Space");
+  await expect.poll(paused).toBe(true);
+  await page.getByRole("button", { name: "导出", exact: true }).click();
+  await page.getByRole("button", { name: "关闭对话框", exact: true }).focus();
+  await page.keyboard.press("Space"); // Native close still works; playback remains paused.
+  expect(await paused()).toBe(true);
+});
