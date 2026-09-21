@@ -33,7 +33,7 @@ export function usePointerDrag(resetKey: string, disabled: boolean) {
       win.removeEventListener("pointercancel", onCancel, true);
       win.removeEventListener("blur", abort);
       doc.removeEventListener("visibilitychange", hidden);
-      element.removeEventListener("lostpointercapture", onCancel);
+      element.removeEventListener("lostpointercapture", onLostCapture);
       element.removeEventListener("dragstart", preventDrag);
       active.current = null;
       if (element.hasPointerCapture(id)) element.releasePointerCapture(id);
@@ -59,6 +59,11 @@ export function usePointerDrag(resetKey: string, disabled: boolean) {
     const onCancel = (e: PointerEvent) => {
       if (e.pointerId === id) abort();
     };
+    // Losing capture only changes the event target. Window listeners still own
+    // this drag until pointerup, cancellation, or a move with no button pressed.
+    const onLostCapture = (e: PointerEvent) => {
+      if (e.pointerId === id && !element.isConnected) abort();
+    };
     const hidden = () => {
       if (doc.visibilityState === "hidden") abort();
     };
@@ -69,7 +74,7 @@ export function usePointerDrag(resetKey: string, disabled: boolean) {
     win.addEventListener("pointercancel", onCancel, true);
     win.addEventListener("blur", abort);
     doc.addEventListener("visibilitychange", hidden);
-    element.addEventListener("lostpointercapture", onCancel);
+    element.addEventListener("lostpointercapture", onLostCapture);
     element.addEventListener("dragstart", preventDrag);
     try {
       element.setPointerCapture(id);
