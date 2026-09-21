@@ -1,0 +1,19 @@
+name: wota-arrangement-web
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: wota-arrangement-web:local
+    ports:
+      - "127.0.0.1:${WOTA_WEB_PORT:-8080}:8080"
+    init: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    security_opt:
+      - no-new-privileges:true

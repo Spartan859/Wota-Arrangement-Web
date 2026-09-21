@@ -1,0 +1,15 @@
+.git
+.github
+node_modules
+dist
+coverage
+test-results
+playwright-report
+.compat-cli
+.DS_Store
+*.local
+*.mp3
+*.wav
+*.xlsx
+*.xls
+*.json.backup
