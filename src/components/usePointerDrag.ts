@@ -14,7 +14,7 @@ export function usePointerDrag(resetKey: string, disabled: boolean) {
     [resetKey, disabled],
   );
   return (
-    event: ReactPointerEvent<HTMLElement>,
+    event: ReactPointerEvent<Element>,
     move: (event: PointerEvent) => void,
     done: (cancelled: boolean) => void,
   ) => {
@@ -61,8 +61,8 @@ export function usePointerDrag(resetKey: string, disabled: boolean) {
     };
     // Losing capture only changes the event target. Window listeners still own
     // this drag until pointerup, cancellation, or a move with no button pressed.
-    const onLostCapture = (e: PointerEvent) => {
-      if (e.pointerId === id && !element.isConnected) abort();
+    const onLostCapture = () => {
+      if (!element.isConnected) abort();
     };
     const hidden = () => {
       if (doc.visibilityState === "hidden") abort();

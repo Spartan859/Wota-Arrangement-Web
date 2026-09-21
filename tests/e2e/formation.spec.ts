@@ -54,23 +54,23 @@ test("舞者双手颜色、拖动建帧、插值、登退场、撤销和刷新",
   const dancer = page.getByRole("button", { name: "舞者 小一", exact: true });
   await expect(dancer).toBeVisible();
   await dancer.locator('[data-hand="left"]').click();
-  await expect(page.locator(".stick-palette button")).toHaveCount(24);
+  await expect(page.locator(".stick-palette button")).toHaveCount(16);
   await page
     .getByRole("dialog")
-    .getByRole("button", { name: "红", exact: true })
+    .getByRole("button", { name: "极红", exact: true })
     .click();
   await dancer.locator('[data-hand="right"]').click();
   await page
     .getByRole("dialog")
-    .getByRole("button", { name: "绿", exact: true })
+    .getByRole("button", { name: "极绿", exact: true })
     .click();
   await expect(dancer.locator('[data-hand="left"]')).toHaveAttribute(
     "fill",
-    "#ee3038",
+    "#ff695b",
   );
   await expect(dancer.locator('[data-hand="right"]')).toHaveAttribute(
     "fill",
-    "#18ae53",
+    "#66ff65",
   );
   await at(page, 4);
   const box = (await dancer.boundingBox())!;
@@ -152,8 +152,8 @@ async function formationFixture(page: Page) {
       dancerId: d.id,
       x: i ? 0.75 : 0.25,
       y: j ? 0.7 : 0.3,
-      left: i ? "红" : "蓝",
-      right: "绿",
+      left: i ? "极红" : "极蓝",
+      right: "极绿",
       visible: true,
     })),
   }));
@@ -529,4 +529,38 @@ test("标题栏同排图标按钮与舞者姓名气泡", async ({ page }, testIn
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
+});
+
+test("圆点第一次点击只选中，第二次点击打开颜色并可重命名", async ({ page }) => {
+  await boot(page);
+  await add(page, "第一人");
+  await add(page, "第二人");
+  const first = page.getByRole("button", { name: "舞者 第一人", exact: true });
+  const second = page.getByRole("button", { name: "舞者 第二人", exact: true });
+  const overlapping = (await second.boundingBox())!;
+  await page.mouse.move(
+    overlapping.x + overlapping.width / 2,
+    overlapping.y + overlapping.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    overlapping.x + overlapping.width / 2 + 80,
+    overlapping.y + overlapping.height / 2,
+    { steps: 5 },
+  );
+  await page.mouse.up();
+  await first.click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(first.locator("circle")).toHaveAttribute("stroke", "#4568d4");
+  await second.click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(second.locator("circle")).toHaveAttribute("stroke", "#4568d4");
+  await second.click();
+  await expect(page.getByRole("dialog")).toContainText("光棒");
+  await page.getByRole("button", { name: "重命名舞者", exact: true }).click();
+  await page.getByLabel("舞者姓名").fill("第二人改名");
+  await page.getByRole("button", { name: "保存舞者", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "舞者 第二人改名", exact: true }),
+  ).toBeVisible();
 });

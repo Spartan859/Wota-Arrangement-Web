@@ -1,4 +1,5 @@
 import { Plus, Trash2 } from "lucide-react";
+import { usePointerDrag } from "./usePointerDrag";
 import { useEffect, useRef, useState } from "react";
 import type { Project } from "../core/model";
 import {
@@ -63,6 +64,10 @@ export function FormationCanvas({
   } | null>(null);
   const bubbles = useRef(new Map<string, SVGGElement>());
   const nodes = useRef(new Map<string, SVGGElement>());
+  const beginDrag = usePointerDrag(
+    `${project.id}:${project.audio?.id}`,
+    readOnly,
+  );
   const live = useRef({ c, getTime, readOnly, stageWidth, stageHeight, scale });
   live.current = { c, getTime, readOnly, stageWidth, stageHeight, scale };
   const run = (operation: (c: Choreography) => void) => {
@@ -305,63 +310,76 @@ export function FormationCanvas({
                   }
                 }}
                 onPointerDown={(e) => {
-                  if (readOnly || e.button !== 0) return;
+                  if (readOnly || e.button !== 0 || !e.isPrimary) return;
                   e.preventDefault();
+                  const wasSelected = selected === d.id;
                   setSelected(d.id);
                   const t = freeze();
                   const current = sampleFormation(c, t).find(
                     (p) => p.dancerId === d.id,
                   )!;
-                  const p = point(e.clientX, e.clientY);
-                  drag.current = {
+                  const startPoint = point(e.clientX, e.clientY);
+                  const state = {
                     id: d.id,
                     time: t,
                     x: e.clientX,
                     y: e.clientY,
                     moved: false,
                     pose: current,
-                    dx: current.x - p.x,
-                    dy: current.y - p.y,
+                    dx: current.x - startPoint.x,
+                    dy: current.y - startPoint.y,
                   };
-                  e.currentTarget.setPointerCapture(e.pointerId);
+                  drag.current = state;
                   setHand(
                     (e.target as Element).getAttribute("data-hand") === "right"
                       ? "right"
                       : "left",
                   );
-                }}
-                onPointerMove={(e) => {
-                  const state = drag.current;
-                  if (!state || state.id !== d.id || readOnly) return;
-                  if (
-                    Math.hypot(e.clientX - state.x, e.clientY - state.y) < 4 &&
-                    !state.moved
-                  )
-                    return;
-                  state.moved = true;
-                  const p = point(e.clientX, e.clientY);
-                  state.pose = {
-                    ...state.pose,
-                    x: Math.max(0.03, Math.min(0.97, p.x + state.dx)),
-                    y: Math.max(0.04, Math.min(0.96, p.y + state.dy)),
-                  };
-                }}
-                onPointerUp={(e) => {
-                  const state = drag.current;
-                  drag.current = null;
-                  if (!state || state.id !== d.id || readOnly) return;
-                  e.currentTarget.releasePointerCapture(e.pointerId);
-                  if (state.moved)
-                    run((c) =>
-                      changePose(c, d.id, state.time, {
-                        x: state.pose.x,
-                        y: state.pose.y,
-                      }),
-                    );
-                  else setModal("color");
-                }}
-                onPointerCancel={() => {
-                  drag.current = null;
+                  beginDrag(
+                    e,
+                    (event) => {
+                      if (!drag.current || drag.current.id !== d.id) return;
+                      if (
+                        Math.hypot(
+                          event.clientX - drag.current.x,
+                          event.clientY - drag.current.y,
+                        ) < 4 &&
+                        !drag.current.moved
+                      )
+                        return;
+                      drag.current.moved = true;
+                      const next = point(event.clientX, event.clientY);
+                      drag.current.pose = {
+                        ...drag.current.pose,
+                        x: Math.max(
+                          0.03,
+                          Math.min(0.97, next.x + drag.current.dx),
+                        ),
+                        y: Math.max(
+                          0.04,
+                          Math.min(0.96, next.y + drag.current.dy),
+                        ),
+                      };
+                    },
+                    (cancelled) => {
+                      const final = drag.current;
+                      drag.current = null;
+                      if (!cancelled && final?.moved)
+                        run((c) =>
+                          changePose(c, d.id, final.time, {
+                            x: final.pose.x,
+                            y: final.pose.y,
+                          }),
+                        );
+                      else if (
+                        !cancelled &&
+                        final &&
+                        wasSelected &&
+                        !final.moved
+                      )
+                        setModal("color");
+                    },
+                  );
                 }}
               >
                 <title>{d.name}</title>
@@ -589,6 +607,15 @@ export function FormationCanvas({
           onClose={() => setModal(null)}
         >
           <div className="toolbar">
+            <button
+              disabled={readOnly}
+              onClick={() => {
+                setName(selectedDancer?.name ?? "");
+                setModal("rename");
+              }}
+            >
+              重命名舞者
+            </button>
             <button
               className={hand === "left" && !bothHands ? "active" : ""}
               onClick={() => {

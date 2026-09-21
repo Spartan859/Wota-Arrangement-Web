@@ -2,22 +2,14 @@ import { z } from "zod";
 
 export const colors = [
   ["黑", "#111827"],
-  ["橙", "#ff8a18"],
   ["极橙", "#ffad38"],
   ["极EX橙", "#ffd34a"],
-  ["白", "#e1e5ea"],
   ["极白", "#ffffff"],
-  ["红", "#ee3038"],
   ["极红", "#ff695b"],
-  ["蓝", "#2453dd"],
   ["极蓝", "#35baff"],
-  ["黄", "#edcf12"],
   ["极黄", "#fff36a"],
-  ["粉", "#ed36b9"],
   ["极粉", "#ff8ade"],
-  ["绿", "#18ae53"],
   ["极绿", "#66ff65"],
-  ["紫", "#814bd7"],
   ["极紫", "#c18bff"],
   ["红樱", "#ff426c"],
   ["山吹", "#ffbc2b"],
@@ -26,9 +18,21 @@ export const colors = [
   ["翡翠", "#1ce5b4"],
   ["琉璃", "#476bff"],
 ] as const;
+const legacyColorAliases: Record<string, StickColor> = {
+  橙: "极橙",
+  白: "极白",
+  红: "极红",
+  蓝: "极蓝",
+  黄: "极黄",
+  粉: "极粉",
+  绿: "极绿",
+  紫: "极紫",
+};
 export type StickColor = (typeof colors)[number][0];
-const color = z.custom<StickColor>((value) =>
-  colors.some(([name]) => name === value),
+const color = z.custom<StickColor | string>(
+  (value) =>
+    colors.some(([name]) => name === value) ||
+    (typeof value === "string" && value in legacyColorAliases),
 );
 export const poseSchema = z.object({
   dancerId: z.string().min(1),
@@ -86,8 +90,10 @@ export const defaultPose = (dancerId: string): Pose => ({
   right: "极橙",
   visible: false,
 });
-export const colorHex = (name: StickColor) =>
-  colors.find((c) => c[0] === name)![1];
+export const colorHex = (name: StickColor | string) => {
+  const canonical = legacyColorAliases[name] ?? name;
+  return colors.find((c) => c[0] === canonical)?.[1] ?? "#111827";
+};
 export function frameTime(time: number, duration?: number) {
   if (
     !Number.isFinite(time) ||

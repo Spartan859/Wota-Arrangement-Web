@@ -66,7 +66,7 @@ describe("全员队形", () => {
         dancers: [...c.dancers, ...c.dancers],
       }).success,
     ).toBe(false);
-    expect(colors).toHaveLength(24);
+    expect(colors).toHaveLength(16);
   });
   it("v2 兼容与JSON保存，不丢超时关键帧", () => {
     const p = project();
