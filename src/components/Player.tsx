@@ -619,8 +619,13 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
         </button>
       </div>
       <div className="timeline-top">
-        <span>
+        <span className="timeline-heading">
           歌曲时间轴 <span className="muted">· 选中编辑，拖动边缘对时</span>
+          {selectedIds.length > 1 && (
+            <strong className="timeline-selection-count" role="status">
+              已选 {selectedIds.length} 段
+            </strong>
+          )}
         </span>
         <div className="timeline-tools">
           <button

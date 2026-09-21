@@ -166,6 +166,22 @@ test("时间轴修饰键选择、范围选择和单选回退", async ({ page }) 
   await blocks.nth(3).click({ modifiers: ["Shift"] });
   await expect(page.locator(".timeline-block.selected")).toHaveCount(4);
   await expect(blocks.nth(3)).toHaveClass(/primary-selected/);
+  await expect(page.locator(".timeline-selection-count")).toHaveText(
+    "已选 4 段",
+  );
+  const selectionStyles = await blocks.evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const style = getComputedStyle(node);
+      return {
+        boxShadow: style.boxShadow,
+        outlineWidth: style.outlineWidth,
+      };
+    }),
+  );
+  expect(selectionStyles[0].boxShadow).toContain("rgb(69, 104, 212)");
+  expect(selectionStyles[3].boxShadow).toContain("rgb(69, 104, 212)");
+  expect(selectionStyles[3].outlineWidth).toBe("3px");
+  expect(selectionStyles[0].boxShadow).not.toBe(selectionStyles[3].boxShadow);
   await blocks.nth(1).click({ modifiers: ["ControlOrMeta"] });
   await expect(page.locator(".timeline-block.selected")).toHaveCount(3);
   await blocks.nth(2).click();

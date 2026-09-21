@@ -799,6 +799,24 @@ fieldset {
 .timeline-top .muted {
   font-size: 10px;
 }
+.timeline-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.timeline-selection-count {
+  padding: 1px 5px;
+  border: 1px solid #b7c8f5;
+  border-radius: 4px;
+  background: #edf2ff;
+  color: var(--blue);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.25;
+  white-space: nowrap;
+}
 .timeline-top label {
   display: flex;
   align-items: center;
@@ -1597,16 +1615,37 @@ fieldset {
 }
 .timeline-block.selected {
   outline: 2px solid #fff;
-  box-shadow: 0 0 0 3px var(--blue);
+  box-shadow:
+    0 0 0 4px var(--blue),
+    inset 0 0 0 2px #ffffffb8;
   z-index: 5;
 }
+.timeline-block.selected::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 4px;
+  background: var(--blue);
+  content: "";
+  pointer-events: none;
+}
 .timeline-block.selected:not(.primary-selected) {
-  box-shadow: 0 0 0 2px var(--blue);
+  box-shadow:
+    0 0 0 4px var(--blue),
+    inset 0 0 0 2px #ffffffb8;
   z-index: 4;
 }
 .timeline-block.primary-selected {
-  box-shadow: 0 0 0 3px var(--blue);
+  outline-width: 3px;
+  box-shadow:
+    0 0 0 6px var(--blue),
+    inset 0 0 0 2px #fff;
   z-index: 5;
+}
+.timeline-block.primary-selected::before {
+  height: 5px;
+  background: #2949b1;
 }
 .timeline-edge {
   position: absolute;
