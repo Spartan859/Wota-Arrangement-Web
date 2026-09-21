@@ -190,6 +190,30 @@ test("位置与颜色轨道的当前帧菱形独立添加和删除", async ({ pa
   await expect(color).toHaveCount(3);
 });
 
+test("关键帧获得焦点后支持 Backspace 和 Delete 删除", async ({ page }) => {
+  await formationFixture(page);
+  await at(page, 2);
+  const position = page.getByLabel("位置关键帧").locator(".formation-key"),
+    color = page.getByLabel("颜色关键帧").locator(".formation-key");
+  await page
+    .getByRole("button", { name: "位置切换当前关键帧", exact: true })
+    .click();
+  await expect(position).toHaveCount(3);
+  await position.nth(1).focus();
+  await page.keyboard.press("Backspace");
+  await expect(position).toHaveCount(2);
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(position).toHaveCount(3);
+
+  await page
+    .getByRole("button", { name: "颜色切换当前关键帧", exact: true })
+    .click();
+  await expect(color).toHaveCount(3);
+  await color.nth(1).focus();
+  await page.keyboard.press("Delete");
+  await expect(color).toHaveCount(2);
+});
+
 async function formationFixture(page: Page) {
   await boot(page);
   const dancers = [

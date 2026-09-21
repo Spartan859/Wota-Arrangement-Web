@@ -95,6 +95,16 @@ export function FormationTrack({
       seek(target.time);
     }
   };
+  const deleteFrame = (kind: TrackKind, id: string) => {
+    if (readOnly || !dancerId) return;
+    pause();
+    showError(() =>
+      edit((draft) => {
+        if (draft.choreography)
+          removeDancerFrame(draft.choreography, dancerId, kind, id);
+      }),
+    );
+  };
   const toggleCurrentFrame = (kind: TrackKind) => {
     if (readOnly || !dancerId) return;
     pause();
@@ -176,6 +186,13 @@ export function FormationTrack({
                   }
                   pause();
                   if (!outOfRange) seek(frame.time);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== "Backspace" && event.key !== "Delete")
+                    return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  deleteFrame(kind, frame.id);
                 }}
                 onPointerDown={(event) => {
                   if (
