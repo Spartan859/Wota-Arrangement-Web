@@ -210,3 +210,4 @@ TypeScript 检查、生产构建和格式检查通过；`npm audit` 为 0 漏洞
 - CI run `35622376631` 总结论为成功：Web checks（含 Chromium 40/40）、Python XLSX 兼容、容器构建与只读容器 smoke test、GHCR 发布全部通过。WebKit 兼容任务独立完整运行并上传 artifact `10650363158`，结果为 7 通过、33 失败；失败共同集中在 Ubuntu WebKit 无法加载测试合成 WAV，故当前不声明 WebKit/Safari 兼容通过，也不让这一环境限制阻断 Chromium 验证后的生产发布。
 - 自动 Deploy run `35623039675` 成功发布提交 `086e93904338fe37acc1844518b24bd7649fa417`。服务器 `current` 已指向同一 SHA，`https://wota.satintin.com/healthz` 返回 `ok`，首页包含 `Wota · 编排工作台`。
 - 生产曾因工作流执行 `install -d -m 700 /opt/wota-arrangement-web` 下线：Nginx worker 实际为 `nobody:nogroup`，无法穿越该目录，首页返回 404，而独立 `/healthz` 仍返回成功。已将目录权限改为 `0711`，并让发布脚本同时通过 HTTPS 验证健康端点和首页标题；首页不可读时会触发回滚。修复后再次确认 Nginx、HTTPS 首页、健康检查和发布 SHA。
+- 根据部署策略调整，提交 `c831315` 已将 Chromium/WebKit Playwright 从 GitHub CI 移除；浏览器 E2E 仅在本地执行。CI 仍保留单元测试、类型检查、生产构建、格式、Python XLSX 兼容、容器构建与 smoke test、GHCR 发布。
