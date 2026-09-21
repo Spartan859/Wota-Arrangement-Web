@@ -365,7 +365,7 @@ test("画布尺寸校验、实时坐标、拖动、撤销和刷新", async ({ pa
   await expect(dancer).toHaveAttribute("transform", /translate\(400 300\)/);
 });
 
-test("尺寸弹窗选择缩放站位，按钮相邻及全帧保留坐标", async ({ page }) => {
+test("尺寸弹窗选择缩放站位，标题栏操作及全帧保留坐标", async ({ page }) => {
   await formationFixture(page);
   const addButton = page.getByRole("button", { name: "添加舞者", exact: true });
   const sizeButton = page.getByRole("button", {
@@ -375,7 +375,11 @@ test("尺寸弹窗选择缩放站位，按钮相邻及全帧保留坐标", async
   const a = (await addButton.boundingBox())!,
     b = (await sizeButton.boundingBox())!;
   expect(Math.abs(a.y - b.y)).toBeLessThan(1);
-  expect(b.x - (a.x + a.width)).toBeLessThan(12);
+  await expect(
+    page
+      .locator(".formation-panel > .panel-heading")
+      .getByRole("button", { name: "画布尺寸", exact: true }),
+  ).toBeVisible();
   await at(page, 0);
   await sizeButton.click();
   await expect(
@@ -460,4 +464,69 @@ test("关键帧捕获丢失后松手保存，全局松开只提交一次", async
   await expect(key).toHaveAttribute("title", committed!);
   await page.getByRole("button", { name: "撤销", exact: true }).click();
   await expect(key).toHaveAttribute("title", "00:04.00");
+});
+
+test("标题栏同排图标按钮与舞者姓名气泡", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1220, height: 880 });
+  await boot(page);
+  const toolbar = page.getByRole("group", { name: "舞者操作" });
+  await expect(page.locator(".formation-panel > .formation-tools")).toHaveCount(
+    0,
+  );
+  await expect(
+    toolbar.getByRole("button", { name: "全曲删除", exact: true }),
+  ).toBeDisabled();
+  await add(page, "舞者一");
+  const select = page.getByLabel("选择舞者"),
+    addButton = toolbar.getByRole("button", { name: "添加舞者", exact: true }),
+    del = toolbar.getByRole("button", { name: "全曲删除", exact: true }),
+    rename = toolbar.getByRole("button", { name: "重命名", exact: true });
+  const boxes = await Promise.all(
+    [select, addButton, del, rename].map((el) => el.boundingBox()),
+  );
+  for (const box of boxes)
+    expect(
+      Math.abs(box!.y + box!.height / 2 - (boxes[0]!.y + boxes[0]!.height / 2)),
+    ).toBeLessThan(2);
+  expect(boxes[2]!.x - boxes[1]!.x - boxes[1]!.width).toBeLessThan(8);
+  expect(boxes[3]!.x - boxes[2]!.x - boxes[2]!.width).toBeLessThan(8);
+  await expect(addButton.locator("svg")).toHaveCount(1);
+  await expect(del.locator("svg")).toHaveCount(1);
+  const dancer = page.getByRole("button", { name: "舞者 舞者一", exact: true });
+  await expect(page.locator(".dancer-name-bubble")).toHaveCount(0);
+  const undoBefore = await page
+    .getByRole("button", { name: "撤销", exact: true })
+    .isEnabled();
+  await page.getByRole("checkbox", { name: "显示名字" }).check();
+  await expect(page.locator(".dancer-name-bubble text")).toHaveText("舞者一");
+  const dot = (await dancer.locator('[data-hand="left"]').boundingBox())!,
+    bubble = (await page.locator(".dancer-name-bubble rect").boundingBox())!;
+  expect(bubble.y + bubble.height).toBeLessThan(dot.y);
+  expect(
+    await page.getByRole("button", { name: "撤销", exact: true }).isEnabled(),
+  ).toBe(undoBefore);
+  await rename.click();
+  await page.getByLabel("舞者姓名").fill("新姓名");
+  await page.getByRole("button", { name: "保存舞者", exact: true }).click();
+  await expect(page.locator(".dancer-name-bubble text")).toHaveText("新姓名");
+  await page.getByRole("button", { name: "退场", exact: true }).click();
+  await expect(page.locator(".dancer-name-bubble")).toBeHidden();
+  await page.getByRole("button", { name: "入场", exact: true }).click();
+  await expect(page.locator(".dancer-name-bubble")).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("formation-header.png") });
+  await page.getByRole("checkbox", { name: "显示名字" }).uncheck();
+  await expect(page.locator(".dancer-name-bubble")).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page
+    .getByRole("navigation", { name: "编辑视图" })
+    .getByRole("button", { name: "队形", exact: true })
+    .click();
+  await expect(
+    toolbar.getByRole("button", { name: "添加舞者", exact: true }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
 });

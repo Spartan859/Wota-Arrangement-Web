@@ -1,3 +1,4 @@
+import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Project } from "../core/model";
 import {
@@ -46,6 +47,7 @@ export function FormationCanvas({
   const [sizeError, setSizeError] = useState("");
   const [name, setName] = useState("");
   const [hand, setHand] = useState<"left" | "right">("left");
+  const [showNames, setShowNames] = useState(false);
   const [bothHands, setBothHands] = useState(false);
   const frozenTime = useRef(0);
   const svg = useRef<SVGSVGElement>(null);
@@ -59,6 +61,7 @@ export function FormationCanvas({
     dx: number;
     dy: number;
   } | null>(null);
+  const bubbles = useRef(new Map<string, SVGGElement>());
   const nodes = useRef(new Map<string, SVGGElement>());
   const live = useRef({ c, getTime, readOnly, stageWidth, stageHeight, scale });
   live.current = { c, getTime, readOnly, stageWidth, stageHeight, scale };
@@ -101,6 +104,20 @@ export function FormationCanvas({
           "transform",
           `translate(${shown.x * stageWidth} ${shown.y * stageHeight}) scale(${scale})`,
         );
+        const bubble = bubbles.current.get(pose.dancerId);
+        if (bubble) {
+          const half = Number(bubble.dataset.bubbleWidth) / 2;
+          const x = (shown.x * stageWidth) / scale;
+          const y = (shown.y * stageHeight) / scale;
+          const dx =
+            Math.max(half + 2, Math.min(stageWidth / scale - half - 2, x)) - x;
+          const dy = Math.max(0, 64 - y);
+          bubble.style.display = shown.visible ? "" : "none";
+          bubble.setAttribute(
+            "transform",
+            `translate(${(x + dx) * scale} ${(y + dy) * scale}) scale(${scale})`,
+          );
+        }
         node
           .querySelector("[data-hand=left]")
           ?.setAttribute("fill", colorHex(shown.left));
@@ -134,8 +151,23 @@ export function FormationCanvas({
     <section className="formation-panel" aria-label="队形画布">
       <div className="panel-heading">
         <h2>队形画布</h2>
-        <div className="toolbar formation-heading-actions">
+        <div className="formation-tools" role="group" aria-label="舞者操作">
+          <select
+            aria-label="选择舞者"
+            value={selectedDancer?.id ?? ""}
+            onChange={(e) => setSelected(e.target.value || null)}
+          >
+            <option value="">选择舞者</option>
+            {c.dancers.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
           <button
+            className="dancer-add"
+            aria-label="添加舞者"
+            title="添加舞者"
             disabled={readOnly}
             onClick={() => {
               freeze();
@@ -143,7 +175,45 @@ export function FormationCanvas({
               setModal("add");
             }}
           >
-            添加舞者
+            <Plus size={16} />
+          </button>
+          <button
+            className="dancer-delete"
+            aria-label="全曲删除"
+            title="全曲删除舞者"
+            disabled={!selectedDancer || readOnly}
+            onClick={() => setModal("delete")}
+          >
+            <Trash2 size={15} />
+          </button>
+          <button
+            disabled={!selectedDancer || readOnly}
+            onClick={() => {
+              setName(selectedDancer!.name);
+              setModal("rename");
+            }}
+          >
+            重命名
+          </button>
+          <button
+            title="从当前时刻起入场"
+            disabled={!selectedDancer || readOnly}
+            onClick={() => {
+              const t = freeze();
+              run((c) => setVisibility(c, selected!, t, true));
+            }}
+          >
+            入场
+          </button>
+          <button
+            title="从当前时刻起退场"
+            disabled={!selectedDancer || readOnly}
+            onClick={() => {
+              const t = freeze();
+              run((c) => setVisibility(c, selected!, t, false));
+            }}
+          >
+            退场
           </button>
           <button
             disabled={readOnly}
@@ -158,56 +228,15 @@ export function FormationCanvas({
           >
             画布尺寸
           </button>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={showNames}
+              onChange={(e) => setShowNames(e.target.checked)}
+            />
+            显示名字
+          </label>
         </div>
-      </div>
-      <div className="formation-tools">
-        <select
-          aria-label="选择舞者"
-          value={selectedDancer?.id ?? ""}
-          onChange={(e) => setSelected(e.target.value || null)}
-        >
-          <option value="">选择舞者</option>
-          {c.dancers.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.name}
-            </option>
-          ))}
-        </select>
-        <button
-          disabled={!selectedDancer || readOnly}
-          onClick={() => {
-            setName(selectedDancer!.name);
-            setModal("rename");
-          }}
-        >
-          重命名
-        </button>
-        <button
-          title="从当前时刻起入场"
-          disabled={!selectedDancer || readOnly}
-          onClick={() => {
-            const t = freeze();
-            run((c) => setVisibility(c, selected!, t, true));
-          }}
-        >
-          入场
-        </button>
-        <button
-          title="从当前时刻起退场"
-          disabled={!selectedDancer || readOnly}
-          onClick={() => {
-            const t = freeze();
-            run((c) => setVisibility(c, selected!, t, false));
-          }}
-        >
-          退场
-        </button>
-        <button
-          disabled={!selectedDancer || readOnly}
-          onClick={() => setModal("delete")}
-        >
-          全曲删除
-        </button>
       </div>
       <div className="stage-container">
         <svg
@@ -360,6 +389,72 @@ export function FormationCanvas({
               </g>
             );
           })}
+          {showNames && (
+            <g
+              className="dancer-names-layer"
+              pointerEvents="none"
+              aria-hidden="true"
+            >
+              {c.dancers.map((d) => {
+                const pose = sampleFormation(c, getTime()).find(
+                  (p) => p.dancerId === d.id,
+                )!;
+                return (
+                  <g
+                    key={d.id}
+                    ref={(node) => {
+                      if (node) bubbles.current.set(d.id, node);
+                      else bubbles.current.delete(d.id);
+                    }}
+                    data-name-for={d.id}
+                    transform={`translate(${pose.x * stageWidth} ${pose.y * stageHeight}) scale(${scale})`}
+                    style={{ display: pose.visible ? "" : "none" }}
+                    className="dancer-name-bubble"
+                    data-bubble-width={Math.min(
+                      260,
+                      Math.max(52, Array.from(d.name).length * 18 + 20),
+                    )}
+                    pointerEvents="none"
+                    aria-hidden="true"
+                  >
+                    <rect
+                      x={
+                        -Math.min(
+                          260,
+                          Math.max(52, Array.from(d.name).length * 18 + 20),
+                        ) / 2
+                      }
+                      y={-62}
+                      width={Math.min(
+                        260,
+                        Math.max(52, Array.from(d.name).length * 18 + 20),
+                      )}
+                      height={28}
+                      rx={9}
+                      fill="#ffffff"
+                      stroke="#bac8dc"
+                    />
+                    <path
+                      d="M -4 -34 L 0 -29 L 4 -34"
+                      fill="#ffffff"
+                      stroke="#bac8dc"
+                    />
+                    <text
+                      x={0}
+                      y={-43}
+                      textAnchor="middle"
+                      fontSize={18}
+                      fill="#34445e"
+                    >
+                      {Array.from(d.name).length > 13
+                        ? Array.from(d.name).slice(0, 12).join("") + "…"
+                        : d.name}
+                    </text>
+                  </g>
+                );
+              })}
+            </g>
+          )}
         </svg>
       </div>
       <small className="stage-help">

@@ -2195,3 +2195,62 @@ fieldset {
 .playhead[aria-disabled="true"] .playhead-time {
   cursor: default;
 }
+
+.formation-panel > .panel-heading {
+  gap: 8px;
+  padding-inline: 12px;
+}
+.formation-panel > .panel-heading h2 {
+  flex-shrink: 0;
+  font-size: 16px;
+}
+.formation-panel .formation-tools {
+  flex: 1;
+  min-width: 0;
+  margin-left: auto;
+  padding: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  align-items: center;
+}
+.formation-panel .formation-tools > * {
+  flex-shrink: 0;
+}
+.formation-panel .formation-tools select {
+  width: 78px;
+  padding: 5px 3px;
+  font-size: 11px;
+}
+.formation-panel .formation-tools button {
+  padding: 5px;
+  font-size: 11px;
+}
+.formation-tools .dancer-add {
+  color: #127744;
+  background: #e5f6ed;
+  border-color: #89c6a5;
+}
+.formation-tools .dancer-delete {
+  color: #bb3444;
+  background: #fff0f1;
+  border-color: #e8a1ab;
+}
+.dancer-name-bubble {
+  pointer-events: none;
+}
+
+.workbench,
+.upper-workspace,
+.formation-panel,
+.formation-panel > .panel-heading {
+  min-width: 0;
+}
+.formation-panel > .panel-heading {
+  overflow: hidden;
+}
+@media (max-width: 1000px) {
+  .formation-panel .formation-tools {
+    width: 0;
+    max-width: 100%;
+  }
+}
