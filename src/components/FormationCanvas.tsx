@@ -18,6 +18,24 @@ import {
 } from "../core/choreography";
 import { Modal } from "./Fields";
 
+const SHOW_NAMES_KEY = "wota-show-names";
+
+function readShowNames() {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(SHOW_NAMES_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function defaultDancerName(dancers: Choreography["dancers"]) {
+  const names = new Set(dancers.map((dancer) => dancer.name));
+  let index = 1;
+  while (names.has(`舞者${index}`)) index += 1;
+  return `舞者${index}`;
+}
+
 type Props = {
   project: Project;
   edit: (fn: (p: Project) => void) => void;
@@ -51,7 +69,7 @@ export function FormationCanvas({
   const [renameFromColor, setRenameFromColor] = useState(false);
   const [name, setName] = useState("");
   const [hand, setHand] = useState<"left" | "right">("left");
-  const [showNames, setShowNames] = useState(false);
+  const [showNames, setShowNames] = useState(readShowNames);
   const [bothHands, setBothHands] = useState(false);
   const frozenTime = useRef(0);
   const svg = useRef<SVGSVGElement>(null);
@@ -139,6 +157,13 @@ export function FormationCanvas({
     return () => cancelAnimationFrame(frame);
   }, []);
   useEffect(() => {
+    try {
+      window.localStorage.setItem(SHOW_NAMES_KEY, showNames ? "1" : "0");
+    } catch {
+      // 浏览器禁用本地存储时仍允许当前页面临时显示名字。
+    }
+  }, [showNames]);
+  useEffect(() => {
     drag.current = null;
     if (readOnly) setModal(null);
   }, [readOnly]);
@@ -183,7 +208,7 @@ export function FormationCanvas({
             disabled={readOnly}
             onClick={() => {
               freeze();
-              setName("");
+              setName(defaultDancerName(c.dancers));
               setModal("add");
             }}
           >

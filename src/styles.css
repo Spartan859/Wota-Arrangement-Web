@@ -2072,7 +2072,18 @@ fieldset {
   z-index: 2;
 }
 .formation-key.selected {
-  outline: 2px solid var(--blue);
+  outline: 2px solid currentColor;
+  background: color-mix(in srgb, currentColor 14%, white);
+}
+.formation-key-position {
+  color: #16808b;
+  border-color: #16808b66;
+  background: #e8f7f7;
+}
+.formation-key-color {
+  color: #bf6b2b;
+  border-color: #bf6b2b66;
+  background: #fff1e5;
 }
 .formation-key.out-of-range {
   color: #ad244b;
@@ -2407,22 +2418,37 @@ fieldset {
   height: 24px;
 }
 .formation-track-row-tools {
+  --track-color: #16808b;
+  --track-soft: #e8f7f7;
   display: flex;
   align-items: center;
   flex-shrink: 0;
   height: 22px;
   gap: 3px;
 }
+.formation-track-color {
+  --track-color: #bf6b2b;
+  --track-soft: #fff1e5;
+}
 .formation-track-row-tools strong {
   width: 24px;
   font-size: 10px;
-  color: var(--muted);
+  color: var(--track-color);
 }
 .formation-track-row-tools button {
   min-width: 20px;
   padding: 2px 4px;
+  color: var(--track-color);
+  border-color: color-mix(in srgb, var(--track-color) 38%, white);
   font-size: 10px;
   line-height: 1.2;
+}
+.formation-track-row-tools button:disabled {
+  color: color-mix(in srgb, var(--track-color) 38%, #a4aec0);
+}
+.formation-track-row-tools button.active {
+  color: var(--track-color);
+  background: var(--track-soft);
 }
 .formation-cleanup {
   flex-shrink: 0;

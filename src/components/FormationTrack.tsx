@@ -1,5 +1,5 @@
 import { usePointerDrag } from "./usePointerDrag";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Project } from "../core/model";
 import {
   cleanupRedundantKeyframes,
@@ -54,8 +54,14 @@ export function FormationTrack({
   } | null>(null);
   const [value, setValue] = useState("");
   const [error, setError] = useState("");
+  const [selectedFrames, setSelectedFrames] = useState<
+    Record<TrackKind, string | null>
+  >({ position: null, color: null });
   const suppressClick = useRef(false);
   const current = loaded ? getTime() : 0;
+  useEffect(() => {
+    setSelectedFrames({ position: null, color: null });
+  }, [dancerId]);
   const positionFrames = dancerId
     ? getDancerFrames(c!, dancerId, "position")
     : [];
@@ -94,12 +100,16 @@ export function FormationTrack({
         ? [...frames].reverse().find((frame) => frame.time < current)
         : frames[nextIndex];
     if (target) {
+      setSelectedFrames((selected) => ({ ...selected, [kind]: target.id }));
       pause();
       seek(target.time);
     }
   };
   const deleteFrame = (kind: TrackKind, id: string) => {
     if (readOnly || !dancerId) return;
+    setSelectedFrames((selected) =>
+      selected[kind] === id ? { ...selected, [kind]: null } : selected,
+    );
     pause();
     showError(() =>
       edit((draft) => {
@@ -132,7 +142,7 @@ export function FormationTrack({
     const atCurrent = currentFrame(kind);
     const label = kind === "position" ? "位置" : "颜色";
     return (
-      <div className="formation-track-row-tools">
+      <div className={`formation-track-row-tools formation-track-${kind}`}>
         <strong>{label}</strong>
         <button
           aria-label={`${label}上一个关键帧`}
@@ -147,7 +157,7 @@ export function FormationTrack({
           disabled={readOnly}
           onClick={() => toggleCurrentFrame(kind)}
         >
-          ◆
+          {atCurrent ? "◆" : "◇"}
         </button>
         <button
           aria-label={`${label}下一个关键帧`}
@@ -176,14 +186,17 @@ export function FormationTrack({
     const atCurrent = currentFrame(kind);
     const label = kind === "position" ? "位置" : "颜色";
     return (
-      <div className="formation-subtrack" aria-label={`${label}关键帧`}>
+      <div
+        className={`formation-subtrack formation-subtrack-${kind}`}
+        aria-label={`${label}关键帧`}
+      >
         <div className="formation-key-lane">
           {frames.map((frame) => {
             const outOfRange = duration > 0 && frame.time > duration;
             return (
               <button
                 key={frame.id}
-                className={`formation-key ${frame.id === atCurrent?.id ? "selected" : ""} ${outOfRange ? "out-of-range" : ""}`}
+                className={`formation-key formation-key-${kind} ${selectedFrames[kind] === frame.id ? "selected" : ""} ${outOfRange ? "out-of-range" : ""}`}
                 aria-label={`${label}关键帧 ${formatTime(frame.time)}`}
                 title={`${formatTime(frame.time)}${outOfRange ? " · 超出歌曲时长" : ""}`}
                 style={{
@@ -194,6 +207,10 @@ export function FormationTrack({
                     suppressClick.current = false;
                     return;
                   }
+                  setSelectedFrames((selected) => ({
+                    ...selected,
+                    [kind]: frame.id,
+                  }));
                   pause();
                   if (!outOfRange) seek(frame.time);
                 }}

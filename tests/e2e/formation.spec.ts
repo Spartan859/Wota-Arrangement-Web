@@ -165,6 +165,21 @@ test("位置与颜色轨道的当前帧菱形独立添加和删除", async ({ pa
     color = page.getByLabel("颜色关键帧").locator(".formation-key");
   await expect(position).toHaveCount(2);
   await expect(color).toHaveCount(2);
+  await position.nth(0).click();
+  await expect(position.nth(0)).toHaveClass(/selected/);
+  await expect(color.nth(0)).not.toHaveClass(/selected/);
+  await color.nth(0).click();
+  await expect(color.nth(0)).toHaveClass(/selected/);
+  await expect(position.nth(0)).toHaveClass(/selected/);
+  await expect(position.nth(0)).toHaveClass(/formation-key-position/);
+  await expect(color.nth(0)).toHaveClass(/formation-key-color/);
+  await expect(
+    page.locator(".formation-track-row-tools.formation-track-position"),
+  ).toBeVisible();
+  await expect(
+    page.locator(".formation-track-row-tools.formation-track-color"),
+  ).toBeVisible();
+  await at(page, 2);
   const layers = await page.evaluate(() => ({
     playhead: Number(
       getComputedStyle(document.querySelector(".playhead")!).zIndex,
@@ -174,11 +189,21 @@ test("位置与颜色轨道的当前帧菱形独立添加和删除", async ({ pa
     ),
   }));
   expect(layers.playhead).toBeGreaterThan(layers.keyframe);
-  await page
-    .getByRole("button", { name: "位置切换当前关键帧", exact: true })
-    .click();
+  const positionToggle = page.getByRole("button", {
+    name: "位置切换当前关键帧",
+    exact: true,
+  });
+  const colorToggle = page.getByRole("button", {
+    name: "颜色切换当前关键帧",
+    exact: true,
+  });
+  await expect(positionToggle).toHaveText("◇");
+  await expect(colorToggle).toHaveText("◇");
+  await positionToggle.click();
   await expect(position).toHaveCount(3);
   await expect(color).toHaveCount(2);
+  await expect(positionToggle).toHaveText("◆");
+  await expect(colorToggle).toHaveText("◇");
   await expect(page.locator(".formation-track-name")).toHaveText("甲 关键帧");
   const headerBox = (await page
       .locator(".formation-track-header")
@@ -217,15 +242,17 @@ test("位置与颜色轨道的当前帧菱形独立添加和删除", async ({ pa
         (playheadBox.x + playheadBox.width / 2),
     ),
   ).toBeLessThan(2);
-  await page
-    .getByRole("button", { name: "颜色切换当前关键帧", exact: true })
-    .click();
+  await colorToggle.click();
   await expect(color).toHaveCount(3);
-  await page
-    .getByRole("button", { name: "位置切换当前关键帧", exact: true })
-    .click();
+  await expect(positionToggle).toHaveText("◆");
+  await expect(colorToggle).toHaveText("◆");
+  await positionToggle.click();
   await expect(position).toHaveCount(2);
-  await expect(color).toHaveCount(3);
+  await expect(positionToggle).toHaveText("◇");
+  await expect(colorToggle).toHaveText("◆");
+  await colorToggle.click();
+  await expect(color).toHaveCount(2);
+  await expect(colorToggle).toHaveText("◇");
 });
 
 test("关键帧获得焦点后支持 Backspace 和 Delete 删除", async ({ page }) => {
@@ -590,6 +617,16 @@ test("关键帧捕获丢失后松手保存，全局松开只提交一次", async
   await expect(key).toHaveAttribute("title", "00:04.00");
 });
 
+test("添加舞者默认填充序号姓名", async ({ page }) => {
+  await boot(page);
+  const addButton = page.getByRole("button", { name: "添加舞者", exact: true });
+  await addButton.click();
+  await expect(page.getByLabel("舞者姓名")).toHaveValue("舞者1");
+  await page.getByRole("button", { name: "保存舞者", exact: true }).click();
+  await addButton.click();
+  await expect(page.getByLabel("舞者姓名")).toHaveValue("舞者2");
+});
+
 test("标题栏同排图标按钮与舞者姓名气泡", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1220, height: 880 });
   await boot(page);
@@ -623,7 +660,18 @@ test("标题栏同排图标按钮与舞者姓名气泡", async ({ page }, testIn
     .isEnabled();
   await page.getByRole("checkbox", { name: "显示名字" }).check();
   await expect(page.locator(".dancer-name-bubble text")).toHaveText("舞者一");
-  const dot = (await dancer.locator('[data-hand="left"]').boundingBox())!,
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "当前段落" })).toBeVisible();
+  await page.getByLabel("选择舞者").selectOption({ label: "舞者一" });
+  await expect(page.getByRole("checkbox", { name: "显示名字" })).toBeChecked();
+  await expect(page.locator(".dancer-name-bubble text")).toHaveText("舞者一");
+  const dancerAfterReload = page.getByRole("button", {
+    name: "舞者 舞者一",
+    exact: true,
+  });
+  const dot = (await dancerAfterReload
+      .locator('[data-hand="left"]')
+      .boundingBox())!,
     bubble = (await page.locator(".dancer-name-bubble rect").boundingBox())!;
   expect(bubble.y + bubble.height).toBeLessThan(dot.y);
   expect(
