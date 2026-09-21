@@ -40,7 +40,7 @@ docker compose down
 
 GitHub Actions 的 CI 位于 `.github/workflows/ci.yml`：所有分支和 PR 执行单元测试、类型检查、构建、格式检查、Chromium/WebKit 测试、Python XLSX 兼容测试和容器构建；推送到 `main` 或 `v*` 标签时，额外将镜像发布到 GitHub Container Registry。
 
-生产发布位于 `.github/workflows/deploy.yml`。`main` 的 CI 全部通过后，Actions 构建固定提交镜像，通过专用 SSH 密钥传到 `satintin`，运行健康检查并在失败时恢复上一镜像。生产地址为 `https://wota.satintin.com`。仓库的 `production` Environment 需要配置 `DEPLOY_SSH_KEY` 和 `DEPLOY_KNOWN_HOSTS`；服务器部署文件位于 `/opt/wota-arrangement-web`，应用仅监听 `127.0.0.1:18080`，由宿主机 Nginx 终止 TLS。也可从 Actions 手动触发 Deploy 工作流。
+生产发布位于 `.github/workflows/deploy.yml`。`main` 的 CI 全部通过后，Actions 构建固定提交的静态站点，通过专用 SSH 密钥传到 `satintin`，按提交号保留版本并原子切换；健康检查失败时恢复上一版本。生产地址为 `https://wota.satintin.com`。仓库的 `production` Environment 需要配置 `DEPLOY_SSH_KEY` 和 `DEPLOY_KNOWN_HOSTS`；服务器发布目录位于 `/opt/wota-arrangement-web`，由宿主机 Nginx 提供静态文件并终止 TLS。也可从 Actions 手动触发 Deploy 工作流。Docker 镜像发布仍独立保留。
 
 ## 一次编排
 
