@@ -2262,32 +2262,97 @@ fieldset {
 .baton-usage p {
   margin: 8px 0;
 }
-.baton-usage table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 12px 0;
+.baton-totals {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  white-space: nowrap;
+  overflow-x: auto;
+  padding-bottom: 12px;
+  margin-bottom: 8px;
   font-size: 12px;
 }
-.baton-usage th,
-.baton-usage td {
-  padding: 7px 10px;
-  border: 1px solid var(--line);
-  text-align: left;
-}
-.baton-usage th {
-  background: #f0f4fb;
-}
-.baton-usage td {
-  overflow-wrap: anywhere;
+.baton-totals > * {
+  flex-shrink: 0;
 }
 .baton-dancer {
-  margin: 10px 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  margin: 8px 0;
 }
-.baton-dancer summary {
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  overflow-wrap: anywhere;
+.baton-dancer-name {
+  flex: 0 0 125px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+}
+.baton-dancer-name small {
+  font-weight: 400;
+}
+.baton-sequence {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  overflow-x: auto;
+  min-width: 0;
+}
+.baton-step {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.baton-step + .baton-step::before {
+  content: "→";
+  color: var(--muted);
+  margin-right: 4px;
+}
+.baton-step time {
+  font:
+    11px ui-monospace,
+    monospace;
+}
+.baton-step .baton-dot {
+  padding: 3px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+}
+.baton-dot svg {
+  display: block;
+}
+.baton-tooltip {
+  position: fixed;
+  width: 280px;
+  max-width: calc(100vw - 24px);
+  padding: 9px 12px;
+  color: #fff;
+  background: #243247;
+  border-radius: 7px;
+  box-shadow: 0 4px 16px #0003;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 10;
+}
+.baton-tooltip small {
+  display: block;
+  margin-top: 3px;
+  color: #d5dfef;
+}
+@media (max-width: 600px) {
+  .baton-dancer-name {
+    flex-basis: 90px;
+  }
+  .baton-dancer {
+    gap: 6px;
+  }
 }
 .modal-header {
   gap: 10px;

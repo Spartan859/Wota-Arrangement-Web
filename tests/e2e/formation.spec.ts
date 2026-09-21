@@ -624,10 +624,14 @@ test("一次性光棒统计与Excel尾页一致，切换顺序保留", async ({ 
   await page.getByRole("button", { name: "导出", exact: true }).click();
   const usage = page.getByRole("region", { name: "光棒用量统计" });
   await expect(usage).toContainText("共 6 根");
-  await expect(usage.locator("table").first()).toContainText("极蓝");
-  await usage.locator("summary").first().click();
-  await expect(usage.locator("details").first()).toContainText("00:04.000");
-  await expect(usage.locator("details").first()).toContainText("极红");
+  await expect(usage.locator("table")).toHaveCount(0);
+  await expect(usage.locator(".baton-totals")).toContainText("极蓝");
+  await expect(usage.locator(".baton-dancer").first()).toContainText(
+    "00:04.000",
+  );
+  await expect(
+    usage.locator(".baton-dancer").first().getByRole("button").last(),
+  ).toHaveAttribute("aria-label", /极红/);
   await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
   // Add an arrangement so the standard six-column export is available.
   const lane = (await page.locator(".timeline-gap-target").boundingBox())!;
@@ -717,4 +721,63 @@ test("颜色弹窗标题行重命名后返回色板，取消保留姓名和手�
   await page.getByLabel("舞者姓名").fill("工具栏改名");
   await page.getByRole("button", { name: "保存舞者", exact: true }).click();
   await expect(dialog).toHaveCount(0);
+});
+
+test.describe("紧凑光棒统计", () => {
+  test.use({ hasTouch: true });
+  test("每人一行双色圆点，悬停和触摸显示左右手颜色", async ({
+    page,
+  }, testInfo) => {
+    await formationFixture(page);
+    await page.getByRole("button", { name: "导出", exact: true }).click();
+    const dialog = page.getByRole("dialog"),
+      usage = page.getByRole("region", { name: "光棒用量统计" });
+    await expect(usage.locator("table,details")).toHaveCount(0);
+    await expect(usage.locator(".baton-dancer")).toHaveCount(2);
+    await expect(usage.locator(".baton-totals")).toContainText("共 6 根");
+    const first = usage.locator(".baton-dancer").first();
+    const steps = first.getByRole("button");
+    await expect(steps).toHaveCount(2);
+    const positions = await steps.evaluateAll((els) =>
+      els.map((el) => el.getBoundingClientRect().y),
+    );
+    expect(Math.abs(positions[0] - positions[1])).toBeLessThan(1);
+    await expect(steps.first().locator('[data-hand="left"]')).toHaveAttribute(
+      "fill",
+      "#35baff",
+    );
+    await expect(steps.first().locator('[data-hand="right"]')).toHaveAttribute(
+      "fill",
+      "#66ff65",
+    );
+    await steps.first().hover();
+    await expect(page.getByRole("tooltip")).toContainText(
+      "左手：极蓝 · 右手：极绿",
+    );
+    await dialog.getByRole("heading", { name: "导出", exact: true }).click();
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await steps.last().tap();
+    await expect(page.getByRole("tooltip")).toContainText(
+      "左手：极红 · 右手：极绿",
+    );
+    const tooltip = (await page.getByRole("tooltip").boundingBox())!;
+    expect(tooltip.x).toBeGreaterThanOrEqual(0);
+    expect(tooltip.x + tooltip.width).toBeLessThanOrEqual(390);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath("compact-usage.png") });
+    await dialog
+      .getByRole("heading", { name: "舞者切换顺序", exact: true })
+      .tap();
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    await steps.first().focus();
+    await expect(page.getByRole("tooltip")).toContainText("极蓝");
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    await expect(dialog).toBeVisible();
+  });
 });

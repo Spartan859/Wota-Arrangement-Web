@@ -1,11 +1,122 @@
-import { useMemo } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Project } from "../core/model";
+import { colorHex } from "../core/choreography";
 import {
   batonUsage,
   batonLabel,
   usageRule,
   usageTime,
+  type BatonChange,
 } from "../core/batonUsage";
+
+function UsageStep({ change, name }: { change: BatonChange; name: string }) {
+  const button = useRef<HTMLButtonElement>(null),
+    id = useId();
+  const [tip, setTip] = useState<{
+    left: number;
+    top: number;
+    host: HTMLDialogElement;
+  } | null>(null);
+  const left = change.left === "黑" ? "黑（未持棒）" : batonLabel(change.left);
+  const right =
+    change.right === "黑" ? "黑（未持棒）" : batonLabel(change.right);
+  const label = `${name} ${usageTime(change.time)} ${change.kind}，左手：${left}；右手：${right}；新增 ${change.added} 根`;
+  const show = () => {
+    const node = button.current,
+      host = node?.closest("dialog");
+    if (!node || !host) return;
+    const box = node.getBoundingClientRect();
+    setTip({
+      host,
+      left: Math.max(
+        12,
+        Math.min(window.innerWidth - 292, box.left + box.width / 2 - 140),
+      ),
+      top:
+        box.bottom + 68 < window.innerHeight
+          ? box.bottom + 6
+          : Math.max(8, box.top - 68),
+    });
+  };
+  useEffect(() => {
+    if (!tip) return;
+    const close = () => setTip(null);
+    const outside = (e: PointerEvent) => {
+      if (!button.current?.contains(e.target as Node)) close();
+    };
+    document.addEventListener("pointerdown", outside, true);
+    document.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("pointerdown", outside, true);
+      document.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [tip]);
+  return (
+    <li className="baton-step">
+      <time>{usageTime(change.time)}</time>
+      <button
+        ref={button}
+        className="baton-dot"
+        aria-label={label}
+        aria-describedby={tip ? id : undefined}
+        onPointerEnter={(e) => {
+          if (e.pointerType !== "touch") show();
+        }}
+        onPointerLeave={(e) => {
+          if (e.pointerType !== "touch") setTip(null);
+        }}
+        onFocus={show}
+        onBlur={() => setTip(null)}
+        onClick={show}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            e.stopPropagation();
+            setTip(null);
+          }
+        }}
+      >
+        <svg width="28" height="28" viewBox="-24 -24 48 48" aria-hidden="true">
+          <path
+            data-hand="left"
+            d="M0 -22 A22 22 0 0 0 0 22 Z"
+            fill={colorHex(change.left)}
+            stroke="#536277"
+            strokeWidth="1.5"
+          />
+          <path
+            data-hand="right"
+            d="M0 -22 A22 22 0 0 1 0 22 Z"
+            fill={colorHex(change.right)}
+            stroke="#536277"
+            strokeWidth="1.5"
+          />
+        </svg>
+      </button>
+      {change.kind === "退场" && <small className="muted">退场</small>}
+      {tip &&
+        createPortal(
+          <div
+            id={id}
+            className="baton-tooltip"
+            role="tooltip"
+            style={{ left: tip.left, top: tip.top }}
+          >
+            <span>
+              左手：{left} · 右手：{right}
+            </span>
+            <small>
+              {change.kind} · 新增 {change.added} 根
+            </small>
+          </div>,
+          tip.host,
+        )}
+    </li>
+  );
+}
 export function BatonUsage({ project }: { project: Project }) {
   const result = useMemo(() => {
     try {
@@ -29,80 +140,41 @@ export function BatonUsage({ project }: { project: Project }) {
   const stats = result.stats;
   return (
     <section className="baton-usage" aria-label="光棒用量统计">
-      <div className="section-title">
+      <div className="baton-totals" title={usageRule}>
         <h3>光棒用量</h3>
         <strong>共 {stats.total} 根</strong>
+        <span>
+          {stats.colors
+            .map((row) => `${row.color} ${row.count} 根`)
+            .join(" · ") || "暂无光棒消耗记录"}
+        </span>
       </div>
-      <p className="muted">{usageRule}</p>
       {stats.outOfRange > 0 && (
         <p className="notice">
           统计包含 {stats.outOfRange} 个超出歌曲时长的关键帧，请检查对时。
         </p>
       )}
-      {stats.colors.length ? (
-        <table>
-          <thead>
-            <tr>
-              <th>颜色</th>
-              <th>累计消耗（根）</th>
-            </tr>
-          </thead>
-          <tbody>
-            {stats.colors.map((row) => (
-              <tr key={row.color}>
-                <td>{row.color}</td>
-                <td>{row.count}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        <p className="empty-small">暂无光棒消耗记录</p>
-      )}
       <h3>舞者切换顺序</h3>
       {stats.dancers.map((d, i) => (
-        <details key={d.id} className="baton-dancer">
-          <summary>
-            {i + 1}. {d.name} · {d.total} 根
-          </summary>
-          <p className="muted">
-            {d.colors.map((c) => `${c.color} ${c.count} 根`).join(" · ") ||
-              "无消耗"}
-          </p>
+        <div key={d.id} className="baton-dancer">
+          <strong
+            className="baton-dancer-name"
+            title={`${d.name} · ${d.total} 根`}
+          >
+            {i + 1}. {d.name}
+            <small> · {d.total} 根</small>
+          </strong>
           {d.changes.length ? (
-            <div className="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>时间</th>
-                    <th>状态</th>
-                    <th>左手</th>
-                    <th>右手</th>
-                    <th>新增（根）</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {d.changes.map((change) => (
-                    <tr key={change.time}>
-                      <td>{usageTime(change.time)}</td>
-                      <td>{change.kind}</td>
-                      <td>{batonLabel(change.left)}</td>
-                      <td>{batonLabel(change.right)}</td>
-                      <td>{change.added}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <ol className="baton-sequence" aria-label={`${d.name}切换顺序`}>
+              {d.changes.map((change) => (
+                <UsageStep key={change.time} change={change} name={d.name} />
+              ))}
+            </ol>
           ) : (
-            <p className="muted">无入场记录</p>
+            <span className="muted">无入场记录</span>
           )}
-        </details>
+        </div>
       ))}
-      <p className="muted">
-        Excel 最后一张工作表包含用量及完整切换顺序；舞者坐标和关键帧仍需另存
-        JSON。
-      </p>
     </section>
   );
 }
