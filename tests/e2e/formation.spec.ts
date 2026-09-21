@@ -655,11 +655,9 @@ test("标题栏同排图标按钮与舞者姓名气泡", async ({ page }, testIn
   await expect(del.locator("svg")).toHaveCount(1);
   const dancer = page.getByRole("button", { name: "舞者 舞者一", exact: true });
   await expect(page.locator(".dancer-name-bubble")).toHaveCount(0);
-  const undoBefore = await page
-    .getByRole("button", { name: "撤销", exact: true })
-    .isEnabled();
   await page.getByRole("checkbox", { name: "显示名字" }).check();
   await expect(page.locator(".dancer-name-bubble text")).toHaveText("舞者一");
+  await expect(page.locator(".save-state")).toContainText("已保存");
   await page.reload();
   await expect(page.getByRole("heading", { name: "当前段落" })).toBeVisible();
   await page.getByLabel("选择舞者").selectOption({ label: "舞者一" });
@@ -674,9 +672,9 @@ test("标题栏同排图标按钮与舞者姓名气泡", async ({ page }, testIn
       .boundingBox())!,
     bubble = (await page.locator(".dancer-name-bubble rect").boundingBox())!;
   expect(bubble.y + bubble.height).toBeLessThan(dot.y);
-  expect(
-    await page.getByRole("button", { name: "撤销", exact: true }).isEnabled(),
-  ).toBe(undoBefore);
+  await expect(
+    page.getByRole("button", { name: "撤销", exact: true }),
+  ).toBeDisabled();
   await rename.click();
   await page.getByLabel("舞者姓名").fill("新姓名");
   await page.getByRole("button", { name: "保存舞者", exact: true }).click();
