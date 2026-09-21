@@ -105,7 +105,7 @@ npm test -- tests/python-compat.test.ts
 
 ## 修改流程
 
-1. 开始任何开发前，先运行 `git status --short --branch` 确认工作区状态，再运行 `git fetch --all --prune` 拉取所有远端更新；工作区干净时执行 `git switch main`，并运行 `git pull --ff-only origin main` 完成快进同步。任一同步命令失败时先停止并处理原因。确认本地 `main` 与 `origin/main` 一致后，从最新 `main` 新建任务分支，不直接在 `main` 上开发或提交。
+1. 开始任何开发前，先运行 `git status --short --branch` 确认工作区状态，再运行 `git fetch --all --prune` 拉取所有远端更新；工作区干净时执行 `git switch main`，并运行 `git pull --ff-only origin main` 完成快进同步。随后分别运行 `git rev-parse main` 和 `git rev-parse origin/main`，确认两个提交 SHA 完全一致；任一同步命令失败或 SHA 不一致时先停止并处理原因。确认本地 `main` 与 `origin/main` 一致后，从最新 `main` 新建任务分支，不直接在 `main` 上开发或提交。
 2. 分支名使用 `<类型>/<简短说明>`，功能使用 `feat/xxx`，缺陷修复使用 `fix/xxx`；文档和维护任务分别使用 `docs/xxx`、`chore/xxx`。分支名使用小写英文和连字符，且一个分支只处理一个独立任务。
 3. 先读取相关源码、测试和 README，确认数据流与现有行为。
 4. 先修改纯逻辑和测试，再连接 UI；不要用测试专用分支绕开生产代码的校验。
