@@ -105,16 +105,16 @@ npm test -- tests/python-compat.test.ts
 
 ## 修改流程
 
-1. 开始修改前确认工作区和 `main` 状态；从最新 `main` 新建任务分支，不直接在 `main` 上开发或提交。
+1. 开始任何开发前，先运行 `git status --short --branch` 确认工作区状态，再运行 `git fetch --all --prune` 拉取所有远端更新，并在本地 `main` 上运行 `git pull --ff-only origin main` 完成快进同步；任一同步命令失败时先停止并处理原因。确认本地 `main` 与 `origin/main` 一致后，从最新 `main` 新建任务分支，不直接在 `main` 上开发或提交。
 2. 分支名使用 `<类型>/<简短说明>`，功能使用 `feat/xxx`，缺陷修复使用 `fix/xxx`；文档和维护任务分别使用 `docs/xxx`、`chore/xxx`。分支名使用小写英文和连字符，且一个分支只处理一个独立任务。
 3. 先读取相关源码、测试和 README，确认数据流与现有行为。
 4. 先修改纯逻辑和测试，再连接 UI；不要用测试专用分支绕开生产代码的校验。
 5. 运行最小相关测试，再运行 `npm run check`、`npm run format:check` 和必要的端到端测试。
 6. 检查 `git diff --check`、`git status --short`，确认没有 `dist/`、`node_modules/`、个人媒体或测试结果被加入。
-7. 获得用户明确授权后，才将任务分支推送到远端并创建 Pull Request；未获授权时停在本地提交。PR 创建后，合并前必须确认分支 CI 通过、Copilot review 已完成，逐条评估和处理审查意见，回复并解决所有可执行线程，同时处理与 `main` 的冲突。合并操作前再次刷新 review 状态；Copilot review 尚未返回、仍在运行或存在未处理意见时不得合并。CI 通过且 Copilot review 明确无未处理问题时直接合并，不再重复请求合并授权。不要绕过失败检查直接合并，也不要直接 push 到 `main`。
+7. 通过相关检查后，自动提交并 push 当前任务分支，不需要逐次请求授权；创建 Pull Request 前必须获得用户明确授权。PR 创建后，合并前必须确认分支 CI 通过、Copilot review 已完成，逐条评估和处理审查意见，回复并解决所有可执行线程，同时处理与 `main` 的冲突。合并操作前再次刷新 review 状态；Copilot review 尚未返回、仍在运行或存在未处理意见时不得合并。满足全部合并门禁后仍须获得用户明确的合并授权，不得把 PR 创建授权视为合并授权。不要绕过失败检查直接合并，也不要直接 push 到 `main`。
 8. 报告实际通过的命令和未能执行的浏览器/环境检查；不要把“启动成功”写成“部署成功”。
 
-除非用户明确要求，不要创建远程仓库、推送、创建 Pull Request、部署或修改原 Python 仓库。已获授权创建的 Pull Request 按上述 CI 和 Copilot review 门禁自动合并。
+除非用户明确要求，不要创建远程仓库、创建 Pull Request、合并 Pull Request、部署或修改原 Python 仓库。允许在任务检查通过后自动 push 当前任务分支，但不得直接 push 到 `main`；创建 PR 与合并 PR 是两项独立操作，均须分别获得用户明确授权。
 
 ## CI/CD 与生产发布
 
@@ -126,10 +126,10 @@ npm test -- tests/python-compat.test.ts
 
 ## 自动提交与 push
 
-每个独立的 `feat`、`fix`、`docs` 或 `chore` 都应在对应任务分支完成。通过相关检查且用户已明确授权 push 后，使用受限文件列表提交：
+每个独立的 `feat`、`fix`、`docs` 或 `chore` 都应在对应任务分支完成。通过相关检查后，使用受限文件列表自动提交并 push 当前任务分支，不需要逐次请求用户授权：
 
 ```sh
 npm run commit -- <feat|fix|docs|chore> "简短说明" <文件>...
 ```
 
-脚本只会暂存命令中明确列出的文件，提交前运行 `git diff --check` 并验证暂存区；不会提交依赖、构建产物、个人媒体、日志、账号数据或凭据。配置 `origin` 时会自动 push 当前任务分支，因此未获得用户明确 push 授权时不得运行该脚本，应使用受限文件列表执行本地 `git add -- <文件>...` 和 `git commit`。未配置 remote 或当前为 detached HEAD 时脚本只完成本地提交并明确报告原因。每次运行前仍需先检查 `git status --short`，不要把已有的无关修改带入提交。push 后仍须获得用户对创建 Pull Request 的明确授权；PR 创建后按上述门禁自动合并。禁止让脚本或代理直接向 `main` 提交或 push。
+脚本只会暂存命令中明确列出的文件，提交前运行 `git diff --check` 并验证暂存区；不会提交依赖、构建产物、个人媒体、日志、账号数据或凭据。配置 `origin` 时会自动 push 当前任务分支；未配置 remote 或当前为 detached HEAD 时脚本只完成本地提交并明确报告原因。每次运行前仍需先检查 `git status --short`，不要把已有的无关修改带入提交。push 后仍须获得用户对创建 Pull Request 的明确授权；即使 PR 已创建且全部门禁通过，合并前也须另行获得用户明确授权。禁止让脚本或代理直接向 `main` 提交或 push。
