@@ -39,8 +39,11 @@ ln -sfn "$release_dir" "$current_link"
 
 for attempt in {1..20}; do
   if curl --fail --silent --show-error \
-    --header 'Host: wota.satintin.com' \
-    http://127.0.0.1/healthz >/dev/null; then
+    --resolve wota.satintin.com:443:127.0.0.1 \
+    https://wota.satintin.com/healthz | grep -qx 'ok' && \
+    curl --fail --silent --show-error \
+      --resolve wota.satintin.com:443:127.0.0.1 \
+      https://wota.satintin.com/ | grep -Fq 'Wota · 编排工作台'; then
     rm -f -- "$archive"
     find "$releases_dir" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
       | sort -nr \

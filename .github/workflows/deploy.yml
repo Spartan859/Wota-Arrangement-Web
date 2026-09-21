@@ -62,7 +62,7 @@ jobs:
           chmod 600 ~/.ssh/known_hosts
       - name: Upload release and deployment script
         run: |
-          ssh -i ~/.ssh/deploy_key wota-deploy@120.77.57.144 'install -d -m 700 /opt/wota-arrangement-web'
+          ssh -i ~/.ssh/deploy_key wota-deploy@120.77.57.144 'install -d -m 711 /opt/wota-arrangement-web'
           scp -i ~/.ssh/deploy_key \
             /tmp/wota-arrangement-web.tar.gz \
             deploy/deploy.sh \
