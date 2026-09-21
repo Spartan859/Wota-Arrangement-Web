@@ -105,20 +105,31 @@ npm test -- tests/python-compat.test.ts
 
 ## 修改流程
 
-1. 先读取相关源码、测试和 README，确认数据流与现有行为。
-2. 先修改纯逻辑和测试，再连接 UI；不要用测试专用分支绕开生产代码的校验。
-3. 运行最小相关测试，再运行 `npm run check`、`npm run format:check` 和必要的端到端测试。
-4. 检查 `git diff --check`、`git status --short`，确认没有 `dist/`、`node_modules/`、个人媒体或测试结果被加入。
-5. 报告实际通过的命令和未能执行的浏览器/环境检查；不要把“启动成功”写成“部署成功”。
+1. 开始修改前确认工作区和 `main` 状态；从最新 `main` 新建任务分支，不直接在 `main` 上开发或提交。
+2. 分支名使用 `<类型>/<简短说明>`，功能使用 `feat/xxx`，缺陷修复使用 `fix/xxx`；文档和维护任务分别使用 `docs/xxx`、`chore/xxx`。分支名使用小写英文和连字符，且一个分支只处理一个独立任务。
+3. 先读取相关源码、测试和 README，确认数据流与现有行为。
+4. 先修改纯逻辑和测试，再连接 UI；不要用测试专用分支绕开生产代码的校验。
+5. 运行最小相关测试，再运行 `npm run check`、`npm run format:check` 和必要的端到端测试。
+6. 检查 `git diff --check`、`git status --short`，确认没有 `dist/`、`node_modules/`、个人媒体或测试结果被加入。
+7. 将任务分支推送到远端并通过 Pull Request 合并到 `main`；合并前必须确认分支 CI 通过，并处理审查意见和与 `main` 的冲突。不要绕过失败检查直接合并，也不要直接 push 到 `main`。
+8. 报告实际通过的命令和未能执行的浏览器/环境检查；不要把“启动成功”写成“部署成功”。
 
 除非用户明确要求，不要创建远程仓库、推送、部署或修改原 Python 仓库。
 
+## CI/CD 与生产发布
+
+- `.github/workflows/ci.yml` 是合并门禁。所有任务分支和 Pull Request 都必须通过适用的单元测试、类型检查、生产构建、格式检查、Python XLSX 兼容测试和容器检查。
+- `main` 是生产基线。任务分支只能通过 Pull Request 合并进入 `main`，不得把未经验证的提交直接写入 `main`。
+- 合并进入 `main` 后，不手动复制构建产物或登录服务器发布。等待 `main` 的 CI 成功，由 `.github/workflows/deploy.yml` 自动触发生产部署到 `https://wota.satintin.com`。
+- CI 成功只表示构建和检查完成，不等于部署成功。必须分别检查 Deploy 工作流结论及生产首页、健康检查；工作流失败或生产验证异常时，应先修复或回滚，不得宣称已经上线。
+- 手动触发 Deploy 仅用于获批的重试或恢复，不得用它绕过 `main` 合并和 CI 门禁。生产密钥、主机信息和 Environment 配置只保存在 GitHub Actions/Environment，不写入仓库、日志或提交信息。
+
 ## 自动提交与 push
 
-每个独立的 `feat`、`fix`、`docs` 或 `chore` 完成并通过相关检查后，使用受限文件列表提交：
+每个独立的 `feat`、`fix`、`docs` 或 `chore` 都应在对应任务分支完成。通过相关检查后，使用受限文件列表提交：
 
 ```sh
 npm run commit -- <feat|fix|docs|chore> "简短说明" <文件>...
 ```
 
-脚本只会暂存命令中明确列出的文件，提交前运行 `git diff --check` 并验证暂存区；不会提交依赖、构建产物、个人媒体、日志、账号数据或凭据。配置 `origin` 时会 push 当前分支；未配置 remote 或当前为 detached HEAD 时只完成本地提交并明确报告原因。每次运行前仍需先检查 `git status --short`，不要把已有的无关修改带入提交。
+脚本只会暂存命令中明确列出的文件，提交前运行 `git diff --check` 并验证暂存区；不会提交依赖、构建产物、个人媒体、日志、账号数据或凭据。配置 `origin` 时会 push 当前任务分支；未配置 remote 或当前为 detached HEAD 时只完成本地提交并明确报告原因。每次运行前仍需先检查 `git status --short`，不要把已有的无关修改带入提交。push 后通过 Pull Request 合并，禁止让脚本或代理直接向 `main` 提交或 push。
