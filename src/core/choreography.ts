@@ -40,6 +40,12 @@ export const poseSchema = z.object({
 });
 export const choreographySchema = z
   .object({
+    canvas: z
+      .object({
+        width: z.number().int().min(320).max(4000),
+        height: z.number().int().min(240).max(3000),
+      })
+      .default({ width: 800, height: 600 }),
     dancers: z.array(
       z.object({ id: z.string().min(1), name: z.string().min(1) }),
     ),
@@ -69,6 +75,7 @@ export const choreographySchema = z
 export type Choreography = z.infer<typeof choreographySchema>;
 export type Pose = z.infer<typeof poseSchema>;
 export const emptyChoreography = (): Choreography => ({
+  canvas: { width: 800, height: 600 },
   dancers: [],
   frames: [],
 });

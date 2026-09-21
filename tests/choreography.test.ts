@@ -76,3 +76,31 @@ describe("全员队形", () => {
     expect(parseProject(backup(p)).choreography).toEqual(p.choreography);
   });
 });
+
+describe("画布尺寸", () => {
+  it("旧队形补默认值，自定义尺寸随 JSON 往返且保留归一化位置", () => {
+    const c = emptyChoreography();
+    addDancer(c, "A", 0);
+    const { canvas, ...legacy } = c;
+    expect(choreographySchema.parse(legacy).canvas).toEqual({
+      width: 800,
+      height: 600,
+    });
+    const p = project();
+    p.choreography = { ...c, canvas: { width: 1200, height: 400 } };
+    const result = parseProject(backup(p));
+    expect(result.choreography?.canvas).toEqual({ width: 1200, height: 400 });
+    expect(result.choreography?.frames).toEqual(c.frames);
+    for (const canvas of [
+      { width: 0, height: 400 },
+      { width: 1200, height: 1 },
+      { width: Infinity, height: 400 },
+      { width: 1200.5, height: 400 },
+      { width: 4001, height: 400 },
+    ]) {
+      expect(choreographySchema.safeParse({ ...c, canvas }).success).toBe(
+        false,
+      );
+    }
+  });
+});

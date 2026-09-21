@@ -257,3 +257,110 @@ test("冲突后禁止队形修改，可另存副本，全曲删除可撤销", as
     second.getByRole("button", { name: "舞者 甲", exact: true }),
   ).toHaveCount(1);
 });
+
+test("左右手同时设置颜色", async ({ page }) => {
+  await boot(page);
+  await add(page, "同时设置");
+  const dancer = page.getByRole("button", {
+    name: "舞者 同时设置",
+    exact: true,
+  });
+  await dancer.locator('[data-hand="left"]').click();
+  await page.getByRole("button", { name: "左右手同时", exact: true }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "黑", exact: true })
+    .click();
+  await expect(dancer.locator('[data-hand="left"]')).toHaveAttribute(
+    "fill",
+    "#111827",
+  );
+  await expect(dancer.locator('[data-hand="right"]')).toHaveAttribute(
+    "fill",
+    "#111827",
+  );
+});
+
+test("画布尺寸校验、实时坐标、拖动、撤销和刷新", async ({ page }) => {
+  await boot(page);
+  await add(page, "尺寸测试");
+  const stage = page.getByLabel("舞台俯视图");
+  const dancer = page.getByRole("button", {
+    name: "舞者 尺寸测试",
+    exact: true,
+  });
+  const changeSize = async (width: string, height: string) => {
+    await page.getByRole("button", { name: "画布尺寸", exact: true }).click();
+    await page.getByLabel("画布宽度").fill(width);
+    await page.getByLabel("画布高度").fill(height);
+    await page.getByRole("button", { name: "保存尺寸", exact: true }).click();
+  };
+  await changeSize("0", "400");
+  await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
+    "尺寸范围",
+  );
+  await expect(stage).toHaveAttribute("viewBox", "0 0 800 600");
+  await page.getByLabel("画布宽度").fill("1200");
+  await page.getByRole("button", { name: "保存尺寸", exact: true }).click();
+  await expect(stage).toHaveAttribute("viewBox", "0 0 1200 400");
+  await expect
+    .poll(() => dancer.getAttribute("transform"))
+    .toContain("translate(600 200)");
+  await page.waitForTimeout(150);
+  await expect(dancer).toHaveAttribute("transform", /translate\(600 200\)/);
+  const box = (await dancer.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 30, box.y + box.height / 2, {
+    steps: 5,
+  });
+  await page.mouse.up();
+  await expect
+    .poll(() => dancer.getAttribute("transform"))
+    .not.toContain("translate(600 200)");
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(dancer).toHaveAttribute("transform", /translate\(600 200\)/);
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(stage).toHaveAttribute("viewBox", "0 0 800 600");
+  await page.getByRole("button", { name: "重做", exact: true }).click();
+  await expect(stage).toHaveAttribute("viewBox", "0 0 1200 400");
+  await expect(page.locator(".save-state")).toContainText("已保存");
+  await page.reload();
+  await expect(stage).toHaveAttribute("viewBox", "0 0 1200 400");
+  await expect(dancer).toHaveAttribute("transform", /translate\(600 200\)/);
+  await changeSize("400", "1200");
+  await expect(stage).toHaveAttribute("viewBox", "0 0 400 1200");
+  await expect(dancer).toHaveAttribute("transform", /translate\(200 600\)/);
+  await expect(page.locator(".save-state")).toContainText("已保存");
+  // Simulate an IndexedDB project saved before canvas dimensions existed.
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open("wota-workbench");
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const db = request.result;
+          const tx = db.transaction("projects", "readwrite");
+          const store = tx.objectStore("projects");
+          const cursor = store.openCursor();
+          cursor.onsuccess = () => {
+            const current = cursor.result;
+            if (!current) return;
+            const record = current.value;
+            if (record.document.choreography)
+              delete record.document.choreography.canvas;
+            current.update(record);
+            current.continue();
+          };
+          tx.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+          tx.onerror = () => reject(tx.error);
+        };
+      }),
+  );
+  await page.reload();
+  await expect(stage).toHaveAttribute("viewBox", "0 0 800 600");
+  await expect(dancer).toHaveAttribute("transform", /translate\(400 300\)/);
+});
