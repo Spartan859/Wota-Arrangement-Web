@@ -186,3 +186,9 @@ TypeScript 检查、生产构建和格式检查通过；`npm audit` 为 0 漏洞
 - 附录文字只占 A 列，图片覆盖空白区域，Web 用命名区域标识附录；真实 Python 读取保持编排数据和原区域合并结构一致，新增合并只在附录。Python openpyxl 给出 DrawingML 支持不完整警告，故兼容验证仅承诺编排数据读取，不承诺原 Python 重导出保留附录图片。
 - `npm run check`：33 项通过（Python 专项默认跳过），类型、构建、格式及 diff 检查通过；单独真实 Python 双向兼容 1 项通过。
 - Chrome 相关测试 3 项通过，覆盖同表统计、图片数量、下载后重新导入、黑色过滤、触摸/悬停。另检查生成的 PNG 示例，时间戳与双色半圆显示正常。本轮未运行全套 E2E 或 WebKit。
+
+## 2026-09-21 Docker 与 CI
+
+- 新增多阶段 `Dockerfile`、只读 Nginx 运行容器、`compose.yaml` 和 GitHub Actions 容器构建、启动 smoke test 与 GHCR 发布 job。
+- `docker compose config -q`、Compose JSON 展开和 GitHub Actions YAML 解析已通过；`npm run check`、`npm run format:check` 与 `git diff --check` 通过。
+- 本机 Docker 镜像构建未能执行：沙箱无法访问 Docker socket，提权审批服务返回 503；未将构建失败误报为镜像验证通过。
