@@ -111,3 +111,7 @@ export function usageTime(time: number) {
 }
 export const batonLabel = (color: StickColor) =>
   color === "黑" ? "未持棒" : color;
+
+// The replacement list contains taking fresh sticks, not discarding/exit events.
+export const replacementChanges = (changes: BatonChange[]) =>
+  changes.filter((change) => change.added > 0);

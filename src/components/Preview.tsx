@@ -59,8 +59,7 @@ export function Preview({
         </table>
       </div>
       <p className="muted">
-        Excel
-        首张表为段落编排，最后一张表为光棒用量与切换顺序。歌曲、走位坐标及完整关键帧请另存
+        Excel 编排表底部附光棒用量与换棒列表。歌曲、走位坐标及完整关键帧请另存
         JSON 备份。
       </p>
     </Modal>

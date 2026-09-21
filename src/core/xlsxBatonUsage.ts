@@ -1,94 +1,71 @@
 import type ExcelJS from "exceljs";
 import type { Project } from "./model";
-import { batonUsage, batonLabel, usageRule, usageTime } from "./batonUsage";
-export function appendBatonUsage(wb: ExcelJS.Workbook, project: Project) {
-  const stats = batonUsage(project);
-  const sheet = wb.addWorksheet("光棒用量统计");
-  sheet.columns = [
-    { width: 9 },
-    { width: 18 },
-    { width: 16 },
-    { width: 21 },
-    { width: 21 },
-    { width: 16 },
-  ];
-  const band = (label: string) => {
-    const row = sheet.addRow([label]);
-    sheet.mergeCells(row.number, 1, row.number, 6);
-    row.height = 28;
-    row.font = { bold: true, size: 13, color: { argb: "FFFFFFFF" } };
-    row.getCell(1).fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: "FF31465E" },
-    };
+import {
+  batonUsage,
+  batonLabel,
+  replacementChanges,
+  usageRule,
+  usageTime,
+} from "./batonUsage";
+import { batonSequenceImage } from "./batonSequenceImage";
+export const usageFooterName = "WOTA_USAGE_FOOTER";
+export async function appendBatonUsage(wb: ExcelJS.Workbook, project: Project) {
+  const stats = batonUsage(project),
+    sheet = wb.worksheets[0];
+  const footer = sheet.rowCount + 2;
+  wb.definedNames.add(`'${sheet.name}'!$A$${footer}`, usageFooterName);
+  const note = (row: number, text: string, bold = false) => {
+    sheet.mergeCells(row, 1, row, 6);
+    const cell = sheet.getCell(row, 1);
+    cell.value = text;
+    cell.font = { size: bold ? 12 : 10, bold, color: { argb: "FF243247" } };
+    cell.alignment = { vertical: "middle", shrinkToFit: true };
+    sheet.getRow(row).height = 28;
   };
-  const note = (text: string) => {
-    const row = sheet.addRow([text]);
-    sheet.mergeCells(row.number, 1, row.number, 6);
-    row.height = 34;
-    row.alignment = { wrapText: true, vertical: "middle" };
-  };
-  const header = (values: string[]) => {
-    const row = sheet.addRow(values);
-    row.font = { bold: true };
-    row.eachCell((cell) => {
-      cell.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: "FFE7EEF8" },
-      };
-    });
-  };
-  band("光棒用量统计");
-  note(project.songName);
-  note(usageRule);
+  note(
+    footer,
+    `光棒用量 · 共 ${stats.total} 根   ${stats.colors.map((c) => `${c.color} ${c.count} 根`).join(" · ")}`,
+    true,
+  );
+  sheet.getCell(footer, 1).note = usageRule;
+  let row = footer + 1;
   if (stats.outOfRange)
     note(
-      `注意：统计包含 ${stats.outOfRange} 个超出歌曲时长的关键帧，请检查对时。`,
+      row++,
+      `注意：包含 ${stats.outOfRange} 个超出歌曲时长的关键帧，请检查对时。`,
     );
-  header(["序号", "颜色", "累计消耗（根）"]);
-  stats.colors.forEach((row, i) => sheet.addRow([i + 1, row.color, row.count]));
-  sheet.addRow(["合计", "", stats.total]);
-  if (!stats.colors.length) note("暂无光棒消耗记录");
-  sheet.addRow([]);
-  band("舞者切换顺序");
-  for (const [index, d] of stats.dancers.entries()) {
-    band(`${index + 1}. ${d.name} · ${d.total} 根`);
-    note(
-      d.colors.map((c) => `${c.color} ${c.count} 根`).join(" · ") || "无消耗",
-    );
-    header(["顺序", "时间", "状态", "左手", "右手", "新增（根）"]);
-    d.changes.forEach((change, i) =>
-      sheet.addRow([
-        i + 1,
-        usageTime(change.time),
-        change.kind,
-        batonLabel(change.left),
-        batonLabel(change.right),
-        change.added,
-      ]),
-    );
-    if (!d.changes.length) note("无入场记录");
-    sheet.addRow([]);
+  note(row++, "换棒列表", true);
+  // Values exist only in column A; original Python readers ignore trailing rows
+  // without beats/lyrics. The Web reader additionally uses the named boundary.
+  const width = sheet.columns
+    .slice(2, 6)
+    .reduce((sum, c) => sum + (c.width ?? 10) * 7 + 5, 0);
+  for (const [i, d] of stats.dancers.entries()) {
+    sheet.mergeCells(row, 1, row, 2);
+    const name = sheet.getCell(row, 1);
+    name.value = `${i + 1}. ${d.name} · ${d.total} 根`;
+    name.font = { size: 11, bold: true };
+    name.alignment = { vertical: "middle", shrinkToFit: true };
+    const changes = replacementChanges(d.changes);
+    name.note =
+      changes
+        .map(
+          (c) =>
+            `${usageTime(c.time)} 左手：${batonLabel(c.left)}；右手：${batonLabel(c.right)}`,
+        )
+        .join("\n") || "无换棒记录";
+    sheet.getRow(row).height = 32;
+    if (changes.length) {
+      const image = await batonSequenceImage(changes),
+        ratio = Math.min(1, (width - 12) / image.width);
+      const id = wb.addImage({ base64: image.base64, extension: "png" });
+      sheet.addImage(id, {
+        tl: { col: 2, row: row - 1 + 0.1 },
+        ext: { width: image.width * ratio, height: image.height * ratio },
+        editAs: "oneCell",
+      });
+    } else name.value += " · 无换棒记录";
+    row++;
   }
-  if (!stats.dancers.length) note("未添加舞者");
-  sheet.eachRow((row) => {
-    row.height ??= 24;
-    row.eachCell((cell) => {
-      cell.alignment = {
-        ...cell.alignment,
-        wrapText: true,
-        vertical: "middle",
-      };
-    });
-  });
-  sheet.pageSetup = {
-    orientation: "landscape",
-    paperSize: 9,
-    fitToPage: true,
-    fitToWidth: 1,
-    fitToHeight: 0,
-    printArea: `A1:F${sheet.rowCount}`,
-  };
+  if (!stats.dancers.length) note(row, "暂无换棒记录");
 }

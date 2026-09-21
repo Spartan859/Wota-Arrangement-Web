@@ -618,7 +618,7 @@ test("旧本地草稿导出文件后立即导入保留队形", async ({ page }) 
   ).toBeDisabled();
 });
 
-test("一次性光棒统计与Excel尾页一致，切换顺序保留", async ({ page }) => {
+test("一次性光棒统计与Excel同表尾部一致，换棒顺序保留", async ({ page }) => {
   await formationFixture(page);
   // Existing fixture: two dancers start blue/green, then both switch left to red.
   await page.getByRole("button", { name: "导出", exact: true }).click();
@@ -644,9 +644,10 @@ test("一次性光棒统计与Excel尾页一致，切换顺序保留", async ({ 
   const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.readFile((await file.path())!);
-  expect(wb.worksheets.at(-1)!.name).toBe("光棒用量统计");
-  const totals = wb.worksheets.at(-1)!;
-  expect(totals.getCell("C8").value).toBe(6);
+  expect(wb.worksheets).toHaveLength(1);
+  expect(wb.worksheets[0].getCell("A5").value).toContain("共 6 根");
+  expect(wb.worksheets[0].getCell("A6").value).toBe("换棒列表");
+  expect(wb.worksheets[0].getImages()).toHaveLength(2);
   expect(wb.worksheets[0].getCell("A2").value).toBe("段落");
   const { readFile } = await import("node:fs/promises");
   await page.getByLabel("打开项目文件").setInputFiles({
@@ -770,9 +771,7 @@ test.describe("紧凑光棒统计", () => {
       ),
     ).toBe(true);
     await page.screenshot({ path: testInfo.outputPath("compact-usage.png") });
-    await dialog
-      .getByRole("heading", { name: "舞者切换顺序", exact: true })
-      .tap();
+    await dialog.getByRole("heading", { name: "换棒列表", exact: true }).tap();
     await expect(page.getByRole("tooltip")).toHaveCount(0);
     await steps.first().focus();
     await expect(page.getByRole("tooltip")).toContainText("极蓝");
@@ -780,4 +779,34 @@ test.describe("紧凑光棒统计", () => {
     await expect(page.getByRole("tooltip")).toHaveCount(0);
     await expect(dialog).toBeVisible();
   });
+});
+
+test("换棒列表隐藏黑色并在同一Excel表底部附简化圆点", async ({
+  page,
+}, testInfo) => {
+  await formationFixture(page);
+  // Both empty hands discard sticks; taking the original colors again consumes new ones.
+  await at(page, 1);
+  const dancer = page.getByRole("button", { name: "舞者 甲", exact: true });
+  await dancer.click();
+  await dancer.click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "左右手同时", exact: true })
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "黑", exact: true })
+    .click();
+  await page.getByRole("button", { name: "导出", exact: true }).click();
+  const usage = page.getByRole("region", { name: "光棒用量统计" });
+  await expect(
+    usage.getByRole("heading", { name: "换棒列表", exact: true }),
+  ).toBeVisible();
+  await expect(usage).not.toContainText("00:01.000");
+  await expect(usage.locator('path[fill="#111827"]')).toHaveCount(0);
+  await expect(
+    usage.locator(".baton-dancer").first().locator("time"),
+  ).toHaveCount(2);
+  await page.screenshot({ path: testInfo.outputPath("replacement-list.png") });
 });

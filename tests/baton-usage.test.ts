@@ -76,3 +76,12 @@ describe("一次性光棒用量", () => {
     expect(() => batonUsage(p)).toThrow();
   });
 });
+
+it("换棒列表隐藏零消耗及双黑状态，但不影响累计消耗", async () => {
+  const { replacementChanges } = await import("../src/core/batonUsage");
+  const stats = batonUsage(usageFixture());
+  expect(
+    replacementChanges(stats.dancers[0].changes).map((c) => c.time),
+  ).toEqual([0, 2, 3, 4, 7]);
+  expect(stats.total).toBe(8);
+});

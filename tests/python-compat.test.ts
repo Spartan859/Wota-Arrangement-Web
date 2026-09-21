@@ -28,7 +28,7 @@ test.skipIf(!source)(
       );
       expect(p.blocks).toHaveLength(3);
       expect(p.blocks.map((b) => b.lyrics.length)).toEqual([2, 1, 1]);
-      // Statistics are appended to a separate trailing sheet; the original CLI
+      // Statistics are appended below the original table; the original CLI
       // must still read exactly the original arrangement and merge structure.
       const { emptyChoreography, addDancer, changePose } =
         await import("../src/core/choreography");
@@ -37,9 +37,15 @@ test.skipIf(!source)(
       changePose(p.choreography, dancer, 2, { left: "极蓝" });
       changePose(p.choreography, dancer, 3, { left: "极橙" });
       writeFileSync(exported, new Uint8Array(await writeXlsx(p)));
-      expect(JSON.parse(run("read", exported))).toEqual(
-        JSON.parse(run("read", original)),
+      const actual = JSON.parse(run("read", exported));
+      const originalEnd = 2 + p.blocks.reduce((n, b) => n + b.lyrics.length, 0);
+      // Footer layout adds merges below the arrangement, never inside it.
+      actual.merges = actual.merges.filter(
+        (range: string) =>
+          Math.max(...[...range.matchAll(/\d+/g)].map((m) => Number(m[0]))) <=
+          originalEnd,
       );
+      expect(actual).toEqual(JSON.parse(run("read", original)));
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

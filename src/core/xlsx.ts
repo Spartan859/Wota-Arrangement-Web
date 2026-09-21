@@ -1,4 +1,4 @@
-import { appendBatonUsage } from "./xlsxBatonUsage";
+import { appendBatonUsage, usageFooterName } from "./xlsxBatonUsage";
 import ExcelJS from "exceljs";
 import {
   block,
@@ -40,7 +40,13 @@ export async function readXlsx(data: ArrayBuffer): Promise<Project> {
       ? ""
       : text(cell.value);
   };
+  const footerRange = wb.definedNames.getRanges(usageFooterName).ranges?.[0];
+  const footerRow =
+    footerRange && footerRange.startsWith(`'${ws.name}'!`)
+      ? Number(footerRange.match(/\$A\$(\d+)$/)?.[1])
+      : NaN;
   for (let r = 3; r <= ws.rowCount; r++) {
+    if (r === footerRow) break;
     const values = Array.from({ length: 6 }, (_, c) => raw(r, c + 1));
     const beatsCell = ws.getCell(r, 2);
     const continuation = beatsCell.isMerged && Number(beatsCell.master.row) < r;
@@ -148,7 +154,7 @@ export async function writeXlsx(p: Project): Promise<ArrayBuffer> {
   [14, 12, 40, 40, 30, 26].forEach((width, i) => {
     ws.getColumn(i + 1).width = width;
   });
-  appendBatonUsage(wb, p);
+  await appendBatonUsage(wb, p);
   const buffer = await wb.xlsx.writeBuffer();
   return new Uint8Array(buffer).buffer;
 }

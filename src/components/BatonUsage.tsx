@@ -4,6 +4,7 @@ import type { Project } from "../core/model";
 import { colorHex } from "../core/choreography";
 import {
   batonUsage,
+  replacementChanges,
   batonLabel,
   usageRule,
   usageTime,
@@ -18,9 +19,8 @@ function UsageStep({ change, name }: { change: BatonChange; name: string }) {
     top: number;
     host: HTMLDialogElement;
   } | null>(null);
-  const left = change.left === "黑" ? "黑（未持棒）" : batonLabel(change.left);
-  const right =
-    change.right === "黑" ? "黑（未持棒）" : batonLabel(change.right);
+  const left = change.left === "黑" ? "未持棒" : batonLabel(change.left);
+  const right = change.right === "黑" ? "未持棒" : batonLabel(change.right);
   const label = `${name} ${usageTime(change.time)} ${change.kind}，左手：${left}；右手：${right}；新增 ${change.added} 根`;
   const show = () => {
     const node = button.current,
@@ -80,23 +80,26 @@ function UsageStep({ change, name }: { change: BatonChange; name: string }) {
         }}
       >
         <svg width="28" height="28" viewBox="-24 -24 48 48" aria-hidden="true">
-          <path
-            data-hand="left"
-            d="M0 -22 A22 22 0 0 0 0 22 Z"
-            fill={colorHex(change.left)}
-            stroke="#536277"
-            strokeWidth="1.5"
-          />
-          <path
-            data-hand="right"
-            d="M0 -22 A22 22 0 0 1 0 22 Z"
-            fill={colorHex(change.right)}
-            stroke="#536277"
-            strokeWidth="1.5"
-          />
+          {change.left !== "黑" && (
+            <path
+              data-hand="left"
+              d="M0 -22 A22 22 0 0 0 0 22 Z"
+              fill={colorHex(change.left)}
+              stroke="#536277"
+              strokeWidth="1.5"
+            />
+          )}
+          {change.right !== "黑" && (
+            <path
+              data-hand="right"
+              d="M0 -22 A22 22 0 0 1 0 22 Z"
+              fill={colorHex(change.right)}
+              stroke="#536277"
+              strokeWidth="1.5"
+            />
+          )}
         </svg>
       </button>
-      {change.kind === "退场" && <small className="muted">退场</small>}
       {tip &&
         createPortal(
           <div
@@ -154,7 +157,7 @@ export function BatonUsage({ project }: { project: Project }) {
           统计包含 {stats.outOfRange} 个超出歌曲时长的关键帧，请检查对时。
         </p>
       )}
-      <h3>舞者切换顺序</h3>
+      <h3>换棒列表</h3>
       {stats.dancers.map((d, i) => (
         <div key={d.id} className="baton-dancer">
           <strong
@@ -164,14 +167,14 @@ export function BatonUsage({ project }: { project: Project }) {
             {i + 1}. {d.name}
             <small> · {d.total} 根</small>
           </strong>
-          {d.changes.length ? (
-            <ol className="baton-sequence" aria-label={`${d.name}切换顺序`}>
-              {d.changes.map((change) => (
+          {replacementChanges(d.changes).length ? (
+            <ol className="baton-sequence" aria-label={`${d.name}换棒列表`}>
+              {replacementChanges(d.changes).map((change) => (
                 <UsageStep key={change.time} change={change} name={d.name} />
               ))}
             </ol>
           ) : (
-            <span className="muted">无入场记录</span>
+            <span className="muted">无换棒记录</span>
           )}
         </div>
       ))}
