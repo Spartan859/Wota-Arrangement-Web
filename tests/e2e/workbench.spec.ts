@@ -120,9 +120,125 @@ async function timedProject(page: Page) {
   await expect(page.getByLabel("歌曲名称")).toHaveValue("合成对时");
   await audio(page);
 }
+async function multiTimedProject(page: Page) {
+  await boot(page);
+  await page.getByLabel("打开项目文件").setInputFiles({
+    name: "multi-synthetic.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(
+      JSON.stringify({
+        schemaVersion: 2,
+        id: "multi-fixture",
+        songName: "多选对时",
+        bpm: "120",
+        audio: null,
+        position: 0,
+        updatedAt: 1,
+        blocks: [
+          ["a", "前奏", 0, 2],
+          ["b", "主歌", 3, 5],
+          ["c", "副歌", 7, 9],
+          ["d", "尾奏", 10, 12],
+        ].map(([id, type, start, end]) => ({
+          id,
+          type,
+          start,
+          end,
+          beats: "8",
+          arrangement: type,
+          remarks: "",
+          lyrics: [{ id: `lyric-${id}`, jp: "合成", cn: "", time: null }],
+        })),
+      }),
+    ),
+  });
+  await expect(page.getByLabel("歌曲名称")).toHaveValue("多选对时");
+  await audio(page);
+}
 async function position(page: Page, time: number) {
   await page.getByLabel("播放进度", { exact: true }).fill(String(time));
 }
+
+test("时间轴修饰键选择、范围选择和单选回退", async ({ page }) => {
+  await multiTimedProject(page);
+  const blocks = page.locator(".timeline-block");
+  await blocks.first().click();
+  await blocks.nth(3).click({ modifiers: ["Shift"] });
+  await expect(page.locator(".timeline-block.selected")).toHaveCount(4);
+  await expect(blocks.nth(3)).toHaveClass(/primary-selected/);
+  await blocks.nth(1).click({ modifiers: ["ControlOrMeta"] });
+  await expect(page.locator(".timeline-block.selected")).toHaveCount(3);
+  await blocks.nth(2).click();
+  await expect(page.locator(".timeline-block.selected")).toHaveCount(1);
+  await expect(blocks.nth(2)).toHaveClass(/primary-selected/);
+});
+
+test("多选段落整体拖动保持间距、限位并一次撤销", async ({ page }) => {
+  await multiTimedProject(page);
+  const blocks = page.locator(".timeline-block");
+  await blocks.first().click();
+  await blocks.nth(1).click({ modifiers: ["ControlOrMeta"] });
+  const timeline = page.locator(".timeline");
+  const timelineBox = (await timeline.boundingBox())!;
+  const second = (await blocks.nth(1).boundingBox())!;
+  await page.mouse.move(
+    second.x + second.width / 2,
+    second.y + second.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    second.x + second.width / 2 + timelineBox.width / 12,
+    second.y + second.height / 2,
+    { steps: 5 },
+  );
+  await page.mouse.up();
+  await expect(blocks.nth(0)).toHaveAttribute("title", /00:01.00 — 00:03.00/);
+  await expect(blocks.nth(1)).toHaveAttribute("title", /00:04.00 — 00:06.00/);
+  await expect(blocks.nth(2)).toHaveAttribute("title", /00:07.00 — 00:09.00/);
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(blocks.nth(0)).toHaveAttribute("title", /00:00.00 — 00:02.00/);
+  await expect(blocks.nth(1)).toHaveAttribute("title", /00:03.00 — 00:05.00/);
+});
+
+test("多选时边缘只调整当前段落，Delete 批量删除，触屏多选可用", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await multiTimedProject(page);
+  const blocks = page.locator(".timeline-block");
+  await page.getByRole("button", { name: "多选模式" }).click();
+  await expect(page.getByRole("button", { name: "多选模式" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await blocks.nth(0).click();
+  await blocks.nth(1).click();
+  await expect(page.locator(".timeline-block.selected")).toHaveCount(2);
+
+  const firstTitle = await blocks.nth(0).getAttribute("title");
+  const timelineBox = (await page.locator(".timeline").boundingBox())!;
+  const second = (await blocks.nth(1).boundingBox())!;
+  await page.mouse.move(second.x + 2, second.y + second.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    second.x + 2 - timelineBox.width / 12,
+    second.y + second.height / 2,
+    {
+      steps: 4,
+    },
+  );
+  await page.mouse.up();
+  await expect(blocks.nth(0)).toHaveAttribute("title", firstTitle!);
+  await expect(blocks.nth(1)).toHaveAttribute("title", /00:02.00 — 00:05.00/);
+
+  await blocks.nth(0).click();
+  await page.keyboard.press("Delete");
+  await expect(page.locator(".timeline-block")).toHaveCount(2);
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(page.locator(".timeline-block")).toHaveCount(4);
+  await blocks.nth(0).locator(".timeline-delete").click();
+  await expect(page.locator(".timeline-block")).toHaveCount(3);
+});
 test("直接记录 AB，拒绝反向区间，循环和替换音频清除", async ({ page }) => {
   await boot(page);
   await expect(

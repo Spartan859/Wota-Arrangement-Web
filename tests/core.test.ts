@@ -18,6 +18,7 @@ import { parseLyrics, shifted } from "../src/core/lyrics";
 import {
   activeBlock,
   activeLyric,
+  draggedGroupRanges,
   intervalError,
   playable,
   suggestedDuration,
@@ -123,6 +124,49 @@ describe("时间轴拖动边界", () => {
     });
     expect(draggedRange(left, blocks, 12, "start", -10).start).toBe(0);
     expect(draggedRange(right, blocks, 12, "end", 10).end).toBe(12);
+  });
+
+  it("整体移动多选段落并保持间距，不能穿过未选段落", () => {
+    const first = { ...block(), id: "first", start: 1, end: 3 };
+    const blocker = { ...block(), id: "blocker", start: 4, end: 5 };
+    const second = { ...block(), id: "second", start: 6, end: 8 };
+    const blocks = [first, blocker, second];
+
+    expect(draggedGroupRanges(blocks, [first.id, second.id], 12, 10)).toEqual({
+      [first.id]: { start: 2, end: 4 },
+      [second.id]: { start: 7, end: 9 },
+    });
+    expect(draggedGroupRanges(blocks, [first.id, second.id], 12, -10)).toEqual({
+      [first.id]: { start: 0, end: 2 },
+      [second.id]: { start: 5, end: 7 },
+    });
+  });
+
+  it("单段群组移动与普通整体拖动保持一致", () => {
+    const left = { ...block(), id: "left", start: 1, end: 3 };
+    const current = { ...block(), id: "current", start: 5, end: 7 };
+    const right = { ...block(), id: "right", start: 9, end: 11 };
+    const blocks = [right, current, left];
+    const single = draggedGroupRanges(blocks, [current.id], 12, 10);
+
+    expect(single[current.id]).toEqual(
+      draggedRange(current, blocks, 12, "move", 10),
+    );
+  });
+
+  it("群组移动受歌曲首尾边界限制", () => {
+    const first = { ...block(), id: "first", start: 1, end: 2 };
+    const second = { ...block(), id: "second", start: 3, end: 4 };
+    const blocks = [first, second];
+
+    expect(draggedGroupRanges(blocks, [first.id, second.id], 5, 10)).toEqual({
+      [first.id]: { start: 2, end: 3 },
+      [second.id]: { start: 4, end: 5 },
+    });
+    expect(draggedGroupRanges(blocks, [first.id, second.id], 5, -10)).toEqual({
+      [first.id]: { start: 0, end: 1 },
+      [second.id]: { start: 2, end: 3 },
+    });
   });
 });
 
