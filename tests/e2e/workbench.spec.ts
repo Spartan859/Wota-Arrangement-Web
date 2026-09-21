@@ -172,21 +172,39 @@ test("时间轴修饰键选择、范围选择和单选回退", async ({ page }) 
   const selectionStyles = await blocks.evaluateAll((nodes) =>
     nodes.map((node) => {
       const style = getComputedStyle(node);
+      const highlight = getComputedStyle(node, "::before");
       return {
         boxShadow: style.boxShadow,
-        outlineWidth: style.outlineWidth,
+        outlineStyle: style.outlineStyle,
+        highlight: highlight.backgroundColor,
       };
     }),
   );
-  expect(selectionStyles[0].boxShadow).toContain("rgb(69, 104, 212)");
-  expect(selectionStyles[3].boxShadow).toContain("rgb(69, 104, 212)");
-  expect(selectionStyles[3].outlineWidth).toBe("3px");
-  expect(selectionStyles[0].boxShadow).not.toBe(selectionStyles[3].boxShadow);
+  expect(selectionStyles[0].boxShadow).toContain("inset");
+  expect(selectionStyles[3].boxShadow).toContain("inset");
+  expect(selectionStyles[0].outlineStyle).toBe("none");
+  expect(selectionStyles[3].outlineStyle).toBe("none");
+  expect(selectionStyles[0].highlight).toBe("rgba(69, 104, 212, 0.18)");
+  expect(selectionStyles[3].highlight).toBe("rgba(69, 104, 212, 0.36)");
   await blocks.nth(1).click({ modifiers: ["ControlOrMeta"] });
   await expect(page.locator(".timeline-block.selected")).toHaveCount(3);
   await blocks.nth(2).click();
   await expect(page.locator(".timeline-block.selected")).toHaveCount(1);
   await expect(blocks.nth(2)).toHaveClass(/primary-selected/);
+});
+
+test("时间轴段落块支持 Backspace 和 Delete 删除", async ({ page }) => {
+  await multiTimedProject(page);
+  const blocks = page.locator(".timeline-block");
+  await blocks.nth(1).click();
+  await page.keyboard.press("Backspace");
+  await expect(page.locator(".timeline-block")).toHaveCount(3);
+
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(page.locator(".timeline-block")).toHaveCount(4);
+  await page.locator(".timeline-block").nth(1).focus();
+  await page.keyboard.press("Delete");
+  await expect(page.locator(".timeline-block")).toHaveCount(3);
 });
 
 test("多选段落整体拖动保持间距、限位并一次撤销", async ({ page }) => {

@@ -180,7 +180,7 @@ export default function App() {
         store.travel(e.shiftKey ? "redo" : "undo");
       }
       if (
-        e.key === "Delete" &&
+        (e.key === "Backspace" || e.key === "Delete") &&
         selectedIds.length > 0 &&
         !(e.target as HTMLElement)?.closest(".formation-panel,.formation-track")
       ) {
@@ -545,6 +545,7 @@ export default function App() {
             onUpdateRange={updateRange}
             onUpdateRanges={updateRanges}
             onDelete={(id) => deleteBlocks([id])}
+            onDeleteSelected={deleteBlocks}
             onCreate={() => {
               setPendingTime(null);
               setModal("create");

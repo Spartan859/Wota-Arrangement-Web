@@ -6,6 +6,7 @@ import {
   useImperativeHandle,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import {
   ListChecks,
@@ -60,6 +61,7 @@ type Props = {
     ranges: Record<string, { start: number; end: number }>,
   ) => void;
   onDelete?: (id: string) => void;
+  onDeleteSelected?: (ids: string[]) => void;
   onCreate?: () => void;
 };
 export const Player = forwardRef<PlayerHandle, Props>(function Player(
@@ -87,6 +89,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     onUpdateRange,
     onUpdateRanges,
     onDelete,
+    onDeleteSelected,
     onCreate,
   },
   ref,
@@ -96,6 +99,20 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
   const suppressTimelineClick = useRef(false);
   const playhead = useRef<HTMLSpanElement>(null);
   const timelineScroll = useRef<HTMLDivElement>(null);
+  const handleBlockKeyDown = (
+    event: ReactKeyboardEvent<HTMLElement>,
+    id: string,
+  ) => {
+    if (
+      event.nativeEvent.isComposing ||
+      (event.key !== "Backspace" && event.key !== "Delete") ||
+      readOnly
+    )
+      return;
+    event.preventDefault();
+    event.stopPropagation();
+    onDeleteSelected?.(selectedIds.includes(id) ? selectedIds : [id]);
+  };
   // Position is owned by the audio animation frame, not the throttled React state.
   const drawPlayhead = (position: number, duration: number) => {
     if (playhead.current)
@@ -743,6 +760,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
                       });
                     }}
                     onDoubleClick={() => seek(range.start, true)}
+                    onKeyDown={(e) => handleBlockKeyDown(e, b.id)}
                     onPointerDown={(e) => {
                       e.stopPropagation();
                       if (
@@ -864,6 +882,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
                     }
                   >
                     <button
+                      onKeyDown={(e) => handleBlockKeyDown(e, b.id)}
                       onClick={(e) => {
                         e.stopPropagation();
                         onSelect?.(b.id);
