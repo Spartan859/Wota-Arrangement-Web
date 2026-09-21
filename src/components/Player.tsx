@@ -105,6 +105,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     [zoom, setZoom] = useState(1),
     [rate, setRate] = useState(1),
     [volume, setVolume] = useState(0.8);
+  const beginScrub = usePointerDrag(`${p.id}:${p.audio?.id}`, !loaded);
   const followRef = useRef(follow);
   const zoomRef = useRef(zoom);
   followRef.current = follow;
@@ -171,7 +172,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
       if (url) URL.revokeObjectURL(url);
     };
   }, [p.id, p.audio?.id]);
-  const seek = (t: number, play = false) => {
+  const seek = (t: number, play = false, persist = true) => {
     const a = audio.current;
     if (
       !a ||
@@ -191,7 +192,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     setTime(t);
     if (!a.paused) followTimeline(t, a.duration);
     callbacks.current.onTime(t, !a.paused);
-    callbacks.current.onPersist(t);
+    if (persist) callbacks.current.onPersist(t);
     if (play)
       void a
         .play()
@@ -755,7 +756,89 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
             seek={(t) => seek(t)}
             onError={onError}
           />
-          <span className="playhead" data-testid="playhead" ref={playhead}>
+          <span
+            className="playhead"
+            data-testid="playhead"
+            ref={playhead}
+            role="slider"
+            aria-label="时间轴播放头"
+            aria-orientation="horizontal"
+            aria-valuemin={0}
+            aria-valuemax={duration}
+            aria-valuenow={time}
+            aria-valuetext={formatTime(time)}
+            aria-disabled={!loaded}
+            tabIndex={loaded ? 0 : -1}
+            title="拖动播放头定位"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              if (
+                !loaded ||
+                !readyRef.current ||
+                e.button !== 0 ||
+                !e.isPrimary
+              )
+                return;
+              e.preventDefault();
+              const a = audio.current!;
+              const timeline = e.currentTarget.parentElement!;
+              const rect = timeline.getBoundingClientRect();
+              if (rect.width <= 0) return;
+              // Keep the grab offset even when dragging the timestamp label.
+              const offset =
+                e.clientX -
+                rect.left -
+                (a.currentTime / a.duration) * rect.width;
+              a.pause();
+              beginScrub(
+                e,
+                (event) => {
+                  if (!readyRef.current || audio.current !== a) return;
+                  const bounds = timeline.getBoundingClientRect();
+                  if (bounds.width <= 0) return;
+                  const next = Math.max(
+                    0,
+                    Math.min(
+                      a.duration,
+                      ((event.clientX - bounds.left - offset) / bounds.width) *
+                        a.duration,
+                    ),
+                  );
+                  seek(next, false, false);
+                },
+                (cancelled) => {
+                  if (!cancelled && readyRef.current && audio.current === a)
+                    callbacks.current.onPersist(a.currentTime);
+                },
+              );
+            }}
+            onKeyDown={(e) => {
+              if (
+                !loaded ||
+                e.nativeEvent.isComposing ||
+                e.ctrlKey ||
+                e.metaKey ||
+                e.altKey
+              )
+                return;
+              if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key))
+                return;
+              e.preventDefault();
+              e.stopPropagation();
+              audio.current?.pause();
+              const current = audio.current?.currentTime ?? 0;
+              const next =
+                e.key === "Home"
+                  ? 0
+                  : e.key === "End"
+                    ? duration
+                    : current +
+                      (e.key === "ArrowRight" ? 1 : -1) *
+                        (e.shiftKey ? 0.1 : 1);
+              seek(Math.max(0, Math.min(duration, next)));
+            }}
+          >
             <span
               className="playhead-time"
               style={{

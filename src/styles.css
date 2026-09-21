@@ -2175,3 +2175,23 @@ fieldset {
   flex-wrap: nowrap;
   flex-shrink: 0;
 }
+.playhead {
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
+}
+.playhead::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -5px;
+  width: 12px;
+}
+.playhead-time {
+  cursor: ew-resize;
+}
+.playhead[aria-disabled="true"],
+.playhead[aria-disabled="true"] .playhead-time {
+  cursor: default;
+}

@@ -623,3 +623,109 @@ for (const releaseCapture of [false, true]) {
     await expect(clip).toHaveAttribute("title", /00:05.00 — 00:09.00/);
   });
 }
+
+test("播放头标签及竖线拖动定位，缩放滚动后坐标准确且不改编排", async ({
+  page,
+}) => {
+  await timedProject(page);
+  const head = page.getByRole("slider", { name: "时间轴播放头", exact: true });
+  const titles = await page
+    .locator(".timeline-block")
+    .evaluateAll((els) => els.map((el) => el.getAttribute("title")));
+  await page.getByLabel("时间轴缩放").fill("2");
+  await position(page, 8);
+  await page.locator(".timeline-scroll").evaluate((el) => {
+    el.scrollLeft = el.scrollWidth / 2;
+  });
+  const width = (await page.locator(".timeline").boundingBox())!.width;
+  const box = (await head.locator(".playhead-time").boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    box.x + box.width / 2 + width / 12,
+    box.y + box.height / 2,
+    { steps: 5 },
+  );
+  await page.mouse.up();
+  await expect
+    .poll(() =>
+      page.locator("audio").evaluate((a: HTMLAudioElement) => a.currentTime),
+    )
+    .toBeCloseTo(9, 1);
+  await page.mouse.move(20, 20);
+  await expect(head).toHaveAttribute("aria-valuenow", /^(8\.99|9)/);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(
+    await page
+      .locator(".timeline-block")
+      .evaluateAll((els) => els.map((el) => el.getAttribute("title"))),
+  ).toEqual(titles);
+  // Drag the vertical line as well, staying outside the keyframe track.
+  const line = (await head.boundingBox())!;
+  await page.mouse.move(line.x + 1, line.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(line.x + 1 - width / 12, line.y + 20, { steps: 5 });
+  await page.mouse.up();
+  await expect
+    .poll(() =>
+      page.locator("audio").evaluate((a: HTMLAudioElement) => a.currentTime),
+    )
+    .toBeCloseTo(8, 1);
+});
+test("拖动播放头暂停、限制歌曲边界、不产生撤销；失焦后结束拖动", async ({
+  page,
+}) => {
+  await boot(page);
+  const head = page.getByRole("slider", { name: "时间轴播放头", exact: true });
+  await expect(head).toHaveAttribute("aria-disabled", "true");
+  await audio(page, 12);
+  await position(page, 5);
+  await page.getByRole("button", { name: "播放", exact: true }).click();
+  let label = (await head.locator(".playhead-time").boundingBox())!;
+  await page.mouse.move(label.x + label.width / 2, label.y + label.height / 2);
+  await page.mouse.down();
+  await expect(
+    page.getByRole("button", { name: "播放", exact: true }),
+  ).toBeVisible();
+  await page.mouse.move(0, label.y + label.height / 2, { steps: 5 });
+  await page.mouse.up();
+  await expect
+    .poll(() =>
+      page.locator("audio").evaluate((a: HTMLAudioElement) => a.currentTime),
+    )
+    .toBe(0);
+  label = (await head.locator(".playhead-time").boundingBox())!;
+  await page.mouse.move(label.x + label.width / 2, label.y + label.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(1279, label.y + label.height / 2, { steps: 5 });
+  await page.mouse.up();
+  await expect
+    .poll(() =>
+      page.locator("audio").evaluate((a: HTMLAudioElement) => a.currentTime),
+    )
+    .toBe(12);
+  await expect(
+    page.getByRole("button", { name: "撤销", exact: true }),
+  ).toBeDisabled();
+  await position(page, 4);
+  label = (await head.locator(".playhead-time").boundingBox())!;
+  await page.mouse.move(label.x + label.width / 2, label.y + label.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    label.x + label.width / 2 + 50,
+    label.y + label.height / 2,
+    { steps: 3 },
+  );
+  await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+  const stopped = await page
+    .locator("audio")
+    .evaluate((a: HTMLAudioElement) => a.currentTime);
+  await page.mouse.up();
+  await page.mouse.move(900, 500);
+  expect(
+    await page
+      .locator("audio")
+      .evaluate((a: HTMLAudioElement) => a.currentTime),
+  ).toBe(stopped);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});
