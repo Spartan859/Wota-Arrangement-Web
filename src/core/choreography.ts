@@ -478,6 +478,60 @@ export function moveDancerFrame(
   frames.sort((a, b) => a.time - b.time);
   rebuildFrames(c);
 }
+export type KeyframeCleanupResult = {
+  position: number;
+  color: number;
+  total: number;
+};
+
+const closeEnough = (a: number, b: number) => Math.abs(a - b) < 1e-9;
+
+/** Remove keyframes whose value is reproduced exactly by the surrounding track. */
+export function cleanupRedundantKeyframes(
+  c: Choreography,
+): KeyframeCleanupResult {
+  const result: KeyframeCleanupResult = { position: 0, color: 0, total: 0 };
+  for (const track of ensureTracks(c)) {
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (let index = 0; index < track.positionFrames.length; index++) {
+        const frame = track.positionFrames[index];
+        track.positionFrames.splice(index, 1);
+        const sampled = samplePosition(track, frame.time);
+        if (
+          sampled.visible === frame.visible &&
+          closeEnough(sampled.x, frame.x) &&
+          closeEnough(sampled.y, frame.y)
+        ) {
+          result.position++;
+          changed = true;
+          break;
+        }
+        track.positionFrames.splice(index, 0, frame);
+      }
+    }
+    changed = true;
+    while (changed) {
+      changed = false;
+      for (let index = 0; index < track.colorFrames.length; index++) {
+        const frame = track.colorFrames[index];
+        track.colorFrames.splice(index, 1);
+        const sampled = sampleColor(track, frame.time);
+        if (sampled.left === frame.left && sampled.right === frame.right) {
+          result.color++;
+          changed = true;
+          break;
+        }
+        track.colorFrames.splice(index, 0, frame);
+      }
+    }
+  }
+  result.total = result.position + result.color;
+  if (result.total) rebuildFrames(c);
+  return result;
+}
+
 export function removeDancerFrame(
   c: Choreography,
   dancerId: string,

@@ -877,3 +877,39 @@ test("换棒列表隐藏黑色并在同一Excel表底部附简化圆点", async 
   ).toHaveCount(2);
   await page.screenshot({ path: testInfo.outputPath("replacement-list.png") });
 });
+
+test("清理旧集体帧展开产生的冗余关键帧并支持撤销", async ({ page }) => {
+  await boot(page);
+  await add(page, "清理测试");
+  await song(page);
+  await at(page, 2);
+  await page
+    .getByRole("button", { name: "位置切换当前关键帧", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "颜色切换当前关键帧", exact: true })
+    .click();
+  await expect(
+    page.getByLabel("位置关键帧").locator(".formation-key"),
+  ).toHaveCount(2);
+  await expect(
+    page.getByLabel("颜色关键帧").locator(".formation-key"),
+  ).toHaveCount(2);
+  await page.getByRole("button", { name: "清理关键帧", exact: true }).click();
+  await expect(page.locator(".message.toast")).toContainText(
+    "已清理 3 个多余关键帧",
+  );
+  await expect(
+    page.getByLabel("位置关键帧").locator(".formation-key"),
+  ).toHaveCount(1);
+  await expect(
+    page.getByLabel("颜色关键帧").locator(".formation-key"),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(
+    page.getByLabel("位置关键帧").locator(".formation-key"),
+  ).toHaveCount(2);
+  await expect(
+    page.getByLabel("颜色关键帧").locator(".formation-key"),
+  ).toHaveCount(2);
+});

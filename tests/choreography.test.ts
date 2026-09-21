@@ -4,6 +4,7 @@ import {
   addDancer,
   changePose,
   choreographySchema,
+  cleanupRedundantKeyframes,
   emptyChoreography,
   sampleFormation,
   setVisibility,
@@ -79,6 +80,47 @@ describe("全员队形", () => {
     p.audio = { id: null, name: "short", duration: 3 };
     expect(parseProject(backup(p)).choreography).toEqual(p.choreography);
   });
+  it("清理不影响渲染结果的冗余位置与颜色关键帧", () => {
+    const c = emptyChoreography(),
+      id = addDancer(c, "A", 0);
+    changePose(c, id, 2, { x: 0.7 });
+    changePose(c, id, 4, { x: 0.9 });
+    changePose(c, id, 2, { left: "极蓝" });
+    changePose(c, id, 4, { left: "极蓝" });
+    changePose(c, id, 6, { left: "极红" });
+    const samples = [0, 1, 2, 3, 4, 5, 6].map((time) =>
+      sampleFormation(c, time),
+    );
+    const result = cleanupRedundantKeyframes(c);
+    expect(result).toEqual({ position: 1, color: 2, total: 3 });
+    expect(
+      getDancerFrames(c, id, "position").map((frame) => frame.time),
+    ).toEqual([0, 4]);
+    expect(getDancerFrames(c, id, "color").map((frame) => frame.time)).toEqual([
+      2, 6,
+    ]);
+    expect(
+      [0, 1, 2, 3, 4, 5, 6].map((time) => sampleFormation(c, time)),
+    ).toEqual(samples);
+    expect(cleanupRedundantKeyframes(c).total).toBe(0);
+  });
+
+  it("旧集体关键帧展开后可删除每位舞者的重复帧", () => {
+    const c = emptyChoreography(),
+      id = addDancer(c, "A", 0),
+      pose = sampleFormation(c, 0)[0];
+    c.tracks = [];
+    c.frames = [
+      { id: "old-0", time: 0, poses: [{ ...pose }] },
+      { id: "old-2", time: 2, poses: [{ ...pose }] },
+    ];
+    const result = cleanupRedundantKeyframes(c);
+    expect(result).toEqual({ position: 1, color: 2, total: 3 });
+    expect(getDancerFrames(c, id, "position")).toHaveLength(1);
+    expect(getDancerFrames(c, id, "color")).toHaveLength(0);
+    expect(sampleFormation(c, 2)[0]).toEqual(pose);
+  });
+
   it("每位舞者的位置与颜色关键帧独立增删、移动和采样", () => {
     const c = emptyChoreography(),
       a = addDancer(c, "A", 0),
