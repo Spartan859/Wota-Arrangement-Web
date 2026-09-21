@@ -1,4 +1,7 @@
 import type { Block, Lyric } from "./model";
+
+export type TimeRange = { start: number; end: number };
+
 export function formatTime(value: number | null): string {
   if (value === null || !Number.isFinite(value)) return "未对时";
   const seconds = Math.max(0, value);
@@ -92,7 +95,7 @@ export function draggedRange(
   duration: number,
   mode: "start" | "end" | "move",
   delta: number,
-): { start: number; end: number } {
+): TimeRange {
   const start = block.start!,
     end = block.end!;
   const others = blocks.filter(
@@ -124,6 +127,49 @@ export function draggedRange(
     };
   const shift = clamp(delta, lower - start, upper - end);
   return { start: start + shift, end: end + shift };
+}
+
+/** Move selected timed blocks by one shared offset without crossing other blocks. */
+export function draggedGroupRanges(
+  blocks: Block[],
+  selectedIds: string[],
+  duration: number,
+  delta: number,
+): Record<string, TimeRange> {
+  const selectedSet = new Set(selectedIds);
+  const selected = blocks.filter(
+    (b) => selectedSet.has(b.id) && b.start !== null && b.end !== null,
+  );
+  if (!selected.length || !Number.isFinite(duration) || duration < 0) return {};
+
+  let lower = -Infinity;
+  let upper = Infinity;
+  for (const block of selected) {
+    lower = Math.max(lower, -block.start!);
+    upper = Math.min(upper, duration - block.end!);
+    for (const other of blocks) {
+      if (
+        selectedSet.has(other.id) ||
+        other.start === null ||
+        other.end === null
+      )
+        continue;
+      if (other.end! <= block.start!)
+        lower = Math.max(lower, other.end! - block.start!);
+      else if (other.start! >= block.end!)
+        upper = Math.min(upper, other.start! - block.end!);
+    }
+  }
+
+  const clamp = (value: number, min: number, max: number) =>
+    Math.max(min, Math.min(max, value));
+  const shift = clamp(Number.isFinite(delta) ? delta : 0, lower, upper);
+  return Object.fromEntries(
+    selected.map((block) => [
+      block.id,
+      { start: block.start! + shift, end: block.end! + shift },
+    ]),
+  );
 }
 
 /** Plan a new clip inside the clicked gap without moving existing clips. */
