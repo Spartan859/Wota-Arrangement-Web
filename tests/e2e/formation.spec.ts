@@ -658,3 +658,63 @@ test("一次性光棒统计与Excel尾页一致，切换顺序保留", async ({ 
       .getByRole("button", { name: "副歌", exact: true }),
   ).toBeVisible();
 });
+
+test("颜色弹窗标题行重命名后返回色板，取消保留姓名和手部模式", async ({
+  page,
+}) => {
+  await boot(page);
+  await add(page, "原姓名");
+  await page
+    .getByRole("button", { name: "舞者 原姓名", exact: true })
+    .locator('[data-hand="right"]')
+    .click();
+  const dialog = page.getByRole("dialog");
+  const rename = dialog
+    .locator(".modal-header")
+    .getByRole("button", { name: "重命名舞者", exact: true });
+  await expect(rename).toBeVisible();
+  await expect(
+    dialog
+      .locator(".toolbar")
+      .getByRole("button", { name: "重命名舞者", exact: true }),
+  ).toHaveCount(0);
+  await rename.click();
+  await page.getByLabel("舞者姓名").fill("改名成功");
+  await page.getByRole("button", { name: "保存舞者", exact: true }).click();
+  await expect(dialog.getByRole("heading")).toHaveText("改名成功 · 右手光棒");
+  await expect(dialog.locator(".stick-palette button")).toHaveCount(16);
+  await dialog.getByRole("button", { name: "左右手同时", exact: true }).click();
+  await rename.click();
+  await page.getByLabel("舞者姓名").fill("不保存");
+  await page.keyboard.press("Escape");
+  await expect(dialog.getByRole("heading")).toHaveText(
+    "改名成功 · 左右手同时光棒",
+  );
+  await rename.click();
+  await page.getByLabel("舞者姓名").fill(" ");
+  await expect(
+    page.getByRole("button", { name: "保存舞者", exact: true }),
+  ).toBeDisabled();
+  await dialog.getByRole("button", { name: "关闭对话框", exact: true }).click();
+  await expect(dialog.getByRole("heading")).toHaveText(
+    "改名成功 · 左右手同时光棒",
+  );
+  await dialog.getByRole("button", { name: "极紫", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  const dancer = page.getByRole("button", {
+    name: "舞者 改名成功",
+    exact: true,
+  });
+  await expect(dancer.locator('[data-hand="left"]')).toHaveAttribute(
+    "fill",
+    "#c18bff",
+  );
+  await expect(dancer.locator('[data-hand="right"]')).toHaveAttribute(
+    "fill",
+    "#c18bff",
+  );
+  await page.getByRole("button", { name: "重命名", exact: true }).click();
+  await page.getByLabel("舞者姓名").fill("工具栏改名");
+  await page.getByRole("button", { name: "保存舞者", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+});

@@ -2289,3 +2289,18 @@ fieldset {
   font-weight: 600;
   overflow-wrap: anywhere;
 }
+.modal-header {
+  gap: 10px;
+}
+.modal-header h2 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.modal-header-actions {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.modal-header-actions button {
+  font-size: 12px;
+  padding: 6px 9px;
+}

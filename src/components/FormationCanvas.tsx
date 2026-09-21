@@ -46,6 +46,7 @@ export function FormationCanvas({
   const [canvasHeight, setCanvasHeight] = useState(String(stageHeight));
   const [scalePositions, setScalePositions] = useState(false);
   const [sizeError, setSizeError] = useState("");
+  const [renameFromColor, setRenameFromColor] = useState(false);
   const [name, setName] = useState("");
   const [hand, setHand] = useState<"left" | "right">("left");
   const [showNames, setShowNames] = useState(false);
@@ -195,6 +196,7 @@ export function FormationCanvas({
             disabled={!selectedDancer || readOnly}
             onClick={() => {
               setName(selectedDancer!.name);
+              setRenameFromColor(false);
               setModal("rename");
             }}
           >
@@ -481,7 +483,9 @@ export function FormationCanvas({
       {(modal === "add" || modal === "rename") && (
         <Modal
           title={modal === "add" ? "添加舞者" : "重命名舞者"}
-          onClose={() => setModal(null)}
+          onClose={() =>
+            setModal(modal === "rename" && renameFromColor ? "color" : null)
+          }
         >
           <label className="field">
             <span>姓名</span>
@@ -504,7 +508,7 @@ export function FormationCanvas({
                   const d = c.dancers.find((d) => d.id === selected);
                   if (d) d.name = name.trim();
                 });
-              setModal(null);
+              setModal(modal === "rename" && renameFromColor ? "color" : null);
             }}
           >
             保存舞者
@@ -605,17 +609,20 @@ export function FormationCanvas({
         <Modal
           title={`${selectedDancer?.name ?? "舞者"} · ${bothHands ? "左右手同时" : hand === "left" ? "左手" : "右手"}光棒`}
           onClose={() => setModal(null)}
-        >
-          <div className="toolbar">
+          headerActions={
             <button
               disabled={readOnly}
               onClick={() => {
                 setName(selectedDancer?.name ?? "");
+                setRenameFromColor(true);
                 setModal("rename");
               }}
             >
               重命名舞者
             </button>
+          }
+        >
+          <div className="toolbar">
             <button
               className={hand === "left" && !bothHands ? "active" : ""}
               onClick={() => {

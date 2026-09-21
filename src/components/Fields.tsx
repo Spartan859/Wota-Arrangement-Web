@@ -53,11 +53,13 @@ export function Modal({
   children,
   onClose,
   wide = false,
+  headerActions,
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
   wide?: boolean;
+  headerActions?: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -74,6 +76,9 @@ export function Modal({
     >
       <header className="modal-header">
         <h2>{title}</h2>
+        {headerActions && (
+          <div className="modal-header-actions">{headerActions}</div>
+        )}
         <button aria-label="关闭对话框" onClick={onClose}>
           ×
         </button>
