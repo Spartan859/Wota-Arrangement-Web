@@ -256,7 +256,7 @@ export default function App() {
         </div>
         <div className="source-status">
           <button disabled={readOnly} onClick={() => setModal("source")}>
-            {p.lyricSource?.name || "载入 LRC"}
+            {p.lyricSource ? "编辑歌词" : "载入歌词"}
           </button>
           <button disabled={readOnly} onClick={() => setModal("lyrics")}>
             偏移 {p.lyricSource?.offset ?? 0}s

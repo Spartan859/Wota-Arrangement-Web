@@ -351,7 +351,7 @@ test("LRC 原文与偏移保存、再次选词及左右多行编辑", async ({ p
   await page.getByLabel("歌词偏移秒数").fill("1.5");
   await page.getByLabel("歌词偏移秒数").press("Tab");
   await page.getByRole("button", { name: "关闭对话框" }).click();
-  await expect(page.locator(".topbar")).toContainText("remember.lrc");
+  await expect(page.locator(".topbar")).toContainText("编辑歌词");
   await expect(page.locator(".topbar")).toContainText("偏移 1.5s");
   await page.getByRole("button", { name: /双语歌词/ }).click();
   await expect(page.getByLabel("日文歌词", { exact: true })).toHaveValue(
@@ -367,11 +367,11 @@ test("LRC 原文与偏移保存、再次选词及左右多行编辑", async ({ p
   await page.getByRole("button", { name: "加入当前段落" }).click();
   await expect(page.locator(".save-state")).toContainText("已保存");
   await page.reload();
-  await expect(page.locator(".topbar")).toContainText("remember.lrc");
+  await expect(page.locator(".topbar")).toContainText("编辑歌词");
   await expect(page.locator(".topbar")).toContainText("偏移 1.5s");
   await page
     .locator(".topbar")
-    .getByRole("button", { name: "remember.lrc" })
+    .getByRole("button", { name: "编辑歌词" })
     .click();
   await expect(page.getByLabel("歌词文本")).toHaveValue(
     "[00:05]日本語\n[00:05]翻译",
@@ -385,7 +385,7 @@ test("LRC 原文与偏移保存、再次选词及左右多行编辑", async ({ p
     "没有找到歌词",
   );
   await page.getByRole("button", { name: "关闭对话框" }).click();
-  await expect(page.locator(".topbar")).toContainText("remember.lrc");
+  await expect(page.locator(".topbar")).toContainText("编辑歌词");
 });
 
 test("播放头逐帧跟随音频且暂停定位不漂移", async ({ page }) => {
