@@ -1,4 +1,8 @@
-import { draggedRange, insertionRange } from "../src/core/timing";
+import {
+  draggedRange,
+  insertionRange,
+  insertionStart,
+} from "../src/core/timing";
 
 import { describe, expect, it } from "vitest";
 import {
@@ -145,6 +149,14 @@ describe("LRC 项目来源", () => {
 });
 
 describe("新建段落区间", () => {
+  it("空白点击默认从前一段结尾开始", () => {
+    const first = { ...block(), start: 0, end: 3 };
+    const next = { ...block(), start: 5, end: 9 };
+    expect(insertionStart(4.5, [next, first])).toBe(3);
+    expect(insertionStart(10, [next, first])).toBe(9);
+    expect(insertionStart(0.5, [next])).toBe(0);
+  });
+
   it("生成出点并限制在空隙与歌曲范围内", () => {
     const next = { ...block(), start: 6, end: 9 };
     expect(insertionRange(1, "4", "120", [next], 12)).toEqual({

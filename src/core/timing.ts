@@ -159,3 +159,19 @@ export function insertionRange(
   );
   return { start, end };
 }
+
+/** Resolve a click in an empty lane to the beginning of that gap. */
+export function insertionStart(clicked: number, blocks: Block[]) {
+  return Math.max(
+    0,
+    ...blocks
+      .filter(
+        (b) =>
+          b.start !== null &&
+          b.end !== null &&
+          b.end <= clicked &&
+          b.start < b.end,
+      )
+      .map((b) => b.end!),
+  );
+}

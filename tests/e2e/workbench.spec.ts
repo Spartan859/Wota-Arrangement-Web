@@ -254,9 +254,17 @@ test("仅轨道空白可新建，刻度、片段和循环标记不触发", async
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await position(page, 4);
   await page.getByRole("button", { name: "选 A", exact: true }).click();
-  await page.getByTestId("playhead").locator(".playhead-time").click();
   await position(page, 6);
-  await page.locator(".ab-marker b").click();
+  await page.getByRole("button", { name: "选 B", exact: true }).click();
+  await page.locator(".timeline-block").nth(1).click();
+  await expect(page.locator(".ab-marker").nth(1)).toHaveCSS("z-index", "7");
+  await expect(page.locator(".ab-region")).toHaveCSS("z-index", "6");
+  await expect(page.locator(".timeline-block").nth(1)).toHaveCSS(
+    "z-index",
+    "5",
+  );
+  await page.getByTestId("playhead").locator(".playhead-time").click();
+  await page.locator(".ab-marker b").last().click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await position(page, 10);
   await page.getByLabel("时间轴缩放").fill("2");
@@ -266,7 +274,7 @@ test("仅轨道空白可新建，刻度、片段和循环标记不触发", async
   box = (await timeline.boundingBox())!;
   await page.mouse.click(box.x + (box.width * 4.5) / 12, box.y + 50);
   await expect(page.getByRole("dialog")).toContainText("新建段落");
-  await expect(page.getByRole("dialog")).toContainText("00:04.50");
+  await expect(page.getByRole("dialog")).toContainText("起点 00:03.00");
   await page.getByRole("button", { name: "关闭对话框" }).click();
   // Clicking an occupied interval must still only select its clip.
   await page.locator(".timeline-block").first().click();
@@ -428,6 +436,7 @@ test("空隙新建生成完整区间且刷新后仍位于原位置", async ({ pa
   await timedProject(page);
   const box = (await page.locator(".timeline-gap-target").boundingBox())!;
   await page.mouse.click(box.x + box.width / 3, box.y + box.height / 2);
+  await expect(page.getByRole("dialog")).toContainText("起点 00:03.00");
   await expect(page.getByRole("dialog")).toContainText("出点 00:05.00");
   await expect(page.getByRole("dialog")).toContainText("空隙不足");
   await page.getByRole("button", { name: "创建", exact: true }).click();
@@ -435,13 +444,13 @@ test("空隙新建生成完整区间且刷新后仍位于原位置", async ({ pa
   await expect(page.locator(".untimed-strip")).toHaveCount(0);
   await expect(page.locator(".timeline-block").nth(1)).toHaveAttribute(
     "title",
-    /00:04.00 — 00:05.00/,
+    /00:03.00 — 00:05.00/,
   );
   await expect(page.locator(".save-state")).toContainText("已保存");
   await page.reload();
   await expect(page.locator(".timeline-block").nth(1)).toHaveAttribute(
     "title",
-    /00:04.00 — 00:05.00/,
+    /00:03.00 — 00:05.00/,
   );
 });
 

@@ -13,6 +13,7 @@ import { db } from "../core/storage";
 import {
   draggedRange,
   formatTime,
+  insertionStart,
   playable,
   suggestedDuration,
 } from "../core/timing";
@@ -638,7 +639,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
                 )
               )
                 return;
-              onInsert?.(clicked);
+              onInsert?.(insertionStart(clicked, p.blocks));
             }}
           />
           {pointA !== null && pointB !== null && duration > 0 && (
