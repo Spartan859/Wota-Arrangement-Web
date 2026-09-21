@@ -1680,6 +1680,18 @@ fieldset {
   font-size: 10px;
   background: #fff;
 }
+.untimed-strip > span.selected > button {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--selection-red);
+}
+.untimed-strip > span.primary-selected > button {
+  outline: none;
+  box-shadow: inset 0 0 0 3px var(--selection-red-strong);
+}
+.untimed-strip > span.selected > button:focus-visible {
+  outline: 2px solid var(--selection-red);
+  outline-offset: -3px;
+}
 .lrc-picker {
   max-height: 360px;
   overflow: auto;

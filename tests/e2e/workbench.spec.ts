@@ -155,6 +155,48 @@ async function multiTimedProject(page: Page) {
   await expect(page.getByLabel("歌曲名称")).toHaveValue("多选对时");
   await audio(page);
 }
+async function projectWithUntimedBlock(page: Page) {
+  await boot(page);
+  await page.getByLabel("打开项目文件").setInputFiles({
+    name: "untimed-synthetic.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(
+      JSON.stringify({
+        schemaVersion: 2,
+        id: "untimed-fixture",
+        songName: "未对时选择",
+        bpm: "120",
+        audio: null,
+        position: 0,
+        updatedAt: 1,
+        blocks: [
+          {
+            id: "a",
+            type: "前奏",
+            start: 0,
+            end: 3,
+            beats: "8",
+            arrangement: "前奏",
+            remarks: "",
+            lyrics: [{ id: "lyric-a", jp: "合成", cn: "", time: null }],
+          },
+          {
+            id: "b",
+            type: "未对时",
+            start: null,
+            end: null,
+            beats: "8",
+            arrangement: "未对时",
+            remarks: "",
+            lyrics: [{ id: "lyric-b", jp: "合成", cn: "", time: null }],
+          },
+        ],
+      }),
+    ),
+  });
+  await expect(page.getByLabel("歌曲名称")).toHaveValue("未对时选择");
+  await audio(page);
+}
 async function position(page: Page, time: number) {
   await page.getByLabel("播放进度", { exact: true }).fill(String(time));
 }
@@ -272,6 +314,17 @@ test("多选时边缘只调整当前段落，Delete 批量删除，触屏多选�
   await expect(page.locator(".timeline-block")).toHaveCount(4);
   await blocks.nth(0).locator(".timeline-delete").click();
   await expect(page.locator(".timeline-block")).toHaveCount(3);
+});
+test("未对时段落选中后显示红色内描边", async ({ page }) => {
+  await projectWithUntimedBlock(page);
+  const untimedItem = page.locator(".untimed-strip > span").first();
+  const untimedButton = untimedItem.locator("button").first();
+  await untimedButton.click();
+  await expect(untimedItem).toHaveClass(/selected/);
+  await expect(untimedItem).toHaveClass(/primary-selected/);
+  await expect
+    .poll(() => untimedButton.evaluate((el) => getComputedStyle(el).boxShadow))
+    .toContain("3px");
 });
 test("直接记录 AB，拒绝反向区间，循环和替换音频清除", async ({ page }) => {
   await boot(page);
