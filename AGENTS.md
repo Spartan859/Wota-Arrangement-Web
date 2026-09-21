@@ -105,7 +105,7 @@ npm test -- tests/python-compat.test.ts
 
 ## 修改流程
 
-1. 开始任何开发前，先运行 `git status --short --branch` 确认工作区状态，再运行 `git fetch --all --prune` 拉取所有远端更新，并在本地 `main` 上运行 `git pull --ff-only origin main` 完成快进同步；任一同步命令失败时先停止并处理原因。确认本地 `main` 与 `origin/main` 一致后，从最新 `main` 新建任务分支，不直接在 `main` 上开发或提交。
+1. 开始任何开发前，先运行 `git status --short --branch` 确认工作区状态，再运行 `git fetch --all --prune` 拉取所有远端更新；工作区干净时执行 `git switch main`，并运行 `git pull --ff-only origin main` 完成快进同步。任一同步命令失败时先停止并处理原因。确认本地 `main` 与 `origin/main` 一致后，从最新 `main` 新建任务分支，不直接在 `main` 上开发或提交。
 2. 分支名使用 `<类型>/<简短说明>`，功能使用 `feat/xxx`，缺陷修复使用 `fix/xxx`；文档和维护任务分别使用 `docs/xxx`、`chore/xxx`。分支名使用小写英文和连字符，且一个分支只处理一个独立任务。
 3. 先读取相关源码、测试和 README，确认数据流与现有行为。
 4. 先修改纯逻辑和测试，再连接 UI；不要用测试专用分支绕开生产代码的校验。
@@ -132,4 +132,4 @@ npm test -- tests/python-compat.test.ts
 npm run commit -- <feat|fix|docs|chore> "简短说明" <文件>...
 ```
 
-脚本只会暂存命令中明确列出的文件，提交前运行 `git diff --check` 并验证暂存区；不会提交依赖、构建产物、个人媒体、日志、账号数据或凭据。配置 `origin` 时会自动 push 当前任务分支；未配置 remote 或当前为 detached HEAD 时脚本只完成本地提交并明确报告原因。每次运行前仍需先检查 `git status --short`，不要把已有的无关修改带入提交。push 后仍须获得用户对创建 Pull Request 的明确授权；即使 PR 已创建且全部门禁通过，合并前也须另行获得用户明确授权。禁止让脚本或代理直接向 `main` 提交或 push。
+脚本只会暂存命令中明确列出的文件，提交前运行 `git diff --check` 并验证暂存区；不会提交依赖、构建产物、个人媒体、日志、账号数据或凭据。脚本在暂存或提交前拒绝 `main`，配置 `origin` 时会自动 push 当前任务分支；未配置 remote 或当前为 detached HEAD 时脚本只完成本地提交并明确报告原因。每次运行前仍需先检查 `git status --short`，不要把已有的无关修改带入提交。push 后仍须获得用户对创建 Pull Request 的明确授权；即使 PR 已创建且全部门禁通过，合并前也须另行获得用户明确授权。禁止让脚本或代理直接向 `main` 提交或 push。

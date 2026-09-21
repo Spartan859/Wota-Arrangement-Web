@@ -12,6 +12,11 @@ if (!allowed.has(kind) || !message || files.length === 0) {
 const run = (args, options = {}) =>
   execFileSync("git", args, { stdio: "inherit", ...options });
 const output = (args) => execFileSync("git", args, { encoding: "utf8" }).trim();
+const branch = output(["branch", "--show-current"]);
+if (branch === "main") {
+  console.error("禁止在 main 上自动提交或 push；请先创建任务分支。");
+  process.exit(1);
+}
 const status = output(["status", "--short"]);
 if (!status) {
   console.error("工作区没有可提交的修改。");
@@ -43,7 +48,6 @@ if (!remote) {
   console.log("已完成本地提交；未配置 origin，未执行 push。");
   process.exit(0);
 }
-const branch = output(["branch", "--show-current"]);
 if (!branch) {
   console.error("当前处于 detached HEAD，未执行 push。");
   process.exit(1);
