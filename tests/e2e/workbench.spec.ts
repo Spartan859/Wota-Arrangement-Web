@@ -176,16 +176,16 @@ test("时间轴修饰键选择、范围选择和单选回退", async ({ page }) 
       return {
         boxShadow: style.boxShadow,
         outlineStyle: style.outlineStyle,
-        highlight: highlight.backgroundColor,
+        highlightDisplay: highlight.display,
       };
     }),
   );
-  expect(selectionStyles[0].boxShadow).toContain("inset");
-  expect(selectionStyles[3].boxShadow).toContain("inset");
+  expect(selectionStyles[0].boxShadow).toContain("rgb(224, 58, 82)");
+  expect(selectionStyles[3].boxShadow).toContain("rgb(180, 35, 69)");
   expect(selectionStyles[0].outlineStyle).toBe("none");
   expect(selectionStyles[3].outlineStyle).toBe("none");
-  expect(selectionStyles[0].highlight).toBe("rgba(69, 104, 212, 0.18)");
-  expect(selectionStyles[3].highlight).toBe("rgba(69, 104, 212, 0.36)");
+  expect(selectionStyles[0].highlightDisplay).toBe("none");
+  expect(selectionStyles[3].highlightDisplay).toBe("none");
   await blocks.nth(1).click({ modifiers: ["ControlOrMeta"] });
   await expect(page.locator(".timeline-block.selected")).toHaveCount(3);
   await blocks.nth(2).click();

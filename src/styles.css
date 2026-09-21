@@ -16,6 +16,8 @@
   --line: #e5e9f0;
   --teal: #208b83;
   --pink: #c85888;
+  --selection-red: #e03a52;
+  --selection-red-strong: #b42345;
 }
 * {
   box-sizing: border-box;
@@ -1615,33 +1617,26 @@ fieldset {
 }
 .timeline-block.selected {
   outline: none;
-  box-shadow: inset 0 0 0 1px #4568d488;
+  box-shadow: inset 0 0 0 2px var(--selection-red);
   z-index: 4;
 }
 .timeline-block.selected::before {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
-  bottom: 0;
-  background: #4568d42e;
-  content: "";
-  pointer-events: none;
+  display: none;
 }
 .timeline-block.selected:not(.primary-selected) {
-  box-shadow: inset 0 0 0 1px #4568d488;
+  box-shadow: inset 0 0 0 2px var(--selection-red);
 }
 .timeline-block.primary-selected {
   outline: none;
-  box-shadow: inset 0 0 0 2px #2949b1;
+  box-shadow: inset 0 0 0 3px var(--selection-red-strong);
   z-index: 5;
 }
 .timeline-block.primary-selected::before {
-  background: #4568d45c;
+  display: none;
 }
 .timeline-block:focus-visible,
 .timeline-block.selected:focus-visible {
-  outline: 2px solid #9ab2f5;
+  outline: 2px solid var(--selection-red);
   outline-offset: -3px;
 }
 .timeline-edge {
