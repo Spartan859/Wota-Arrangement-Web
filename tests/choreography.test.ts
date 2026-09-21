@@ -107,7 +107,7 @@ describe("画布尺寸", () => {
 });
 
 describe("画布缩放站位选项", () => {
-  it("勾选时保留归一化坐标，取消时保留全帧绝对坐标且支持撤销", () => {
+  it("勾选时保留归一化坐标，取消时保留全帧相对中心坐标且支持撤销", () => {
     const c = emptyChoreography();
     const id = addDancer(c, "A", 0);
     changePose(c, id, 2, { x: 0.75, y: 0.8, left: "黑", visible: false });
@@ -117,7 +117,8 @@ describe("画布缩放站位选项", () => {
     const h = new History<typeof c>();
     h.record(c);
     resizeCanvas(c, 800, 600, false);
-    expect(c.frames[0].poses[0]).toMatchObject({ x: 0.97, y: 0.96 });
+    expect(c.frames[0].poses[0]).toMatchObject({ x: 0.5, y: 0.5 });
+    expect(c.frames[1].poses[0]).toMatchObject({ x: 0.97, y: 0.96 });
     expect(h.undo(c)).toEqual({
       ...before,
       canvas: { width: 1600, height: 1200 },
@@ -127,8 +128,8 @@ describe("画布缩放站位选项", () => {
     expect(preserved.frames.map((f) => f.poses[0])).toEqual(
       before.frames.map((f) => ({
         ...f.poses[0],
-        x: f.poses[0].x / 2,
-        y: f.poses[0].y / 2,
+        x: 0.5 + (f.poses[0].x - 0.5) / 2,
+        y: 0.5 + (f.poses[0].y - 0.5) / 2,
       })),
     );
     expect(preserved.frames[1].poses[0]).toMatchObject({
@@ -144,7 +145,27 @@ describe("画布缩放站位选项", () => {
     expect(c).toEqual(before);
     delete (c as Partial<typeof c>).canvas;
     resizeCanvas(c, 1600, 1200, false);
-    expect(c.frames[0].poses[0]).toMatchObject({ x: 0.25, y: 0.25 });
+    expect(c.frames[0].poses[0]).toMatchObject({ x: 0.5, y: 0.5 });
     expect(choreographySchema.safeParse(c).success).toBe(true);
   });
+});
+
+it("非等比调整长宽后保留中心两侧偏移，恢复尺寸可还原站位", () => {
+  const c = emptyChoreography();
+  const id = addDancer(c, "左侧", 0);
+  changePose(c, id, 0, { x: 0.25, y: 0.7 });
+  changePose(c, id, 2, { x: 0.65, y: 0.4 });
+  const before = structuredClone(c);
+  resizeCanvas(c, 1200, 400, false);
+  for (let i = 0; i < c.frames.length; i++) {
+    const now = c.frames[i].poses[0],
+      previous = before.frames[i].poses[0];
+    expect((now.x - 0.5) * 1200).toBeCloseTo((previous.x - 0.5) * 800, 8);
+    expect((now.y - 0.5) * 400).toBeCloseTo((previous.y - 0.5) * 600, 8);
+  }
+  resizeCanvas(c, 800, 600, false);
+  for (let i = 0; i < c.frames.length; i++) {
+    expect(c.frames[i].poses[0].x).toBeCloseTo(before.frames[i].poses[0].x, 8);
+    expect(c.frames[i].poses[0].y).toBeCloseTo(before.frames[i].poses[0].y, 8);
+  }
 });

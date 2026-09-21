@@ -42,7 +42,7 @@ export function FormationCanvas({
   >(null);
   const [canvasWidth, setCanvasWidth] = useState(String(stageWidth));
   const [canvasHeight, setCanvasHeight] = useState(String(stageHeight));
-  const [scalePositions, setScalePositions] = useState(true);
+  const [scalePositions, setScalePositions] = useState(false);
   const [sizeError, setSizeError] = useState("");
   const [name, setName] = useState("");
   const [hand, setHand] = useState<"left" | "right">("left");
@@ -150,7 +150,7 @@ export function FormationCanvas({
             onClick={() => {
               freeze();
               setSizeError("");
-              setScalePositions(true);
+              setScalePositions(false);
               setCanvasWidth(String(stageWidth));
               setCanvasHeight(String(stageHeight));
               setModal("size");
@@ -452,7 +452,7 @@ export function FormationCanvas({
           <p className="muted">
             {scalePositions
               ? "所有关键帧按新画布比例缩放站位。"
-              : "所有关键帧保留相对左上角的坐标；越界舞者移至最近边界。"}
+              : "所有关键帧保留相对画布正中心的坐标；越界舞者移至最近边界。"}
           </p>
           {sizeError && (
             <p className="error" role="alert">

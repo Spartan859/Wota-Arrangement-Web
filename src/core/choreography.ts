@@ -196,7 +196,7 @@ export function moveFrame(
   c.frames.sort((a, b) => a.time - b.time);
 }
 
-/** Resize every formation; unscaled coordinates use the top-left stage origin. */
+/** Resize every formation; unscaled coordinates preserve offsets from the stage center. */
 export function resizeCanvas(
   c: Choreography,
   width: number,
@@ -211,11 +211,11 @@ export function resizeCanvas(
       for (const pose of frame.poses) {
         pose.x = Math.max(
           0.03,
-          Math.min(0.97, (pose.x * previous.width) / width),
+          Math.min(0.97, 0.5 + ((pose.x - 0.5) * previous.width) / width),
         );
         pose.y = Math.max(
           0.04,
-          Math.min(0.96, (pose.y * previous.height) / height),
+          Math.min(0.96, 0.5 + ((pose.y - 0.5) * previous.height) / height),
         );
       }
   }
