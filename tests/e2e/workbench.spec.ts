@@ -155,6 +155,52 @@ async function multiTimedProject(page: Page) {
   await expect(page.getByLabel("歌曲名称")).toHaveValue("多选对时");
   await audio(page);
 }
+async function untimedProject(page: Page) {
+  await boot(page);
+  await page.getByLabel("打开项目文件").setInputFiles({
+    name: "untimed-synthetic.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(
+      JSON.stringify({
+        schemaVersion: 2,
+        id: "untimed-fixture",
+        songName: "含未对时段落",
+        bpm: "120",
+        audio: null,
+        position: 0,
+        updatedAt: 1,
+        blocks: [
+          {
+            id: "timed",
+            type: "前奏",
+            start: 0,
+            end: 2,
+          },
+          {
+            id: "untimed-a",
+            type: "主歌",
+            start: null,
+            end: null,
+          },
+          {
+            id: "untimed-b",
+            type: "副歌",
+            start: null,
+            end: null,
+          },
+        ].map((b) => ({
+          ...b,
+          beats: "8",
+          arrangement: b.type,
+          remarks: "",
+          lyrics: [{ id: `lyric-${b.id}`, jp: "合成", cn: "", time: null }],
+        })),
+      }),
+    ),
+  });
+  await expect(page.getByLabel("歌曲名称")).toHaveValue("含未对时段落");
+  await audio(page);
+}
 async function position(page: Page, time: number) {
   await page.getByLabel("播放进度", { exact: true }).fill(String(time));
 }
@@ -191,6 +237,20 @@ test("时间轴修饰键选择、范围选择和单选回退", async ({ page }) 
   await blocks.nth(2).click();
   await expect(page.locator(".timeline-block.selected")).toHaveCount(1);
   await expect(blocks.nth(2)).toHaveClass(/primary-selected/);
+});
+
+test("未对时段落选中态使用红色内描边", async ({ page }) => {
+  await untimedProject(page);
+  const untimed = page.locator(".untimed-strip > span");
+  const buttons = page.locator(".untimed-strip > span > button:first-child");
+
+  await buttons.first().click();
+  await expect(untimed.first()).toHaveClass(/selected primary-selected/);
+  await expect
+    .poll(async () =>
+      buttons.first().evaluate((node) => getComputedStyle(node).boxShadow),
+    )
+    .toContain("rgb(180, 35, 69)");
 });
 
 test("时间轴段落块支持 Backspace 和 Delete 删除", async ({ page }) => {
