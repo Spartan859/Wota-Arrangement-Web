@@ -192,3 +192,12 @@ TypeScript 检查、生产构建和格式检查通过；`npm audit` 为 0 漏洞
 - 新增多阶段 `Dockerfile`、只读 Nginx 运行容器、`compose.yaml` 和 GitHub Actions 容器构建、启动 smoke test 与 GHCR 发布 job。
 - `docker compose config -q`、Compose JSON 展开和 GitHub Actions YAML 解析已通过；`npm run check`、`npm run format:check` 与 `git diff --check` 通过。
 - 本机 Docker 镜像构建未能执行：沙箱无法访问 Docker socket，提权审批服务返回 503；未将构建失败误报为镜像验证通过。
+
+## 2026-09-21 satintin 生产部署
+
+- 新增 `.github/workflows/deploy.yml`：`main` 的 CI 成功后在 GitHub Actions 构建 `dist/`，通过 SSH 上传到 `/opt/wota-arrangement-web`，按提交号保留最近 5 个版本并原子切换 `current`；健康检查失败恢复上一版本。
+- 初次发布已完成：版本 `3eeec5e` 位于 `/opt/wota-arrangement-web/releases/3eeec5e`。`https://wota.satintin.com/healthz` 返回 `ok`，首页返回 `<title>Wota · 编排工作台</title>`，HTTP 自动 301 跳转 HTTPS。
+- 宿主机 Nginx 独立站点配置通过 `nginx -t`。Let's Encrypt 独立证书仅包含 `wota.satintin.com`，有效期至 2026-12-20；`/etc/cron.d/certbot` 每日执行续期并在成功后重载 Nginx。
+- `certbot renew --dry-run` 在模拟旧的 `satintin.com` 多域名证书续期时长时间无结果，已人工中止；不记录为续期模拟通过。新站点证书的实际签发、安装和 HTTPS 握手均已验证。
+- 服务器直接 Docker 构建未完成：访问 Docker Hub `registry-1.docker.io` 超时，未进入源码构建。生产 CD 因此传输静态产物，不依赖服务器访问镜像仓库；Dockerfile、根目录 Compose、CI 镜像构建和 GHCR 发布仍保留。
+- GitHub 连接器确认账号为 `Spartan859`，但 `Spartan859/Wota-Arrangement-Web` 尚不存在；本地仓库也未配置 `origin`。Actions 尚未推送或实际运行，`production` Environment 的 SSH secrets 尚未配置。
