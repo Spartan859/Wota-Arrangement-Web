@@ -2436,6 +2436,633 @@ fieldset {
     gap: 6px;
   }
 }
+
+/* Online sharing, account, and administration */
+.account-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding-left: 5px;
+  border-left: 1px solid var(--line);
+}
+.account-actions a,
+.account-actions button {
+  border: 0;
+  background: transparent;
+  padding: 7px 6px;
+  color: #52617a;
+  font-size: 11px;
+}
+.account-actions a:hover,
+.account-actions button:hover {
+  color: var(--blue);
+  background: #f3f6fc;
+}
+.export-option-heading,
+.online-share-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.export-option-heading a {
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 600;
+}
+.online-share-option {
+  background: #f5f8ff;
+  border-color: #d9e3ff;
+}
+.online-share-actions {
+  justify-content: flex-start;
+  margin-top: 14px;
+}
+.online-share-option progress,
+.share-card progress {
+  width: 100%;
+  height: 7px;
+  margin-top: 12px;
+  accent-color: var(--blue);
+}
+.share-url-fallback {
+  width: 100%;
+  margin-top: 10px;
+  font-family: ui-monospace, monospace;
+}
+.public-share-page,
+.account-page,
+.admin-page {
+  min-height: 100dvh;
+  background: linear-gradient(180deg, #eef3fb 0, #f7f8fa 280px, #f7f8fa 100%);
+  color: #243247;
+}
+.public-share-page {
+  padding-bottom: 46px;
+}
+.public-share-header,
+.account-header {
+  min-height: 108px;
+  padding: 20px clamp(18px, 4vw, 56px);
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+}
+.public-share-header > div,
+.account-header > div {
+  min-width: 0;
+  flex: 1;
+}
+.public-share-header span,
+.account-header span {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.public-share-header h1,
+.account-header h1 {
+  font-size: clamp(24px, 3vw, 36px);
+  line-height: 1.15;
+  margin: 3px 0;
+  letter-spacing: -0.7px;
+}
+.public-share-header p,
+.account-header p {
+  color: var(--muted);
+  font-size: 12px;
+}
+.public-back,
+.account-header > a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #52617a;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.readonly-badge {
+  border: 1px solid #bddbd5;
+  background: #effaf7;
+  color: #18756e !important;
+  border-radius: 999px;
+  padding: 6px 10px;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  flex-shrink: 0;
+}
+.local-audio-banner {
+  margin: 16px clamp(18px, 4vw, 56px) 0;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #efd9a7;
+  background: #fffaf0;
+  border-radius: 8px;
+}
+.local-audio-banner > div {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.local-audio-banner strong {
+  font-size: 13px;
+}
+.local-audio-banner span {
+  color: #806a42;
+  font-size: 11px;
+}
+.public-stage {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.72fr) minmax(520px, 1.28fr);
+  gap: 16px;
+  padding: 16px clamp(18px, 4vw, 56px);
+  align-items: stretch;
+}
+.public-arrangement {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 20px;
+  min-width: 0;
+}
+.public-section-heading,
+.public-block-meta,
+.sync-offset > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.public-section-heading span {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+.public-section-heading strong {
+  color: var(--blue);
+  font-size: 17px;
+}
+.public-block-meta {
+  justify-content: flex-start;
+  margin: 14px 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+.public-block-meta button {
+  margin-left: auto;
+  padding: 5px 8px;
+  font-size: 11px;
+}
+.public-lyrics {
+  display: grid;
+  gap: 7px;
+  margin: 12px 0 18px;
+}
+.public-lyrics > div {
+  border-left: 3px solid transparent;
+  padding: 7px 10px;
+  background: #f8f9fb;
+  border-radius: 5px;
+}
+.public-lyrics > div.active {
+  border-left-color: var(--blue);
+  background: #edf2ff;
+}
+.public-lyrics p:first-child {
+  font-size: 16px;
+  font-weight: 650;
+  white-space: pre-wrap;
+}
+.public-lyrics p:last-child {
+  color: #5e6d83;
+  font-size: 13px;
+  margin-top: 2px;
+  white-space: pre-wrap;
+}
+.public-detail {
+  border-top: 1px solid var(--line);
+  padding: 12px 0;
+}
+.public-detail span {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+.public-detail p {
+  margin-top: 5px;
+  white-space: pre-wrap;
+  line-height: 1.65;
+  font-size: 13px;
+}
+.sync-offset {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.sync-offset > div strong {
+  font-size: 12px;
+}
+.sync-offset > div span {
+  font:
+    11px ui-monospace,
+    monospace;
+  color: var(--muted);
+}
+.sync-offset input {
+  width: 100%;
+  margin: 9px 0 7px;
+}
+.sync-offset button {
+  font-size: 10px;
+  padding: 4px 7px;
+}
+.public-share-page .formation-panel {
+  min-height: 520px;
+}
+.public-share-page .formation-tools {
+  display: none;
+}
+.public-share-page .formation-stage {
+  width: 100%;
+  max-height: 540px;
+}
+.public-share-page .player {
+  position: sticky;
+  bottom: 0;
+  z-index: 12;
+  margin: 0 clamp(18px, 4vw, 56px);
+  border: 1px solid #d8e0ec;
+  border-radius: 8px 8px 0 0;
+  box-shadow: 0 -8px 24px #21304b14;
+}
+.public-mobile-tabs {
+  display: none;
+}
+.audio-gate {
+  position: fixed;
+  right: 22px;
+  bottom: 18px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 10px 13px;
+  background: #243247;
+  color: #fff;
+  box-shadow: 0 8px 28px #17203333;
+  font-size: 12px;
+}
+.public-share-footer {
+  padding: 14px 20px 4px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.public-loading,
+.public-error,
+.empty-state {
+  min-height: 100dvh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  text-align: center;
+  padding: 30px;
+  color: #33435b;
+}
+.public-error h1,
+.empty-state h2 {
+  font-size: 24px;
+}
+.public-error a,
+.empty-state a {
+  color: var(--blue);
+  font-weight: 600;
+}
+.quota-bar {
+  height: 5px;
+  margin: 0 clamp(18px, 4vw, 56px);
+  background: #e1e6ee;
+  border-radius: 99px;
+  overflow: hidden;
+}
+.quota-bar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #4c75dc, #2c9c8e);
+}
+.share-list,
+.admin-layout {
+  padding: 22px clamp(18px, 4vw, 56px) 50px;
+}
+.share-list {
+  display: grid;
+  gap: 12px;
+}
+.share-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 20px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.share-card h2 {
+  font-size: 18px;
+}
+.share-card p {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 4px;
+}
+.share-card .audio-ok {
+  color: #208b83;
+}
+.share-card .audio-missing {
+  color: #aa6a20;
+}
+.share-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.share-card-actions a,
+.share-card-actions button,
+.share-card-actions .file-button {
+  font-size: 11px;
+}
+button.danger,
+.share-card-actions .danger {
+  color: #a42c43;
+  border-color: #efcbd3;
+}
+.admin-layout {
+  display: grid;
+  grid-template-columns: minmax(340px, 0.75fr) minmax(480px, 1.25fr);
+  gap: 16px;
+  align-items: start;
+}
+.admin-users,
+.admin-detail {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  min-width: 0;
+}
+.admin-search {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+}
+.admin-user-list {
+  display: grid;
+  gap: 5px;
+  margin: 12px 0;
+  max-height: 480px;
+  overflow: auto;
+}
+.admin-user-list > button {
+  width: 100%;
+  justify-content: space-between;
+  text-align: left;
+  white-space: normal;
+  padding: 10px;
+}
+.admin-user-list > button > span:first-child {
+  display: grid;
+  min-width: 0;
+}
+.admin-user-list small {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.admin-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 10px 0 14px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.admin-pagination button {
+  font-size: 10px;
+  padding: 5px 7px;
+}
+.add-admin-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+.add-admin-form h2 {
+  grid-column: 1 / -1;
+  font-size: 15px;
+}
+.add-admin-form button {
+  grid-column: 1 / -1;
+}
+.admin-user-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 13px;
+}
+.admin-user-heading p {
+  color: var(--muted);
+  font-size: 11px;
+}
+.admin-user-heading label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.admin-user-heading input {
+  width: 110px;
+}
+.admin-share-list {
+  display: grid;
+  gap: 7px;
+  margin-top: 13px;
+}
+.admin-share-list article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 7px;
+  border-bottom: 1px solid #edf0f5;
+  padding: 10px 0;
+}
+.admin-share-list article > div {
+  display: grid;
+  min-width: 0;
+}
+.admin-share-list article span {
+  color: var(--muted);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.admin-share-list article a,
+.admin-share-list article button {
+  font-size: 10px;
+  padding: 5px 7px;
+}
+
+@media (max-width: 1000px) {
+  .public-stage,
+  .admin-layout {
+    grid-template-columns: 1fr;
+  }
+  .public-share-page .formation-panel {
+    min-height: 420px;
+  }
+}
+
+@media (max-width: 850px) {
+  .account-actions {
+    border-left: 0;
+    padding-left: 0;
+  }
+  .public-share-header,
+  .account-header {
+    padding: 14px 16px;
+    min-height: 92px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .public-share-header h1,
+  .account-header h1 {
+    font-size: 24px;
+  }
+  .readonly-badge {
+    margin-left: auto;
+  }
+  .local-audio-banner {
+    margin: 10px 12px 0;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .local-audio-banner .file-button {
+    margin-left: 30px;
+  }
+  .public-mobile-tabs {
+    display: flex;
+    padding: 10px 12px 0;
+  }
+  .public-mobile-tabs button {
+    flex: 1;
+  }
+  .public-mobile-tabs button.active {
+    background: var(--blue);
+    border-color: var(--blue);
+    color: #fff;
+  }
+  .public-stage {
+    padding: 10px 12px;
+  }
+  .public-stage.view-arrangement > .formation-panel,
+  .public-stage.view-formation > .public-arrangement {
+    display: none;
+  }
+  .public-arrangement {
+    padding: 15px;
+  }
+  .public-share-page .formation-panel {
+    min-height: min(66dvh, 480px);
+  }
+  .public-share-page .formation-stage {
+    max-height: 56dvh;
+  }
+  .public-share-page .player {
+    margin: 0 12px;
+    position: relative;
+    bottom: auto;
+  }
+  .public-share-page .player-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+  .public-share-page .song-badge {
+    min-width: 0;
+  }
+  .public-share-page .volume,
+  .public-share-page .compact {
+    grid-column: span 1;
+  }
+  .public-share-page .ab-controls {
+    overflow-x: auto;
+  }
+  .audio-gate {
+    right: 12px;
+    bottom: 12px;
+    max-width: calc(100vw - 24px);
+  }
+  .share-card {
+    grid-template-columns: 1fr;
+  }
+  .share-card-actions {
+    justify-content: flex-start;
+  }
+  .admin-layout,
+  .share-list {
+    padding: 14px 12px 40px;
+  }
+  .admin-user-heading {
+    flex-direction: column;
+  }
+  .admin-share-list article {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .admin-share-list article > div {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 480px) {
+  .online-share-actions,
+  .export-option-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .online-share-actions button {
+    width: 100%;
+  }
+  .add-admin-form {
+    grid-template-columns: 1fr;
+  }
+  .add-admin-form h2,
+  .add-admin-form button {
+    grid-column: auto;
+  }
+  .public-share-page .player-controls {
+    grid-template-columns: 1fr auto;
+  }
+  .public-share-page .song-badge {
+    grid-column: 1 / -1;
+  }
+}
 .modal-header {
   gap: 10px;
 }

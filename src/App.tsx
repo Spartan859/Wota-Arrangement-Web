@@ -1,6 +1,7 @@
 import { BatonUsage } from "./components/BatonUsage";
 import { FormationCanvas } from "./components/FormationCanvas";
 import { useEffect, useRef, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Download,
   Eye,
@@ -23,6 +24,13 @@ import {
   type Lyric,
   type Project,
 } from "./core/model";
+import {
+  createShareSnapshot,
+  formatBytes,
+  type ShareSnapshot,
+  type ShareSummary,
+} from "./core/share";
+import { ApiError, fetchShares, uploadShare } from "./api/client";
 import { db, download, safeName } from "./core/storage";
 import {
   activeBlock,
@@ -38,8 +46,12 @@ import { LyricsImport } from "./components/LyricsImport";
 import { Preview } from "./components/Preview";
 import { BlockEditor } from "./components/BlockEditor";
 import { Player, type PlayerHandle } from "./components/Player";
+import { useSession } from "./session";
 
 export default function App() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { session, loading: sessionLoading, login, logout } = useSession();
   const store = useProject(),
     p = store.document;
   const player = useRef<PlayerHandle>(null),
@@ -60,13 +72,18 @@ export default function App() {
   >(null);
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [publishing, setPublishing] = useState(false),
+    [publishProgress, setPublishProgress] = useState(0),
+    [shares, setShares] = useState<ShareSummary[]>([]),
+    [shareUrlFallback, setShareUrlFallback] = useState("");
   const currentBlock =
     p.blocks.find((b) => b.id === primarySelectedId) ??
     activeBlock(p.blocks, time);
   const currentLyric = activeLyric(p.blocks, time, p.audio?.duration ?? 0);
   const readOnly = store.conflict || busy;
   const fail = (message: string) => setError(message);
+  const activeShare = shares.find((share) => share.projectId === p.id) ?? null;
   useEffect(() => {
     if (!error && !notice) return;
     const timer = setTimeout(() => {
@@ -75,6 +92,31 @@ export default function App() {
     }, 6000);
     return () => clearTimeout(timer);
   }, [error, notice]);
+  useEffect(() => {
+    if (!session.authenticated) {
+      setShares([]);
+      return;
+    }
+    let active = true;
+    fetchShares()
+      .then((value) => {
+        if (active) setShares(value);
+      })
+      .catch(() => {
+        // Local editing remains usable when the sharing service is unavailable.
+      });
+    return () => {
+      active = false;
+    };
+  }, [session.authenticated]);
+  useEffect(() => {
+    if (!store.ready || !session.authenticated) return;
+    const pending = sessionStorage.getItem("wota-publish-pending");
+    if (pending !== p.id) return;
+    sessionStorage.removeItem("wota-publish-pending");
+    setModal("export");
+    navigate("/", { replace: true });
+  }, [p.id, session.authenticated, store.ready]);
   async function attempt(fn: () => void | Promise<void>) {
     try {
       await fn();
@@ -258,6 +300,82 @@ export default function App() {
       setBusy(false);
     }
   }
+  async function copyShareUrl(url: string) {
+    setShareUrlFallback("");
+    try {
+      await navigator.clipboard.writeText(url);
+      setNotice("分享链接已复制。");
+    } catch {
+      setShareUrlFallback(url);
+      setNotice("浏览器未允许自动复制，请使用下方链接手动复制。");
+    }
+  }
+  async function publishOnline() {
+    if (!session.authenticated || !session.user || !session.csrfToken) {
+      sessionStorage.setItem("wota-publish-pending", p.id);
+      login(`${location.pathname}?publish=1`);
+      return;
+    }
+    if (!session.user.emailVerified) {
+      fail("请先完成邮箱验证，再发布在线分享。");
+      return;
+    }
+    if (!p.blocks.length) {
+      fail("至少需要一个编排段落后才能发布。");
+      return;
+    }
+    setPublishing(true);
+    setPublishProgress(0);
+    try {
+      const record = p.audio?.id ? await db.audio.get(p.audio.id) : undefined;
+      const audioMeta: ShareSnapshot["audio"] = record
+        ? {
+            name:
+              record.blob instanceof File ? record.blob.name : p.audio!.name,
+            duration: p.audio!.duration,
+            mimeType: record.blob.type,
+            sizeBytes: record.blob.size,
+          }
+        : activeShare?.audio
+          ? { ...activeShare.audio }
+          : null;
+      const snapshot = createShareSnapshot(p, audioMeta);
+      const updated = await uploadShare(
+        {
+          projectId: p.id,
+          shareId: activeShare?.id,
+          snapshot,
+          audio: record
+            ? {
+                blob: record.blob,
+                name:
+                  record.blob instanceof File
+                    ? record.blob.name
+                    : p.audio!.name,
+              }
+            : undefined,
+          preserveAudio: Boolean(activeShare?.audio && !record),
+        },
+        session.csrfToken,
+        setPublishProgress,
+      );
+      setShares((current) => {
+        const exists = current.some((share) => share.id === updated.id);
+        return exists
+          ? current.map((share) => (share.id === updated.id ? updated : share))
+          : [...current, updated];
+      });
+      await copyShareUrl(updated.url);
+      if (!record && !activeShare?.audio)
+        setNotice("编排已发布；之后可在“我的分享”中补充云端音乐。");
+    } catch (cause) {
+      if (cause instanceof ApiError && cause.code === "quota_exceeded")
+        fail(`${cause.message} 可前往“我的分享”删除旧音乐。`);
+      else fail(cause instanceof Error ? cause.message : "发布失败，请重试。");
+    } finally {
+      setPublishing(false);
+    }
+  }
   const updateRange = (id: string, patch: Partial<Block>) => {
     const b = p.blocks.find((x) => x.id === id);
     if (!b) return;
@@ -400,6 +518,15 @@ export default function App() {
             <Download size={16} />
             导出
           </button>
+          {!sessionLoading && session.authenticated ? (
+            <div className="account-actions">
+              <Link to="/shares">我的分享</Link>
+              {session.user?.isAdmin && <Link to="/admin">管理</Link>}
+              <button onClick={logout}>退出</button>
+            </div>
+          ) : (
+            !sessionLoading && <button onClick={() => login()}>登录</button>
+          )}
         </div>
       </header>
       {(error || notice) && (
@@ -587,6 +714,60 @@ export default function App() {
       )}{" "}
       {modal === "export" && (
         <Modal title="导出" onClose={() => setModal(null)} wide>
+          <div className="export-option online-share-option">
+            <div className="export-option-heading">
+              <div>
+                <h3>在线分享</h3>
+                <p>
+                  {activeShare
+                    ? `固定链接 · 版本 ${activeShare.revision} · ${
+                        activeShare.audio
+                          ? `云端音乐 ${formatBytes(activeShare.audio.sizeBytes)}`
+                          : "未保存云端音乐"
+                      }`
+                    : "上传编排和歌曲，生成移动端可查看的只读链接。"}
+                </p>
+              </div>
+              {activeShare && (
+                <Link to="/shares" onClick={() => setModal(null)}>
+                  管理分享
+                </Link>
+              )}
+            </div>
+            <div className="online-share-actions">
+              <button
+                className="primary"
+                disabled={publishing || !p.blocks.length}
+                onClick={() => void publishOnline()}
+              >
+                {publishing
+                  ? `上传中 ${publishProgress}%`
+                  : activeShare
+                    ? "更新在线版本"
+                    : session.authenticated
+                      ? "发布并复制链接"
+                      : "登录后发布并复制链接"}
+              </button>
+              {activeShare && (
+                <button
+                  disabled={publishing}
+                  onClick={() => void copyShareUrl(activeShare.url)}
+                >
+                  复制共享链接
+                </button>
+              )}
+            </div>
+            {publishing && <progress max={100} value={publishProgress} />}
+            {shareUrlFallback && (
+              <input
+                className="share-url-fallback"
+                aria-label="共享链接"
+                readOnly
+                value={shareUrlFallback}
+                onFocus={(event) => event.currentTarget.select()}
+              />
+            )}
+          </div>
           <div className="export-option">
             <h3>Excel 编排表</h3>
             <button

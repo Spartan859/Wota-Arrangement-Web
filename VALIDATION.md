@@ -211,3 +211,18 @@ TypeScript 检查、生产构建和格式检查通过；`npm audit` 为 0 漏洞
 - 自动 Deploy run `35623039675` 成功发布提交 `086e93904338fe37acc1844518b24bd7649fa417`。服务器 `current` 已指向同一 SHA，`https://wota.satintin.com/healthz` 返回 `ok`，首页包含 `Wota · 编排工作台`。
 - 生产曾因工作流执行 `install -d -m 700 /opt/wota-arrangement-web` 下线：Nginx worker 实际为 `nobody:nogroup`，无法穿越该目录，首页返回 404，而独立 `/healthz` 仍返回成功。已将目录权限改为 `0711`，并让发布脚本同时通过 HTTPS 验证健康端点和首页标题；首页不可读时会触发回滚。修复后再次确认 Nginx、HTTPS 首页、健康检查和发布 SHA。
 - 根据部署策略调整，提交 `c831315` 已将 Chromium/WebKit Playwright 从 GitHub CI 移除；浏览器 E2E 仅在本地执行。CI 仍保留单元测试、类型检查、生产构建、格式、Python XLSX 兼容、容器构建与 smoke test、GHCR 发布。
+
+## 2026-09-23 在线分享、账号与云空间
+
+- `npm run check`：44 项单元/集成测试通过，Python 专项按设计跳过；TypeScript、API 构建、前端生产构建通过。
+- `npm run format:check`、`npm run db:generate`、`git diff --check` 通过；`npm audit --audit-level=moderate` 为 0 漏洞。
+- 本地隔离 Compose 栈实际构建并启动：PostgreSQL 迁移成功，Keycloak 26.3 realm/client 初始化成功，Mailpit、API 与 Web 健康检查通过。
+- 使用服务器脚本创建合成管理员后，数据库角色为 `admin`、默认配额为 104857600 字节，Mailpit 收到 Keycloak 的邮箱验证与设置密码邮件。
+- 真实 Chrome 通过 BFF 完成 Keycloak 登录，登录后返回工作台并显示账号入口。
+- 通过浏览器向隔离 API 上传合成编排和 WAV，验证固定分享令牌、revision 递增、公开快照脱敏、音频 Range 206、配额累计与释放。
+- 验证删除云端音乐后公开分享仍返回编排且 `audioAvailable=false`；随后恢复音频成功复用同一资产行并重新计入配额。
+- 验证管理员接口可读取用户和分享、把配额从 100 MiB 调整为 120 MiB、删除在线分享；删除后令牌返回 404，用户用量归零。
+- 真实 Chrome 打开在线分享页时远端音频 `readyState=4`、`paused=false`，390×844 移动视口切换队形页后无横向溢出。
+- Docker Web 与 API 最终目标均可构建；Compose 本地 profile 与 `production-mail` profile 配置校验通过。
+- Chromium 全量套件：42/46 通过。失败项中两个导入用例在串行复跑时通过；剩余两个播放时钟断言受当前 headless Chrome 不推进 `audio.currentTime` 的环境限制影响，未通过，未放宽产品测试。
+- 本轮未运行 WebKit/Safari；未部署生产，未修改真实 DNS、证书、SMTP 中继或服务器 `/opt/wota-stack/.env`。

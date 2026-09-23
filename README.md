@@ -1,8 +1,8 @@
 # Wota · 编排工作台
 
-纯浏览器的光棒编排工具。把双语歌词分成段落，边听歌曲边打点，编辑动作与备注，导出兼容原 Python 工具的 Excel 编排表。
+本地优先的光棒编排工具。把双语歌词分成段落，边听歌曲边打点，编辑动作与备注，导出兼容原 Python 工具的 Excel 编排表；需要时可将编排和音乐发布为只读在线分享页。
 
-文件处理、项目保存和音频播放均在本机浏览器完成。无需 Python、后端或账号。
+未登录时，文件处理、项目保存和音频播放仍全部在本机浏览器完成，无需 Python、后端或账号。只有主动发布在线分享时，才会把脱敏后的编排快照和所选音乐上传到 Wota 服务。
 
 ## 启动
 
@@ -15,6 +15,21 @@ npm run dev
 
 打开终端显示的本地地址，默认 `http://127.0.0.1:5173`。开发服务器只监听本机。
 
+需要同时调试在线分享、Keycloak 和数据库时，先复制 `.env.example` 为 `.env`，再启动隔离 Compose 栈：
+
+```sh
+cp .env.example .env
+docker compose --profile local-mail up -d --build
+npm run dev:all
+```
+
+本地服务地址：
+
+- Web 与 API 反向代理：`http://127.0.0.1:8080`
+- Keycloak：`http://127.0.0.1:8081`
+- Mailpit 邮件捕获：`http://127.0.0.1:8025`
+- Vite 开发服务器：`http://127.0.0.1:5173`
+
 ```sh
 npm run build
 npm run preview
@@ -24,23 +39,23 @@ npm run preview
 
 ## Docker
 
-仓库提供多阶段 `Dockerfile`，用 Node.js 构建 Vite 产物，再由 Nginx 提供静态文件和 SPA 回退。需要 Docker Engine 与 Compose v2：
+仓库提供多阶段 `Dockerfile`，包含静态 Web、API 和迁移运行目标。Compose 栈包含 Web/Nginx、API、PostgreSQL、Keycloak、Postfix 或 Mailpit。需要 Docker Engine 与 Compose v2：
 
 ```sh
-docker compose up --build -d
+docker compose --profile local-mail up -d --build
 ```
 
-默认访问 `http://127.0.0.1:8080`，健康检查地址为 `http://127.0.0.1:8080/healthz`。停止服务：
+默认访问 `http://127.0.0.1:8080`，API 健康检查为 `http://127.0.0.1:8080/api/health`。停止服务：
 
 ```sh
 docker compose down
 ```
 
-可用 `WOTA_WEB_PORT` 修改宿主机端口，例如 `WOTA_WEB_PORT=8088 docker compose up --build -d`。容器以只读根文件系统运行，Nginx 的临时目录使用内存文件系统；项目数据仍保存在浏览器 IndexedDB，不写入容器。
+本地邮件使用 `local-mail` profile 和 Mailpit；生产邮件使用 `production-mail` profile 和 Postfix 中继。生产凭据只放在服务器 `/opt/wota-stack/.env`，不得提交。项目草稿和未发布音频仍保存在浏览器 IndexedDB；发布后的音频保存在 Compose 持久化卷。
 
 GitHub Actions 的 CI 位于 `.github/workflows/ci.yml`：所有分支和 PR 执行单元测试、类型检查、构建、格式检查、Python XLSX 兼容测试和容器构建；推送到 `main` 或 `v*` 标签时，额外将镜像发布到 GitHub Container Registry。Chromium/WebKit Playwright 测试只在本地运行，不进入 CI。
 
-生产发布位于 `.github/workflows/deploy.yml`。`main` 的 CI 全部通过后，Actions 构建固定提交的静态站点，通过专用 SSH 密钥传到 `satintin`，按提交号保留版本并原子切换；健康检查失败时恢复上一版本。生产地址为 `https://wota.satintin.com`。仓库的 `production` Environment 需要配置 `DEPLOY_SSH_KEY` 和 `DEPLOY_KNOWN_HOSTS`；服务器发布目录位于 `/opt/wota-arrangement-web`，由宿主机 Nginx 提供静态文件并终止 TLS。也可从 Actions 手动触发 Deploy 工作流。Docker 镜像发布仍独立保留。
+生产发布位于 `.github/workflows/deploy.yml`。`main` 的 CI 全部通过后，Actions 构建 Web/API 固定提交镜像并发布到 GHCR，再通过受限 SSH 命令在 `/opt/wota-stack` 拉取 Compose 镜像。宿主 Nginx 将 `wota.satintin.com` 路由到 Web/API，将 `auth.wota.satintin.com` 路由到 Keycloak。仓库的 `production` Environment 需要配置 `DEPLOY_SSH_KEY` 和 `DEPLOY_KNOWN_HOSTS`；一次性 root 安装可参考 `deploy/install-compose-runtime.sh`。
 
 ## 一次编排
 
@@ -74,6 +89,33 @@ GitHub Actions 的 CI 位于 `.github/workflows/ci.yml`：所有分支和 PR 执
 - 浏览器清理数据、隐私模式、切换域名或端口均可能影响草稿。请定期下载 JSON，同时自行保存原歌曲。
 - 存储失败时仍保留内存中的编辑，可下载备份；多标签页使用版本检查防止覆盖，冲突时可保存副本或明确重新载入。
 - 撤销/重做保存最近 100 次编辑；刷新后历史清空。音频文件关联和播放位置不属于编排撤销历史。
+
+## 在线分享与账号
+
+导出窗口的“在线分享”会首次创建固定链接；再次发布同一项目会覆盖在线快照并递增版本。发布快照不包含 `lyricSource` 原文、本地音频 ID、播放位置等本地状态。默认每个账号有 100 MiB 音频配额，编排 JSON 不计入音频配额。
+
+- 分享页无需登录，任何持有随机链接的人都可以查看；每位访客独立播放，不进行多人实时同步。
+- 云端音乐只提供支持 Range 的流式播放，不提供下载按钮。删除云端音乐后分享链接继续有效，访客可在本机选择同一首歌并通过同步偏移校准。
+- `/shares` 显示登录用户的在线编排、用量、音频恢复/删除和分享取消操作。
+- `/admin` 显示 Keycloak 用户、音频用量、分享和配额；管理员可扩容、删除用户文件并邀请其他管理员。
+- 普通用户通过 Keycloak 公开注册并完成邮箱验证；服务器脚本 `npm run admin:create -- --email <email> --name <name>` 用于首个管理员。
+
+主要 API：
+
+```text
+GET    /api/public/shares/:token
+GET    /api/public/shares/:token/audio
+GET    /api/session
+GET    /api/shares
+POST   /api/shares
+POST   /api/shares/:id/audio
+DELETE /api/shares/:id/audio
+DELETE /api/shares/:id
+GET    /api/admin/users
+GET    /api/admin/users/:id/shares
+PATCH  /api/admin/users/:id/quota
+POST   /api/admin/admins
+```
 
 ## 测试与维护
 

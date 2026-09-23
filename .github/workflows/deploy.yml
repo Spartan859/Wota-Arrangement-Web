@@ -41,15 +41,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ steps.revision.outputs.sha }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-      - name: Build static site
-        run: |
-          npm ci
-          npm run build
-          tar -czf /tmp/wota-arrangement-web.tar.gz -C dist .
       - name: Configure SSH
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
@@ -60,18 +51,14 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
-      - name: Upload release and deployment script
-        run: |
-          ssh -i ~/.ssh/deploy_key wota-deploy@120.77.57.144 'install -d -m 711 /opt/wota-arrangement-web'
-          scp -i ~/.ssh/deploy_key \
-            /tmp/wota-arrangement-web.tar.gz \
-            deploy/deploy.sh \
-            wota-deploy@120.77.57.144:/opt/wota-arrangement-web/
-      - name: Activate and verify
+      - name: Deploy pinned Compose images
         env:
           RELEASE_ID: ${{ steps.revision.outputs.sha }}
         run: |
           ssh -i ~/.ssh/deploy_key wota-deploy@120.77.57.144 \
-            "/opt/wota-arrangement-web/deploy.sh /opt/wota-arrangement-web/wota-arrangement-web.tar.gz '$RELEASE_ID'"
+            "sudo /usr/local/sbin/wota-compose-deploy '$RELEASE_ID'"
           curl --fail --silent --show-error --retry 10 --retry-delay 2 \
             https://wota.satintin.com/healthz
+          curl --fail --silent --show-error --retry 10 --retry-delay 2 \
+            https://auth.wota.satintin.com/realms/wota/.well-known/openid-configuration \
+            >/dev/null

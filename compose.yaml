@@ -4,10 +4,12 @@ services:
   web:
     build:
       context: .
-      dockerfile: Dockerfile
-    image: wota-arrangement-web:local
+      target: runtime
+    image: ${WOTA_WEB_IMAGE:-wota-arrangement-web:local}
     ports:
       - "127.0.0.1:${WOTA_WEB_PORT:-8080}:8080"
+    volumes:
+      - ./docker/nginx.compose.conf:/etc/nginx/conf.d/default.conf:ro
     init: true
     restart: unless-stopped
     read_only: true
@@ -17,3 +19,144 @@ services:
       - /var/run
     security_opt:
       - no-new-privileges:true
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [wota]
+
+  api:
+    build:
+      context: .
+      target: api
+    image: ${WOTA_API_IMAGE:-wota-arrangement-api:local}
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8787
+      AUDIO_STORAGE_DIR: /data/audio
+    volumes:
+      - wota-audio:/data/audio
+    ports:
+      - "127.0.0.1:${WOTA_API_PORT:-8787}:8787"
+    init: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      keycloak-setup:
+        condition: service_completed_successfully
+    networks: [wota]
+
+  migrate:
+    build:
+      context: .
+      target: api
+    image: ${WOTA_API_IMAGE:-wota-arrangement-api:local}
+    command: ["node", "server-dist/db/migrate.js"]
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    networks: [wota]
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-wota}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-wota}
+    volumes:
+      - wota-postgres:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/10-keycloak.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    networks: [wota]
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.3
+    command: ["start", "--http-enabled=true", "--http-port=8080"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_BOOTSTRAP_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_BOOTSTRAP_PASSWORD:?set KEYCLOAK_BOOTSTRAP_PASSWORD in .env}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: ${POSTGRES_USER:-wota}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME:-http://127.0.0.1:8081}
+      KC_HOSTNAME_STRICT: "true"
+    ports:
+      - "127.0.0.1:${WOTA_KEYCLOAK_PORT:-8081}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    restart: unless-stopped
+    networks: [wota]
+
+  keycloak-setup:
+    build:
+      context: .
+      target: api
+    image: ${WOTA_API_IMAGE:-wota-arrangement-api:local}
+    command: ["node", "server-dist/scripts/configure-keycloak.js"]
+    env_file: .env
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    networks: [wota]
+
+  postfix:
+    image: boky/postfix:v5.0.0
+    profiles: ["production-mail"]
+    environment:
+      RELAYHOST: ${SMTP_RELAY_HOST:?set SMTP_RELAY_HOST in .env}
+      RELAYHOST_USERNAME: ${SMTP_RELAY_USERNAME:?set SMTP_RELAY_USERNAME in .env}
+      RELAYHOST_PASSWORD: ${SMTP_RELAY_PASSWORD:?set SMTP_RELAY_PASSWORD in .env}
+      ALLOWED_SENDER_DOMAINS: ${SMTP_ALLOWED_SENDER_DOMAINS:-wota.satintin.com}
+      POSTFIX_myhostname: ${SMTP_HELO_HOSTNAME:-mail.wota.satintin.com}
+    restart: unless-stopped
+    networks: [wota]
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    profiles: ["local-mail"]
+    ports:
+      - "127.0.0.1:${WOTA_MAILPIT_PORT:-8025}:8025"
+    restart: unless-stopped
+    networks: [wota]
+
+volumes:
+  wota-postgres:
+  wota-audio:
+
+networks:
+  wota:
+    internal: false

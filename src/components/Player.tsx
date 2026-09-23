@@ -43,6 +43,9 @@ type Props = {
   onError: (message: string) => void;
   onNotice: (message: string) => void;
   onUpload: (file: File) => void;
+  externalSource?: { url: string; name: string; duration: number } | null;
+  timelineOffset?: number;
+  audioReplaceable?: boolean;
   follow: boolean;
   onFollow: (follow: boolean) => void;
   readOnly: boolean;
@@ -76,6 +79,9 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     onError,
     onNotice,
     onUpload,
+    externalSource,
+    timelineOffset = 0,
+    audioReplaceable = false,
     follow,
     onFollow,
     readOnly,
@@ -142,6 +148,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
   };
   const audio = useRef<HTMLAudioElement>(null),
     [source, setSource] = useState(""),
+    [mediaDuration, setMediaDuration] = useState(0),
     [loaded, setLoaded] = useState(false),
     [playing, setPlaying] = useState(false),
     [time, setTime] = useState(0),
@@ -151,8 +158,10 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
   const beginScrub = usePointerDrag(`${p.id}:${p.audio?.id}`, !loaded);
   const followRef = useRef(follow);
   const zoomRef = useRef(zoom);
+  const timelineOffsetRef = useRef(timelineOffset);
   followRef.current = follow;
   zoomRef.current = zoom;
+  timelineOffsetRef.current = timelineOffset;
   const callbacks = useRef({ onTime, onPersist, onError });
   callbacks.current = { onTime, onPersist, onError };
   const restoredPosition = useRef(p.position);
@@ -189,11 +198,15 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     setLoaded(false);
     setPlaying(false);
     setSource("");
+    setMediaDuration(0);
     restoredPosition.current = p.position;
     drawPlayhead(p.position, p.audio?.duration ?? 0);
     setTime(p.position);
     callbacks.current.onTime(p.position, false);
-    if (p.audio?.id)
+    if (externalSource?.url) {
+      setSource(externalSource.url);
+      restoredPosition.current = p.position;
+    } else if (p.audio?.id)
       db.audio
         .get(p.audio.id)
         .then((record) => {
@@ -214,28 +227,24 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
       audio.current?.pause();
       if (url) URL.revokeObjectURL(url);
     };
-  }, [p.id, p.audio?.id]);
+  }, [p.id, p.audio?.id, externalSource?.url]);
   const seek = (t: number, play = false, persist = true) => {
     const a = audio.current;
-    if (
-      !a ||
-      !readyRef.current ||
-      !Number.isFinite(t) ||
-      t < 0 ||
-      t > a.duration
-    )
-      return;
+    const offset = timelineOffsetRef.current;
+    if (!a || !readyRef.current || !Number.isFinite(t) || t < 0) return;
+    const mediaTime = Math.max(0, Math.min(a.duration, t - offset));
+    const arrangementTime = mediaTime + offset;
     const l = loopRef.current;
-    if (l && (t < l.start! || t >= l.end!)) {
+    if (l && (arrangementTime < l.start! || arrangementTime >= l.end!)) {
       onLoop(null);
       setAbEnabled(false);
     }
-    a.currentTime = t;
-    drawPlayhead(t, a.duration);
-    setTime(t);
-    if (!a.paused) followTimeline(t, a.duration);
-    callbacks.current.onTime(t, !a.paused);
-    if (persist) callbacks.current.onPersist(t);
+    a.currentTime = mediaTime;
+    drawPlayhead(arrangementTime, a.duration);
+    setTime(arrangementTime);
+    if (!a.paused) followTimeline(arrangementTime, a.duration);
+    callbacks.current.onTime(arrangementTime, !a.paused);
+    if (persist) callbacks.current.onPersist(arrangementTime);
     if (play)
       void a
         .play()
@@ -245,7 +254,8 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
   };
   useImperativeHandle(ref, () => ({
     seek,
-    getTime: () => audio.current?.currentTime ?? 0,
+    getTime: () =>
+      (audio.current?.currentTime ?? 0) + timelineOffsetRef.current,
     pause: () => audio.current?.pause(),
   }));
   useEffect(() => {
@@ -255,22 +265,25 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     const sync = (stamp: number) => {
       const a = audio.current;
       if (a && readyRef.current) {
+        const offset = timelineOffsetRef.current;
+        const arrangementTime = a.currentTime + offset;
         const l = loopRef.current;
         if (
           l &&
           !a.paused &&
-          (a.currentTime >= l.end! || a.currentTime < l.start!)
+          (arrangementTime >= l.end! || arrangementTime < l.start!)
         )
-          a.currentTime = l.start!;
-        drawPlayhead(a.currentTime, a.duration);
-        followTimeline(a.currentTime, a.duration);
+          a.currentTime = Math.max(0, Math.min(a.duration, l.start! - offset));
+        const currentArrangementTime = a.currentTime + offset;
+        drawPlayhead(currentArrangementTime, a.duration);
+        followTimeline(currentArrangementTime, a.duration);
         if (stamp - lastDraw > 80) {
-          setTime(a.currentTime);
-          callbacks.current.onTime(a.currentTime, !a.paused);
+          setTime(currentArrangementTime);
+          callbacks.current.onTime(currentArrangementTime, !a.paused);
           lastDraw = stamp;
         }
         if (!a.paused && stamp - lastSave > 5000) {
-          callbacks.current.onPersist(a.currentTime);
+          callbacks.current.onPersist(currentArrangementTime);
           lastSave = stamp;
         }
       }
@@ -280,12 +293,15 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     const visible = () => {
       const a = audio.current;
       if (!a || !readyRef.current) return;
+      const offset = timelineOffsetRef.current;
+      const arrangementTime = a.currentTime + offset;
       const l = loopRef.current;
-      if (l && !a.paused && a.currentTime >= l.end!) a.currentTime = l.start!;
-      drawPlayhead(a.currentTime, a.duration);
-      setTime(a.currentTime);
-      callbacks.current.onTime(a.currentTime, !a.paused);
-      callbacks.current.onPersist(a.currentTime);
+      if (l && !a.paused && arrangementTime >= l.end!)
+        a.currentTime = Math.max(0, Math.min(a.duration, l.start! - offset));
+      drawPlayhead(arrangementTime, a.duration);
+      setTime(arrangementTime);
+      callbacks.current.onTime(arrangementTime, !a.paused);
+      callbacks.current.onPersist(arrangementTime);
     };
     document.addEventListener("visibilitychange", visible);
     return () => {
@@ -293,10 +309,11 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
       document.removeEventListener("visibilitychange", visible);
     };
   }, []);
-  const duration = p.audio?.duration ?? 0;
+  const duration =
+    mediaDuration || externalSource?.duration || p.audio?.duration || 0;
   const choosePoint = (point: "a" | "b") => {
     if (!loaded) return;
-    const t = audio.current!.currentTime;
+    const t = (audio.current?.currentTime ?? 0) + timelineOffsetRef.current;
     if (point === "a") {
       if (t >= duration) {
         onError("A 入点必须早于歌曲结束。");
@@ -324,7 +341,9 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
   };
   const markRange = (edge: "start" | "end") => {
     if (!loaded || readOnly || !selectedBlock) return;
-    onUpdateRange?.(selectedBlock.id, { [edge]: audio.current!.currentTime });
+    onUpdateRange?.(selectedBlock.id, {
+      [edge]: (audio.current?.currentTime ?? 0) + timelineOffsetRef.current,
+    });
   };
   const suggested =
     selectedBlock && /^\d+$/.test(selectedBlock.beats.trim())
@@ -351,9 +370,13 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     const currentLoop = loopRef.current;
     if (
       currentLoop &&
-      (a.currentTime < currentLoop.start! || a.currentTime >= currentLoop.end!)
+      (a.currentTime + timelineOffsetRef.current < currentLoop.start! ||
+        a.currentTime + timelineOffsetRef.current >= currentLoop.end!)
     )
-      a.currentTime = currentLoop.start!;
+      a.currentTime = Math.max(
+        0,
+        Math.min(a.duration, currentLoop.start! - timelineOffsetRef.current),
+      );
     void a.play().catch(() => onError("无法播放，请重新点击或选择其他歌曲。"));
   };
   const toggleAb = () => {
@@ -441,7 +464,14 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
             onError("歌曲时长无效，请选择其他音频。");
             return;
           }
-          a.currentTime = Math.min(restoredPosition.current, a.duration);
+          a.currentTime = Math.max(
+            0,
+            Math.min(
+              a.duration,
+              restoredPosition.current - timelineOffsetRef.current,
+            ),
+          );
+          setMediaDuration(a.duration);
           a.volume = volume;
           a.playbackRate = rate;
           readyRef.current = true;
@@ -451,17 +481,24 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
         onPlay={() => setPlaying(true)}
         onPause={() => {
           setPlaying(false);
-          if (readyRef.current) onPersist(audio.current!.currentTime);
+          if (readyRef.current)
+            onPersist(audio.current!.currentTime + timelineOffsetRef.current);
         }}
         onEnded={() => {
           if (loopRef.current) {
-            audio.current!.currentTime = loopRef.current.start!;
+            audio.current!.currentTime = Math.max(
+              0,
+              Math.min(
+                audio.current!.duration,
+                loopRef.current.start! - timelineOffsetRef.current,
+              ),
+            );
             void audio
               .current!.play()
               .catch(() => onError("循环播放被中断，请点击播放。"));
           } else {
             setPlaying(false);
-            onPersist(audio.current!.currentTime);
+            onPersist(audio.current!.currentTime + timelineOffsetRef.current);
           }
         }}
         onError={() => {
@@ -479,7 +516,9 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
         <div className="song-badge">
           <Music2 size={20} />
           <div>
-            <strong>{p.audio?.name || "把歌曲带进编排"}</strong>
+            <strong>
+              {externalSource?.name || p.audio?.name || "把歌曲带进编排"}
+            </strong>
             <small>
               {loaded
                 ? "音频已在此浏览器就绪"
@@ -489,11 +528,15 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
             </small>
           </div>
         </div>
-        <label className={"file-button " + (readOnly ? "disabled" : "")}>
+        <label
+          className={
+            "file-button " + (readOnly && !audioReplaceable ? "disabled" : "")
+          }
+        >
           {p.audio ? "更换歌曲" : "导入歌曲"}
           <input
             aria-label="音频文件"
-            disabled={readOnly}
+            disabled={readOnly && !audioReplaceable}
             type="file"
             accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac"
             onChange={(e) => {
@@ -741,7 +784,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
                 return (
                   <button
                     key={b.id}
-                    disabled={readOnly}
+                    disabled={readOnly && !onSelect}
                     className={`timeline-block tone-${i % 4} ${isSelected ? "selected" : ""} ${isPrimary ? "primary-selected" : ""}`}
                     aria-pressed={isSelected}
                     style={{
@@ -912,7 +955,9 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
             readOnly={readOnly}
             duration={duration}
             loaded={loaded}
-            getTime={() => audio.current?.currentTime ?? 0}
+            getTime={() =>
+              (audio.current?.currentTime ?? 0) + timelineOffsetRef.current
+            }
             pause={() => audio.current?.pause()}
             seek={(t) => seek(t)}
             onError={onError}
@@ -951,7 +996,8 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
               const offset =
                 e.clientX -
                 rect.left -
-                (a.currentTime / a.duration) * rect.width;
+                ((a.currentTime + timelineOffsetRef.current) / a.duration) *
+                  rect.width;
               a.pause();
               beginScrub(
                 e,
@@ -989,7 +1035,8 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
               e.preventDefault();
               e.stopPropagation();
               audio.current?.pause();
-              const current = audio.current?.currentTime ?? 0;
+              const current =
+                (audio.current?.currentTime ?? 0) + timelineOffsetRef.current;
               const next =
                 e.key === "Home"
                   ? 0
