@@ -2553,6 +2553,38 @@ fieldset {
   text-transform: none !important;
   flex-shrink: 0;
 }
+.public-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.public-settings-button {
+  flex-shrink: 0;
+}
+.settings-panel {
+  display: grid;
+  gap: 12px;
+}
+.settings-panel > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.settings-panel > div span {
+  color: var(--muted);
+  font:
+    11px ui-monospace,
+    monospace;
+}
+.settings-panel input {
+  width: 100%;
+}
+.settings-panel button {
+  justify-self: start;
+}
 .local-audio-banner {
   margin: 16px clamp(18px, 4vw, 56px) 0;
   padding: 14px 16px;
@@ -2577,17 +2609,33 @@ fieldset {
 }
 .public-stage {
   display: grid;
-  grid-template-columns: minmax(300px, 0.72fr) minmax(520px, 1.28fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   padding: 16px clamp(18px, 4vw, 56px);
   align-items: stretch;
 }
 .public-arrangement {
+  padding: 0;
+  min-width: 0;
+}
+.public-arrangement .editor-card {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 20px;
-  min-width: 0;
+}
+.editor-card.readonly .edit-surface:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.editor-card.readonly .edit-surface:disabled:hover {
+  background: #fafbfe;
+  border-color: #e8edf5;
+}
+.editor-card.readonly .arrangement-surface:disabled {
+  background: linear-gradient(110deg, #f2faf8, #fbfcff);
 }
 .public-section-heading,
 .public-block-meta,
@@ -2681,7 +2729,7 @@ fieldset {
   padding: 4px 7px;
 }
 .public-share-page .formation-panel {
-  min-height: 520px;
+  min-height: 50dvh;
 }
 .public-share-page .formation-tools {
   display: none;
@@ -2931,7 +2979,6 @@ button.danger,
 }
 
 @media (max-width: 1000px) {
-  .public-stage,
   .admin-layout {
     grid-template-columns: 1fr;
   }
@@ -2959,6 +3006,9 @@ button.danger,
   .readonly-badge {
     margin-left: auto;
   }
+  .public-header-actions {
+    margin-left: auto;
+  }
   .local-audio-banner {
     margin: 10px 12px 0;
     align-items: flex-start;
@@ -2967,27 +3017,11 @@ button.danger,
   .local-audio-banner .file-button {
     margin-left: 30px;
   }
-  .public-mobile-tabs {
-    display: flex;
-    padding: 10px 12px 0;
-  }
-  .public-mobile-tabs button {
-    flex: 1;
-  }
-  .public-mobile-tabs button.active {
-    background: var(--blue);
-    border-color: var(--blue);
-    color: #fff;
-  }
   .public-stage {
     padding: 10px 12px;
   }
-  .public-stage.view-arrangement > .formation-panel,
-  .public-stage.view-formation > .public-arrangement {
-    display: none;
-  }
   .public-arrangement {
-    padding: 15px;
+    padding: 0;
   }
   .public-share-page .formation-panel {
     min-height: min(66dvh, 480px);
@@ -3001,15 +3035,32 @@ button.danger,
     bottom: auto;
   }
   .public-share-page .player-controls {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
   }
   .public-share-page .song-badge {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: none;
+  }
+  .public-share-page .file-button {
+    flex: 1 1 auto;
     min-width: 0;
   }
-  .public-share-page .volume,
-  .public-share-page .compact {
-    grid-column: span 1;
+  .public-share-page .clock {
+    margin-left: auto;
+  }
+  .public-share-page .compact,
+  .public-share-page .check,
+  .public-share-page .volume {
+    flex: 1 1 auto;
+  }
+  .public-share-page .volume {
+    min-width: 130px;
+  }
+  .public-share-page .player-controls > button:not(.play-button) {
+    flex: 1 1 auto;
   }
   .public-share-page .ab-controls {
     overflow-x: auto;
@@ -3055,12 +3106,6 @@ button.danger,
   .add-admin-form h2,
   .add-admin-form button {
     grid-column: auto;
-  }
-  .public-share-page .player-controls {
-    grid-template-columns: 1fr auto;
-  }
-  .public-share-page .song-badge {
-    grid-column: 1 / -1;
   }
 }
 .modal-header {

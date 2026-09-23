@@ -588,6 +588,7 @@ export default function App() {
                   setLoop(id);
                 }}
                 onError={fail}
+                looping={loop === currentBlock?.id}
                 onLyricsImport={(rows) => {
                   if (rows.length)
                     store.edit((d) => {

@@ -1,4 +1,11 @@
-import { ArrowLeft, CloudOff, FileAudio, Link2, Music2 } from "lucide-react";
+import {
+  ArrowLeft,
+  CloudOff,
+  FileAudio,
+  Link2,
+  Music2,
+  Settings,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { fetchPublicShare } from "../api/client";
@@ -8,8 +15,10 @@ import {
   type PublicShare,
   type ShareSnapshot,
 } from "../core/share";
-import { activeBlock, activeLyric, formatTime } from "../core/timing";
+import { activeBlock, activeLyric } from "../core/timing";
 import type { Project } from "../core/model";
+import { BlockEditor } from "./BlockEditor";
+import { Modal } from "./Fields";
 import { FormationCanvas } from "./FormationCanvas";
 import { Player, type PlayerHandle } from "./Player";
 
@@ -64,9 +73,7 @@ export function PublicSharePage() {
   const [audioReady, setAudioReady] = useState(false);
   const [localAudio, setLocalAudio] = useState<LocalAudio | null>(null);
   const [syncOffset, setSyncOffset] = useState(() => readOffset(token));
-  const [mobileView, setMobileView] = useState<"arrangement" | "formation">(
-    "arrangement",
-  );
+  const [settingsOpen, setSettingsOpen] = useState(false);
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -188,8 +195,41 @@ export function PublicSharePage() {
             {new Date(share.updatedAt).toLocaleString()}
           </p>
         </div>
-        <span className="readonly-badge">只读分享</span>
+        <div className="public-header-actions">
+          <button
+            className="public-settings-button"
+            aria-label="播放设置"
+            title="播放设置"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <Settings size={16} /> 设置
+          </button>
+          <span className="readonly-badge">只读分享</span>
+        </div>
       </header>
+      {settingsOpen && (
+        <Modal title="播放设置" onClose={() => setSettingsOpen(false)}>
+          <div className="settings-panel">
+            <div>
+              <strong>同步偏移</strong>
+              <span>
+                {syncOffset > 0 ? "+" : ""}
+                {syncOffset.toFixed(2)} 秒
+              </span>
+            </div>
+            <input
+              aria-label="同步偏移"
+              type="range"
+              min={-maxSyncOffsetSeconds}
+              max={maxSyncOffsetSeconds}
+              step="0.01"
+              value={syncOffset}
+              onChange={(event) => setSyncOffset(Number(event.target.value))}
+            />
+            <button onClick={() => setSyncOffset(0)}>归零</button>
+          </div>
+        </Modal>
+      )}
       {(error || notice) && (
         <div
           className={"message toast " + (error ? "error" : "")}
@@ -219,94 +259,31 @@ export function PublicSharePage() {
           </label>
         </div>
       )}
-      <nav className="public-mobile-tabs" aria-label="查看视图">
-        <button
-          className={mobileView === "arrangement" ? "active" : ""}
-          onClick={() => setMobileView("arrangement")}
-        >
-          编排
-        </button>
-        <button
-          className={mobileView === "formation" ? "active" : ""}
-          onClick={() => setMobileView("formation")}
-        >
-          队形
-        </button>
-      </nav>
-      <main className={`public-stage view-${mobileView}`}>
+      <main className="public-stage">
         <section className="public-arrangement" aria-label="当前编排">
-          <div className="public-section-heading">
-            <span>当前编排</span>
-            {currentBlock && <strong>{currentBlock.type}</strong>}
-          </div>
-          {currentBlock ? (
-            <>
-              <div className="public-block-meta">
-                <span>{currentBlock.beats} 拍</span>
-                <span>
-                  {formatTime(currentBlock.start)} -{" "}
-                  {formatTime(currentBlock.end)}
-                </span>
-                <button
-                  className={loopId === currentBlock.id ? "active" : ""}
-                  disabled={
-                    currentBlock.start === null || currentBlock.end === null
-                  }
-                  onClick={() => {
-                    if (loopId === currentBlock.id) {
-                      setLoopId(null);
-                      return;
-                    }
-                    setLoopId(currentBlock.id);
-                    if (currentBlock.start !== null)
-                      player.current?.seek(currentBlock.start, true);
-                  }}
-                >
-                  {loopId === currentBlock.id ? "退出段落循环" : "循环当前段"}
-                </button>
-              </div>
-              <div className="public-lyrics">
-                {currentBlock.lyrics.map((lyric) => (
-                  <div
-                    key={lyric.id}
-                    className={currentLyric?.id === lyric.id ? "active" : ""}
-                  >
-                    <p>{lyric.jp || " "}</p>
-                    <p>{lyric.cn || " "}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="public-detail">
-                <span>技 / 动作编排</span>
-                <p>{currentBlock.arrangement || "无"}</p>
-              </div>
-              <div className="public-detail">
-                <span>备注</span>
-                <p>{currentBlock.remarks || "无"}</p>
-              </div>
-            </>
-          ) : (
-            <p className="muted">播放后自动显示当前段落。</p>
-          )}
-          <div className="sync-offset">
-            <div>
-              <strong>同步偏移</strong>
-              <span>
-                {syncOffset > 0 ? "+" : ""}
-                {syncOffset.toFixed(2)} 秒
-              </span>
-            </div>
-            <input
-              aria-label="同步偏移"
-              type="range"
-              min={-maxSyncOffsetSeconds}
-              max={maxSyncOffsetSeconds}
-              step="0.01"
-              value={syncOffset}
-              onChange={(event) => setSyncOffset(Number(event.target.value))}
-            />
-            <button onClick={() => setSyncOffset(0)}>归零</button>
-          </div>
+          <BlockEditor
+            project={project}
+            selected={currentBlock}
+            edit={() => undefined}
+            readOnly
+            looping={loopId === currentBlock?.id}
+            onSeek={(value) => player.current?.seek(value, true)}
+            onLoop={(id) => {
+              if (loopId === id) {
+                setLoopId(null);
+                return;
+              }
+              setLoopId(id);
+              const block = project.blocks.find((item) => item.id === id);
+              if (block?.start !== null && block?.start !== undefined)
+                player.current?.seek(block.start, true);
+            }}
+            onError={setError}
+            onLyricsImport={() => undefined}
+            activeLyricId={currentLyric?.id}
+            audioReady={audioReady}
+            time={time}
+          />
         </section>
         <FormationCanvas
           key={share.token}
@@ -341,6 +318,8 @@ export function PublicSharePage() {
         follow={follow}
         onFollow={setFollow}
         readOnly
+        showEditingControls={false}
+        showFormationTrack={false}
         onReady={setAudioReady}
         selectedIds={selectedId ? [selectedId] : []}
         primarySelectedId={selectedId}

@@ -28,6 +28,8 @@ type Props = {
   activeLyricId?: string;
   audioReady: boolean;
   time: number;
+  readOnly?: boolean;
+  looping?: boolean;
 };
 export function BlockEditor({
   project: p,
@@ -41,17 +43,21 @@ export function BlockEditor({
   activeLyricId,
   audioReady,
   time,
+  readOnly = false,
+  looping = false,
 }: Props) {
   const [modal, setModal] = useState<
     "type" | "lyrics" | "arrangement" | "remarks" | null
   >(null);
-  const update = (patch: Partial<Block>) =>
+  const update = (patch: Partial<Block>) => {
+    if (readOnly || !b) return;
     edit((draft) =>
       Object.assign(
-        draft.blocks.find((x) => x.id === b?.id)!,
+        draft.blocks.find((x) => x.id === b.id)!,
         patch,
       ),
     );
+  };
   const rangeError = b ? intervalError(b, p.blocks, p.audio?.duration) : null;
   const beatCount = Math.max(1, Number.parseInt(b?.beats ?? "0", 10) || 1);
   const beatDuration = Number(p.bpm) > 0 ? 60 / Number(p.bpm) : 0;
@@ -71,20 +77,25 @@ export function BlockEditor({
       </div>
     );
   return (
-    <div className="editor-card" data-testid="editor-card">
+    <div
+      className={`editor-card ${readOnly ? "readonly" : ""}`}
+      data-testid="editor-card"
+    >
       <div className="editor-card-head">
         <div>
           <span className="eyebrow">CURRENT BLOCK</span>
           <div className="block-title-row">
             <h2>{b.type || "未命名"}</h2>
             <span className="block-beat-count">{b.beats} 拍</span>
-            <button
-              aria-label="编辑类型与拍数"
-              title="编辑类型与拍数"
-              onClick={() => setModal("type")}
-            >
-              <Pencil size={19} />
-            </button>
+            {!readOnly && (
+              <button
+                aria-label="编辑类型与拍数"
+                title="编辑类型与拍数"
+                onClick={() => setModal("type")}
+              >
+                <Pencil size={19} />
+              </button>
+            )}
           </div>
         </div>
         <div className="beat-grid" aria-label={`${b.beats} 拍`}>
@@ -110,23 +121,36 @@ export function BlockEditor({
       <div className="editor-card-main">
         <button
           className="edit-surface arrangement-surface"
-          onClick={() => setModal("arrangement")}
+          disabled={readOnly}
+          onClick={() => !readOnly && setModal("arrangement")}
         >
           <span>技 / 动作编排</span>
-          <strong>{b.arrangement || "点击填写动作编排"}</strong>
+          <strong>
+            {b.arrangement || (readOnly ? "无" : "点击填写动作编排")}
+          </strong>
         </button>
         <div className="editor-summary-grid">
-          <button className="edit-surface" onClick={() => setModal("lyrics")}>
+          <button
+            className="edit-surface"
+            disabled={readOnly}
+            onClick={() => !readOnly && setModal("lyrics")}
+          >
             <span>双语歌词</span>
             <strong>
               {rows.length
                 ? rows.map((l) => l.jp || l.cn).join(" / ")
-                : "点击添加歌词"}
+                : readOnly
+                  ? "无"
+                  : "点击添加歌词"}
             </strong>
           </button>
-          <button className="edit-surface" onClick={() => setModal("remarks")}>
+          <button
+            className="edit-surface"
+            disabled={readOnly}
+            onClick={() => !readOnly && setModal("remarks")}
+          >
             <span>备注</span>
-            <strong>{b.remarks || "点击添加备注"}</strong>
+            <strong>{b.remarks || (readOnly ? "无" : "点击添加备注")}</strong>
           </button>
         </div>
         <div className="editor-time-row">
@@ -139,15 +163,16 @@ export function BlockEditor({
               : `${formatTime(b.start)} — ${formatTime(b.end)}`}
           </button>
           <button
+            className={looping ? "active" : ""}
             disabled={!audioReady || !playable(b, p.blocks, p.audio?.duration)}
             onClick={() => onLoop(b.id)}
           >
-            循环
+            {looping ? "退出循环" : "循环"}
           </button>
           {rangeError && <span className="error">{rangeError}</span>}
         </div>
       </div>
-      {modal === "type" && (
+      {!readOnly && modal === "type" && (
         <Modal title="段落类型与拍数" onClose={() => setModal(null)}>
           <Field
             label="段落类型"
@@ -181,7 +206,7 @@ export function BlockEditor({
           </button>
         </Modal>
       )}
-      {modal === "arrangement" && (
+      {!readOnly && modal === "arrangement" && (
         <Modal title="技 / 动作编排" onClose={() => setModal(null)}>
           <Field
             label="技 / 动作编排"
@@ -195,7 +220,7 @@ export function BlockEditor({
           </button>
         </Modal>
       )}
-      {modal === "remarks" && (
+      {!readOnly && modal === "remarks" && (
         <Modal title="备注" onClose={() => setModal(null)}>
           <Field
             label="备注"
@@ -208,7 +233,7 @@ export function BlockEditor({
           </button>
         </Modal>
       )}
-      {modal === "lyrics" && (
+      {!readOnly && modal === "lyrics" && (
         <LyricsEditor
           block={b}
           activeLyricId={activeLyricId}

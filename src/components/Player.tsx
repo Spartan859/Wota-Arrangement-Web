@@ -46,6 +46,8 @@ type Props = {
   externalSource?: { url: string; name: string; duration: number } | null;
   timelineOffset?: number;
   audioReplaceable?: boolean;
+  showEditingControls?: boolean;
+  showFormationTrack?: boolean;
   follow: boolean;
   onFollow: (follow: boolean) => void;
   readOnly: boolean;
@@ -82,6 +84,8 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     externalSource,
     timelineOffset = 0,
     audioReplaceable = false,
+    showEditingControls = true,
+    showFormationTrack = true,
     follow,
     onFollow,
     readOnly,
@@ -426,6 +430,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
       if (target?.closest("input,textarea,select,[contenteditable=true]"))
         return;
       if (!["a", "b", "[", "]", "l", "e"].includes(key)) return;
+      if (!showEditingControls && ["[", "]", "e"].includes(key)) return;
       e.preventDefault();
       if (e.repeat) return;
       if (key === "a" || key === "b") choosePoint(key);
@@ -652,35 +657,42 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
         >
           {abEnabled ? "退出 A/B 循环" : "开始 A/B 循环"} <kbd>L</kbd>
         </button>
-        <button
-          className="primary"
-          aria-keyshortcuts="["
-          disabled={!loaded || readOnly || !selectedBlock}
-          onClick={() => markRange("start")}
-        >
-          当前作为入点 <kbd>[</kbd>
-        </button>
-        <button
-          className="primary"
-          aria-keyshortcuts="]"
-          disabled={!loaded || readOnly || !selectedBlock}
-          onClick={() => markRange("end")}
-        >
-          当前作为出点 <kbd>]</kbd>
-        </button>
-        <button
-          className="primary"
-          aria-keyshortcuts="e"
-          disabled={!canSuggest}
-          onClick={setSuggestedEnd}
-          title="出点 = 入点 + 拍数 × 60 / BPM"
-        >
-          按拍数设出点 <kbd>E</kbd>
-        </button>
+        {showEditingControls && (
+          <>
+            <button
+              className="primary"
+              aria-keyshortcuts="["
+              disabled={!loaded || readOnly || !selectedBlock}
+              onClick={() => markRange("start")}
+            >
+              当前作为入点 <kbd>[</kbd>
+            </button>
+            <button
+              className="primary"
+              aria-keyshortcuts="]"
+              disabled={!loaded || readOnly || !selectedBlock}
+              onClick={() => markRange("end")}
+            >
+              当前作为出点 <kbd>]</kbd>
+            </button>
+            <button
+              className="primary"
+              aria-keyshortcuts="e"
+              disabled={!canSuggest}
+              onClick={setSuggestedEnd}
+              title="出点 = 入点 + 拍数 × 60 / BPM"
+            >
+              按拍数设出点 <kbd>E</kbd>
+            </button>
+          </>
+        )}
       </div>
       <div className="timeline-top">
         <span className="timeline-heading">
-          歌曲时间轴 <span className="muted">· 选中编辑，拖动边缘对时</span>
+          歌曲时间轴
+          {showEditingControls && (
+            <span className="muted">· 选中编辑，拖动边缘对时</span>
+          )}
           {selectedIds.length > 1 && (
             <strong className="timeline-selection-count" role="status">
               已选 {selectedIds.length} 段
@@ -688,16 +700,18 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
           )}
         </span>
         <div className="timeline-tools">
-          <button
-            className={multiSelectMode ? "active" : ""}
-            aria-label="多选模式"
-            aria-pressed={multiSelectMode}
-            title="触屏时点按段落加入或移出选择"
-            onClick={() => onMultiSelectModeChange?.(!multiSelectMode)}
-          >
-            <ListChecks size={14} />
-            多选
-          </button>
+          {showEditingControls && (
+            <button
+              className={multiSelectMode ? "active" : ""}
+              aria-label="多选模式"
+              aria-pressed={multiSelectMode}
+              title="触屏时点按段落加入或移出选择"
+              onClick={() => onMultiSelectModeChange?.(!multiSelectMode)}
+            >
+              <ListChecks size={14} />
+              多选
+            </button>
+          )}
           <label>
             缩放{" "}
             <input
@@ -892,19 +906,23 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
                     >
                       {b.arrangement || "—"}
                     </span>
-                    <span className="timeline-edge timeline-edge-start" />
-                    <span className="timeline-edge timeline-edge-end" />
-                    <span
-                      className="timeline-delete"
-                      role="button"
-                      aria-label={`删除${b.type}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDelete?.(b.id);
-                      }}
-                    >
-                      ×
-                    </span>
+                    {showEditingControls && (
+                      <>
+                        <span className="timeline-edge timeline-edge-start" />
+                        <span className="timeline-edge timeline-edge-end" />
+                        <span
+                          className="timeline-delete"
+                          role="button"
+                          aria-label={`删除${b.type}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDelete?.(b.id);
+                          }}
+                        >
+                          ×
+                        </span>
+                      </>
+                    )}
                   </button>
                 );
               })}
@@ -933,36 +951,40 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
                     >
                       {b.type}
                     </button>
-                    <button
-                      className="untimed-delete"
-                      aria-label={`删除${b.type}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDelete?.(b.id);
-                      }}
-                    >
-                      ×
-                    </button>
+                    {showEditingControls && (
+                      <button
+                        className="untimed-delete"
+                        aria-label={`删除${b.type}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDelete?.(b.id);
+                        }}
+                      >
+                        ×
+                      </button>
+                    )}
                   </span>
                 ))}
             </div>
           )}
-          <FormationTrack
-            key={p.id}
-            project={p}
-            edit={edit}
-            selectedDancerId={formationDancerId}
-            readOnly={readOnly}
-            duration={duration}
-            loaded={loaded}
-            getTime={() =>
-              (audio.current?.currentTime ?? 0) + timelineOffsetRef.current
-            }
-            pause={() => audio.current?.pause()}
-            seek={(t) => seek(t)}
-            onError={onError}
-            onNotice={onNotice}
-          />
+          {showFormationTrack && (
+            <FormationTrack
+              key={p.id}
+              project={p}
+              edit={edit}
+              selectedDancerId={formationDancerId}
+              readOnly={readOnly}
+              duration={duration}
+              loaded={loaded}
+              getTime={() =>
+                (audio.current?.currentTime ?? 0) + timelineOffsetRef.current
+              }
+              pause={() => audio.current?.pause()}
+              seek={(t) => seek(t)}
+              onError={onError}
+              onNotice={onNotice}
+            />
+          )}
           <span
             className="playhead"
             data-testid="playhead"

@@ -131,6 +131,12 @@ test("只读分享页支持本地音乐、播放跟随、段落循环和移动�
   await mockShare(page);
   await page.goto("/s/demo-token");
   await expect(page.getByRole("heading", { name: "合成分享" })).toBeVisible();
+  await expect(page.locator(".public-arrangement .editor-card")).toBeVisible();
+  await expect(page.getByRole("button", { name: /当前作为入点/ })).toHaveCount(
+    0,
+  );
+  await expect(page.getByRole("button", { name: "多选模式" })).toHaveCount(0);
+  await expect(page.getByText("选中编辑，拖动边缘对时")).toHaveCount(0);
   await expect(page.getByText("云端音乐已被删除")).toBeVisible();
   await page.locator('.local-audio-banner input[type="file"]').setInputFiles({
     name: "synthetic.wav",
@@ -144,18 +150,17 @@ test("只读分享页支持本地音乐、播放跟随、段落循环和移动�
   await expect(
     page.getByRole("region", { name: "当前编排" }).getByText("中心集合"),
   ).toBeVisible();
+  await page.getByRole("button", { name: "播放设置" }).click();
   await page.getByLabel("同步偏移").fill("0.25");
   await expect(page.getByText("+0.25 秒")).toBeVisible();
-  await page.getByRole("button", { name: "循环当前段", exact: true }).click();
+  await page.getByRole("button", { name: "关闭对话框" }).click();
+  await page.getByRole("button", { name: "循环", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "退出循环", exact: true }),
+    page.getByRole("button", { name: "退出循环", exact: true }).first(),
   ).toBeEnabled();
   await page.setViewportSize({ width: 390, height: 844 });
-  await page
-    .getByRole("navigation", { name: "查看视图" })
-    .getByRole("button", { name: "队形", exact: true })
-    .click();
   await expect(page.getByLabel("舞台俯视图")).toBeVisible();
+  await expect(page.locator(".public-arrangement .editor-card")).toBeVisible();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
