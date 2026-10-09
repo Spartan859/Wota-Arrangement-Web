@@ -18,11 +18,10 @@ type Props = {
   project: Project;
   edit: (fn: (p: Project) => void) => void;
   readOnly: boolean;
-  stageWidth: number;
-  stageHeight: number;
   getTime: () => number;
   isPlaying: () => boolean;
   getPlaybackRate: () => number;
+  getDancerClientPoint?: (x: number, y: number) => { x: number; y: number };
   pause: () => void;
   sources: Record<string, string>;
   selectedClipId?: string | null;
@@ -92,11 +91,10 @@ export function FormationVideoLayer({
   project: p,
   edit,
   readOnly,
-  stageWidth,
-  stageHeight,
   getTime,
   isPlaying,
   getPlaybackRate,
+  getDancerClientPoint,
   pause,
   sources,
   selectedClipId,
@@ -144,8 +142,7 @@ export function FormationVideoLayer({
     getTime,
     isPlaying,
     getPlaybackRate,
-    stageWidth,
-    stageHeight,
+    getDancerClientPoint,
     sources,
     minimized,
     selectedClipId,
@@ -155,8 +152,7 @@ export function FormationVideoLayer({
     getTime,
     isPlaying,
     getPlaybackRate,
-    stageWidth,
-    stageHeight,
+    getDancerClientPoint,
     sources,
     minimized,
     selectedClipId,
@@ -188,6 +184,11 @@ export function FormationVideoLayer({
     let frame = 0;
     const sync = () => {
       const current = live.current;
+      const bounds = layer.current?.getBoundingClientRect();
+      if (!bounds?.width || !bounds.height) {
+        frame = requestAnimationFrame(sync);
+        return;
+      }
       const poses = new Map(
         sampleFormation(current.c, current.getTime()).map((pose) => [
           pose.dancerId,
@@ -206,10 +207,21 @@ export function FormationVideoLayer({
         );
         const pose = poses.get(item.dancerId);
         const source = current.sources[item.asset.id];
-        const isActive =
-          active?.clip.id === item.clip.id &&
-          pose?.visible &&
-          !current.minimized.has(item.clip.id);
+        const dancerPoint = current.getDancerClientPoint?.(
+          pose?.x ?? 0.5,
+          pose?.y ?? 0.5,
+        );
+        const hasDancerPoint =
+          dancerPoint &&
+          Number.isFinite(dancerPoint.x) &&
+          Number.isFinite(dancerPoint.y);
+        const dancerX = hasDancerPoint
+          ? (dancerPoint.x - bounds.left) / bounds.width
+          : (pose?.x ?? 0.5);
+        const dancerY = hasDancerPoint
+          ? (dancerPoint.y - bounds.top) / bounds.height
+          : (pose?.y ?? 0.5);
+        const isActive = active?.clip.id === item.clip.id && pose?.visible;
         if (!isActive) {
           node.style.display = "none";
           video?.pause();
@@ -218,14 +230,18 @@ export function FormationVideoLayer({
         const clip =
           activeDrag?.clipId === item.clip.id ? activeDrag.next : item.clip;
         const frameRect = videoFrameRect(clip, item.asset, {
-          width: current.stageWidth,
-          height: current.stageHeight,
+          width: bounds.width,
+          height: bounds.height,
         });
         node.style.display = "";
-        node.style.left = `${(pose!.x + frameRect.x) * 100}%`;
-        node.style.top = `${(pose!.y + frameRect.y) * 100}%`;
+        node.style.left = `${(dancerX + frameRect.x) * 100}%`;
+        node.style.top = `${(dancerY + frameRect.y) * 100}%`;
         node.style.width = `${frameRect.width * 100}%`;
         node.style.height = `${frameRect.height * 100}%`;
+        if (current.minimized.has(item.clip.id)) {
+          video?.pause();
+          continue;
+        }
         if (!video || !source) continue;
         video.style.width = `${100 / clip.crop.width}%`;
         video.style.height = `${100 / clip.crop.height}%`;
@@ -322,7 +338,7 @@ export function FormationVideoLayer({
         const fullHeight =
           state.original.scale *
           (item.asset!.height / item.asset!.width) *
-          (stageWidth / stageHeight);
+          (bounds.width / bounds.height);
         state.next =
           state.mode === "move"
             ? {
@@ -347,11 +363,7 @@ export function FormationVideoLayer({
       (cancelled) => {
         const state = drag.current;
         drag.current = null;
-        if (!state || cancelled || !state.moved) {
-          if (!cancelled && !state?.moved && selectedClipId === item.clip.id)
-            openPreview(item.clip.id);
-          return;
-        }
+        if (!state || cancelled || !state.moved) return;
         try {
           edit((draft) => {
             draft.choreography ??= emptyChoreography();
@@ -397,6 +409,7 @@ export function FormationVideoLayer({
         const asset = item.asset;
         const source = asset ? sources[asset.id] : undefined;
         const selected = localSelectedClipId === item.clip.id;
+        const isMinimized = minimized.has(item.clip.id);
         return (
           <div
             key={item.clip.id}
@@ -404,13 +417,11 @@ export function FormationVideoLayer({
               if (node) nodes.current.set(item.clip.id, node);
               else nodes.current.delete(item.clip.id);
             }}
-            className={`formation-video ${selected ? "selected" : ""} ${source ? "" : "missing"}`}
+            className={`formation-video ${selected ? "selected" : ""} ${source ? "" : "missing"} ${isMinimized ? "minimized" : ""}`}
             style={{ display: "none" }}
             data-video-clip={item.clip.id}
-            onPointerDown={(event) => beginMutation(event, item, "move")}
-            onDoubleClick={(event) => {
-              event.stopPropagation();
-              openPreview(item.clip.id);
+            onPointerDown={(event) => {
+              if (!isMinimized) beginMutation(event, item, "move");
             }}
           >
             {source ? (
@@ -441,9 +452,9 @@ export function FormationVideoLayer({
                 )}
               </div>
             )}
-            {selected && !readOnly && (
-              <>
-                <div className="formation-video-actions">
+            <div className="formation-video-actions">
+              {!readOnly && selected && !isMinimized && (
+                <>
                   <button
                     aria-label="视频入点前移一帧"
                     title="入点前移一帧"
@@ -477,50 +488,43 @@ export function FormationVideoLayer({
                   >
                     <Scissors size={13} />
                   </button>
-                </div>
-                {cropHandles.map((handle) => (
-                  <button
-                    key={handle}
-                    className={`formation-crop-handle crop-${handle}`}
-                    aria-label={`裁切视频 ${handle}`}
-                    onPointerDown={(event) =>
-                      beginMutation(event, item, handle)
-                    }
-                  />
-                ))}
-              </>
-            )}
+                </>
+              )}
+              <button
+                aria-label={`${isMinimized ? "最大化" : "最小化"}视频 ${asset?.name ?? ""}`}
+                title={isMinimized ? "最大化视频" : "最小化视频"}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setMinimized((current) => {
+                    const next = new Set(current);
+                    if (next.has(item.clip.id)) next.delete(item.clip.id);
+                    else next.add(item.clip.id);
+                    return next;
+                  });
+                }}
+              >
+                {isMinimized ? (
+                  <Maximize2 size={13} />
+                ) : (
+                  <Minimize2 size={13} />
+                )}
+              </button>
+            </div>
+            {!readOnly &&
+              selected &&
+              !isMinimized &&
+              cropHandles.map((handle) => (
+                <button
+                  key={handle}
+                  className={`formation-crop-handle crop-${handle}`}
+                  aria-label={`裁切视频 ${handle}`}
+                  onPointerDown={(event) => beginMutation(event, item, handle)}
+                />
+              ))}
           </div>
         );
       })}
-      {clips.length > 0 && (
-        <div className="formation-video-tray" aria-label="视频显示控制">
-          <strong>视频</strong>
-          {clips.map((item) => (
-            <button
-              key={item.clip.id}
-              className={minimized.has(item.clip.id) ? "minimized" : ""}
-              aria-label={`${minimized.has(item.clip.id) ? "重新显示" : "最小化"} ${item.asset?.name ?? item.clip.id}`}
-              title={`${item.dancerName} · ${item.asset?.name ?? "视频"}`}
-              onClick={() =>
-                setMinimized((current) => {
-                  const next = new Set(current);
-                  if (next.has(item.clip.id)) next.delete(item.clip.id);
-                  else next.add(item.clip.id);
-                  return next;
-                })
-              }
-            >
-              {minimized.has(item.clip.id) ? (
-                <Maximize2 size={13} />
-              ) : (
-                <Minimize2 size={13} />
-              )}
-              <span>{item.asset?.name ?? "视频"}</span>
-            </button>
-          ))}
-        </div>
-      )}
       {previewClip && previewClip.asset && previewSource && (
         <Modal
           title={`${previewClip.asset.name} · 选择视频入点`}

@@ -287,6 +287,12 @@ describe("视频片段轨道", () => {
     expect(rect.y).toBeCloseTo(0.22625);
     expect(rect.width).toBeCloseTo(0.175);
     expect(rect.height).toBeCloseTo(0.13125);
+    const videoBefore = structuredClone(clip);
+    resizeCanvas(c, 1600, 600, false);
+    expect(c.tracks[0].videoClips[0]).toEqual(videoBefore);
+    expect(videoFrameRect(clip, asset, { width: 800, height: 600 })).toEqual(
+      rect,
+    );
     expect(id).toBe(clip.id);
   });
 });

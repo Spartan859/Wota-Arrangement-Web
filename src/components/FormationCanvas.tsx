@@ -574,24 +574,31 @@ export function FormationCanvas({
               </g>
             )}
           </svg>
-          <FormationVideoLayer
-            project={project}
-            edit={edit}
-            readOnly={readOnly}
-            stageWidth={stageWidth}
-            stageHeight={stageHeight}
-            getTime={getTime}
-            isPlaying={isPlaying}
-            getPlaybackRate={getPlaybackRate}
-            pause={pause}
-            sources={videoSources}
-            selectedClipId={selectedVideoClipId}
-            onSelectClip={onVideoClipSelect}
-            onError={onError}
-            onRelinkVideo={onRelinkVideo}
-            storageKey={videoStorageKey ?? `wota-video-minimized:${project.id}`}
-          />
         </div>
+        <FormationVideoLayer
+          project={project}
+          edit={edit}
+          readOnly={readOnly}
+          getTime={getTime}
+          isPlaying={isPlaying}
+          getPlaybackRate={getPlaybackRate}
+          getDancerClientPoint={(x, y) => {
+            const matrix = svg.current?.getScreenCTM();
+            if (!matrix) return { x: Number.NaN, y: Number.NaN };
+            const point = new DOMPoint(
+              x * stageWidth,
+              y * stageHeight,
+            ).matrixTransform(matrix);
+            return { x: point.x, y: point.y };
+          }}
+          pause={pause}
+          sources={videoSources}
+          selectedClipId={selectedVideoClipId}
+          onSelectClip={onVideoClipSelect}
+          onError={onError}
+          onRelinkVideo={onRelinkVideo}
+          storageKey={videoStorageKey ?? `wota-video-minimized:${project.id}`}
+        />
       </div>
       <small className="stage-help">
         左半圆：左手 · 右半圆：右手 · 登退场从当前时刻起

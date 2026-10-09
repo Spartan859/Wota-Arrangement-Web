@@ -533,22 +533,15 @@ export function changeVideoGeometry(
 export function videoFrameRect(
   clip: VideoClip,
   asset: VideoAsset,
-  canvas: { width: number; height: number },
+  viewport: { width: number; height: number },
 ) {
+  const viewportRatio = viewport.width / viewport.height;
+  const fullHeight = clip.scale * (asset.height / asset.width) * viewportRatio;
   const width = clip.scale * clip.crop.width;
-  const height =
-    clip.scale *
-    (asset.height / asset.width) *
-    (canvas.width / canvas.height) *
-    clip.crop.height;
+  const height = fullHeight * clip.crop.height;
   return {
     x: clip.offset.x + clip.crop.x * clip.scale,
-    y:
-      clip.offset.y +
-      clip.crop.y *
-        clip.scale *
-        (asset.height / asset.width) *
-        (canvas.width / canvas.height),
+    y: clip.offset.y + clip.crop.y * fullHeight,
     width,
     height,
   };

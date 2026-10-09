@@ -2064,6 +2064,7 @@ fieldset {
   padding: 5px 7px;
 }
 .stage-container {
+  position: relative;
   flex: 1;
   min-height: 0;
   padding: 8px 12px;
@@ -2120,6 +2121,14 @@ fieldset {
 .formation-video.selected {
   border-color: #4568d4;
   box-shadow: 0 0 0 2px #4568d455;
+}
+.formation-video.minimized {
+  overflow: visible;
+  border-style: dashed;
+  background: transparent;
+}
+.formation-video.minimized video {
+  visibility: hidden;
 }
 .formation-video video {
   position: absolute;

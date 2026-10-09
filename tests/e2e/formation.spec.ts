@@ -160,6 +160,22 @@ test("插入视频、第三轨、逐帧入点、移除和最小化", async ({ pa
   ).toHaveCount(1);
   await expect(page.locator(".formation-video video")).toBeVisible();
   const videoNode = page.locator(".formation-video");
+  const beforeCanvasChange = (await videoNode.boundingBox())!;
+  await page.getByRole("button", { name: "画布尺寸", exact: true }).click();
+  await page.getByLabel("画布宽度").fill("1600");
+  await page.getByRole("button", { name: "保存尺寸", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const box = (await videoNode.boundingBox())!;
+      return Math.abs(box.width - beforeCanvasChange.width);
+    })
+    .toBeLessThan(2);
+  await expect
+    .poll(async () => {
+      const box = (await videoNode.boundingBox())!;
+      return Math.abs(box.height - beforeCanvasChange.height);
+    })
+    .toBeLessThan(2);
   const beforeMove = (await videoNode.boundingBox())!;
   await page.mouse.move(
     beforeMove.x + beforeMove.width / 2,
@@ -186,10 +202,10 @@ test("插入视频、第三轨、逐帧入点、移除和最小化", async ({ pa
     .poll(async () => (await videoNode.boundingBox())!.width)
     .toBeLessThan(beforeCrop.width - 10);
   await page.getByLabel("视频入点后移一帧").click();
-  await page.locator(".formation-video-tray button").first().click();
-  await expect(page.locator(".formation-video")).toBeHidden();
-  await page.locator(".formation-video-tray button").first().click();
-  await expect(page.locator(".formation-video")).toBeVisible();
+  await page.getByLabel(/最小化视频/).click();
+  await expect(page.locator(".formation-video video")).toBeHidden();
+  await page.getByLabel(/最大化视频/).click();
+  await expect(page.locator(".formation-video video")).toBeVisible();
   await at(page, 0.5);
   await page
     .getByRole("button", { name: "视频切换当前关键帧", exact: true })

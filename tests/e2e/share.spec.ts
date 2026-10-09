@@ -307,8 +307,8 @@ test("只读分享页播放云端视频并支持每片段最小化和恢复", as
   await page.goto("/s/video-token");
   await expect(page.getByRole("heading", { name: "视频分享" })).toBeVisible();
   await expect(page.locator(".formation-video video")).toBeVisible();
-  await page.locator(".formation-video-tray button").first().click();
-  await expect(page.locator(".formation-video")).toBeHidden();
-  await page.locator(".formation-video-tray button").first().click();
-  await expect(page.locator(".formation-video")).toBeVisible();
+  await page.getByLabel(/最小化视频/).click();
+  await expect(page.locator(".formation-video video")).toBeHidden();
+  await page.getByLabel(/最大化视频/).click();
+  await expect(page.locator(".formation-video video")).toBeVisible();
 });
