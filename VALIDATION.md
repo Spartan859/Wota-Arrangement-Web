@@ -226,3 +226,14 @@ TypeScript 检查、生产构建和格式检查通过；`npm audit` 为 0 漏洞
 - Docker Web 与 API 最终目标均可构建；Compose 本地 profile 与 `production-mail` profile 配置校验通过。
 - Chromium 全量套件：42/46 通过。失败项中两个导入用例在串行复跑时通过；剩余两个播放时钟断言受当前 headless Chrome 不推进 `audio.currentTime` 的环境限制影响，未通过，未放宽产品测试。
 - 本轮未运行 WebKit/Safari；未部署生产，未修改真实 DNS、证书、SMTP 中继或服务器 `/opt/wota-stack/.env`。
+
+## 2026-10-10 队形视频片段与云端视频
+
+- Project v2 与分享快照新增向后兼容的视频资源和舞者视频轨字段；旧队形缺少字段时按空轨道读取。备份 JSON 会清除本地视频 Blob ID，视频源与压缩结果仍分开保存在 IndexedDB。
+- 视频第三轨支持串行片段、独立入点、插入/移除关键帧、禁止重叠、移除后同刻切换、源结束定格、静态裁切和相对舞者移动；移动关键帧不改变入点。播放以歌曲音频时钟为准，视频始终静音。
+- 在线发布通过动态加载单线程 FFmpeg.wasm，将引用视频转为目标码率 `0.02 × 宽 × 高 × 帧率` bit/s 的静音 H.264 MP4；新增 `video_assets` 数据库迁移、视频 multipart 分片、配额事务和公开 Range 视频接口。
+- `npm test`：10 个测试文件通过、1 个按设计跳过，52 项通过、1 项跳过。覆盖视频片段采样、重叠与同刻切换、关键帧移动保入点、裁切几何、Dexie v2 视频表、分享快照脱敏和编码参数。
+- `npm run typecheck`、`npm run build`、`npm run format:check` 与数据库迁移生成检查通过；`npm audit --audit-level=moderate` 为 0 漏洞。
+- 本机 Chrome 动态加载真实单线程 FFmpeg.wasm，将 7,327 字节合成 WebM 转为 2,398 字节静音 H.264 MP4；同一文件随后通过服务端 `inspectVideo`，正确读出 700 ms、160×120、30 fps 和 SHA-256，确认浏览器编码命令与 MP4Box 服务端校验链路闭环。
+- 本机真实 Chrome Playwright：队形与分享专项 22/22 通过，覆盖合成 WebM 插入、第三轨、拖动/裁切、逐帧入点、移除、最小化恢复、刷新保存和只读云端视频展示；工作台全套 26/26 通过，确认第三轨布局未破坏既有时间轴、播放器和短屏编辑流程。
+- 本轮未运行 WebKit/Safari，也未连接本地 API/PostgreSQL/Keycloak 做真实上传；服务端视频转码上传链路由构建、迁移和前端发布代码审查覆盖，未宣称生产部署或真实云端视频已上线。

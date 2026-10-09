@@ -1,6 +1,6 @@
 import { Plus, Trash2 } from "lucide-react";
 import { usePointerDrag } from "./usePointerDrag";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Project } from "../core/model";
 import {
   addDancer,
@@ -16,7 +16,9 @@ import {
   type Pose,
   type StickColor,
 } from "../core/choreography";
+import { db } from "../core/storage";
 import { Modal } from "./Fields";
+import { FormationVideoLayer } from "./FormationVideoLayer";
 
 const SHOW_NAMES_KEY = "wota-show-names";
 
@@ -41,20 +43,39 @@ type Props = {
   edit: (fn: (p: Project) => void) => void;
   readOnly: boolean;
   getTime: () => number;
+  isPlaying?: () => boolean;
+  getPlaybackRate?: () => number;
   pause: () => void;
   onError: (message: string) => void;
   onDancerSelect?: (id: string | null) => void;
+  selectedVideoClipId?: string | null;
+  onVideoClipSelect?: (id: string | null) => void;
+  externalVideoSources?: Record<string, string>;
+  videoStorageKey?: string;
+  onRequestInsertVideo?: (time: number) => void;
+  onRelinkVideo?: (assetId: string) => void;
 };
 export function FormationCanvas({
   project,
   edit,
   readOnly,
   getTime,
+  isPlaying = () => false,
+  getPlaybackRate = () => 1,
   pause,
   onError,
   onDancerSelect,
+  selectedVideoClipId,
+  onVideoClipSelect,
+  externalVideoSources,
+  videoStorageKey,
+  onRequestInsertVideo,
+  onRelinkVideo,
 }: Props) {
-  const c = project.choreography ?? emptyChoreography();
+  const c = useMemo(
+    () => project.choreography ?? emptyChoreography(),
+    [project.choreography],
+  );
   const stageWidth = c.canvas?.width ?? 800,
     stageHeight = c.canvas?.height ?? 600;
   const scale = Math.min(stageWidth / 800, stageHeight / 600);
@@ -71,6 +92,9 @@ export function FormationCanvas({
   const [hand, setHand] = useState<"left" | "right">("left");
   const [showNames, setShowNames] = useState(readShowNames);
   const [bothHands, setBothHands] = useState(false);
+  const [videoSources, setVideoSources] = useState<Record<string, string>>(
+    externalVideoSources ?? {},
+  );
   const frozenTime = useRef(0);
   const svg = useRef<SVGSVGElement>(null);
   const drag = useRef<{
@@ -167,6 +191,33 @@ export function FormationCanvas({
     drag.current = null;
     if (readOnly) setModal(null);
   }, [readOnly]);
+  useEffect(() => {
+    if (externalVideoSources) {
+      setVideoSources(externalVideoSources);
+      return;
+    }
+    let disposed = false;
+    const urls: string[] = [];
+    void Promise.all(
+      c.videoAssets.map(async (asset) => {
+        if (!asset.localBlobId) return null;
+        const record = await db.videos.get(asset.localBlobId);
+        if (!record) return null;
+        const url = URL.createObjectURL(record.blob);
+        urls.push(url);
+        return [asset.id, url] as const;
+      }),
+    ).then((entries) => {
+      if (disposed) return;
+      setVideoSources(
+        Object.fromEntries(entries.filter((entry) => entry !== null)),
+      );
+    });
+    return () => {
+      disposed = true;
+      for (const url of urls) URL.revokeObjectURL(url);
+    };
+  }, [c.videoAssets, externalVideoSources]);
   const selectedDancer = c.dancers.find((d) => d.id === selected);
   const chooseColor = (color: StickColor) => {
     if (selected)
@@ -266,6 +317,15 @@ export function FormationCanvas({
           >
             画布尺寸
           </button>
+          <button
+            disabled={!selectedDancer || readOnly}
+            title={
+              selectedDancer ? "为当前舞者在播放头处插入视频" : "先选择舞者"
+            }
+            onClick={() => onRequestInsertVideo?.(freeze())}
+          >
+            插入视频
+          </button>
           <label className="check">
             <input
               type="checkbox"
@@ -277,238 +337,261 @@ export function FormationCanvas({
         </div>
       </div>
       <div className="stage-container">
-        <svg
-          ref={svg}
-          className="formation-stage"
-          viewBox={`0 0 ${stageWidth} ${stageHeight}`}
-          aria-label="舞台俯视图"
+        <div
+          className="stage-frame"
+          style={{ aspectRatio: `${stageWidth} / ${stageHeight}` }}
         >
-          <rect
-            width={stageWidth}
-            height={stageHeight}
-            rx="12"
-            fill="#f5f8fc"
-            stroke="#c5cfdf"
-            strokeWidth="3"
-          />
-          {[1, 2, 3].map((i) => (
-            <path
-              key={i}
-              d={`M ${(i * stageWidth) / 4} 0 V${stageHeight} M0 ${(i * stageHeight) / 4} H${stageWidth}`}
-              stroke="#dfe5ef"
-              strokeDasharray="6 8"
-            />
-          ))}
-          <text
-            x={stageWidth / 2}
-            y={stageHeight * 0.06}
-            textAnchor="middle"
-            fill="#6b7d94"
-            fontSize={Math.max(12, stageHeight * 0.027)}
+          <svg
+            ref={svg}
+            className="formation-stage"
+            viewBox={`0 0 ${stageWidth} ${stageHeight}`}
+            aria-label="舞台俯视图"
           >
-            ↑ 面朝方向
-          </text>
-          {c.dancers.map((d) => {
-            const pose = sampleFormation(c, getTime()).find(
-              (p) => p.dancerId === d.id,
-            ) ?? {
-              x: 0.5,
-              y: 0.5,
-              visible: false,
-              left: "蓝" as StickColor,
-              right: "蓝" as StickColor,
-            };
-            return (
-              <g
-                key={d.id}
-                ref={(node) => {
-                  if (node) nodes.current.set(d.id, node);
-                  else nodes.current.delete(d.id);
-                }}
-                role="button"
-                tabIndex={0}
-                aria-label={`舞者 ${d.name}`}
-                data-dancer={d.id}
-                transform={`translate(${pose.x * stageWidth} ${pose.y * stageHeight}) scale(${scale})`}
-                style={{
-                  display: pose.visible ? "" : "none",
-                  cursor: readOnly ? "default" : "grab",
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !readOnly) {
+            <rect
+              width={stageWidth}
+              height={stageHeight}
+              rx="12"
+              fill="transparent"
+              stroke="#c5cfdf"
+              strokeWidth="3"
+            />
+            {[1, 2, 3].map((i) => (
+              <path
+                key={i}
+                d={`M ${(i * stageWidth) / 4} 0 V${stageHeight} M0 ${(i * stageHeight) / 4} H${stageWidth}`}
+                stroke="#dfe5ef"
+                strokeDasharray="6 8"
+              />
+            ))}
+            <text
+              x={stageWidth / 2}
+              y={stageHeight * 0.06}
+              textAnchor="middle"
+              fill="#6b7d94"
+              fontSize={Math.max(12, stageHeight * 0.027)}
+            >
+              ↑ 面朝方向
+            </text>
+            {c.dancers.map((d) => {
+              const pose = sampleFormation(c, getTime()).find(
+                (p) => p.dancerId === d.id,
+              ) ?? {
+                x: 0.5,
+                y: 0.5,
+                visible: false,
+                left: "蓝" as StickColor,
+                right: "蓝" as StickColor,
+              };
+              return (
+                <g
+                  key={d.id}
+                  ref={(node) => {
+                    if (node) nodes.current.set(d.id, node);
+                    else nodes.current.delete(d.id);
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`舞者 ${d.name}`}
+                  data-dancer={d.id}
+                  transform={`translate(${pose.x * stageWidth} ${pose.y * stageHeight}) scale(${scale})`}
+                  style={{
+                    display: pose.visible ? "" : "none",
+                    cursor: readOnly ? "default" : "grab",
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !readOnly) {
+                      setSelected(d.id);
+                      onDancerSelect?.(d.id);
+                      freeze();
+                      setHand("left");
+                      setModal("color");
+                    }
+                  }}
+                  onPointerDown={(e) => {
+                    if (readOnly || e.button !== 0 || !e.isPrimary) return;
+                    e.preventDefault();
+                    const wasSelected = selected === d.id;
                     setSelected(d.id);
                     onDancerSelect?.(d.id);
-                    freeze();
-                    setHand("left");
-                    setModal("color");
-                  }
-                }}
-                onPointerDown={(e) => {
-                  if (readOnly || e.button !== 0 || !e.isPrimary) return;
-                  e.preventDefault();
-                  const wasSelected = selected === d.id;
-                  setSelected(d.id);
-                  onDancerSelect?.(d.id);
-                  const t = freeze();
-                  const current = sampleFormation(c, t).find(
+                    const t = freeze();
+                    const current = sampleFormation(c, t).find(
+                      (p) => p.dancerId === d.id,
+                    )!;
+                    const startPoint = point(e.clientX, e.clientY);
+                    const state = {
+                      id: d.id,
+                      time: t,
+                      x: e.clientX,
+                      y: e.clientY,
+                      moved: false,
+                      pose: current,
+                      dx: current.x - startPoint.x,
+                      dy: current.y - startPoint.y,
+                    };
+                    drag.current = state;
+                    setHand(
+                      (e.target as Element).getAttribute("data-hand") ===
+                        "right"
+                        ? "right"
+                        : "left",
+                    );
+                    beginDrag(
+                      e,
+                      (event) => {
+                        if (!drag.current || drag.current.id !== d.id) return;
+                        if (
+                          Math.hypot(
+                            event.clientX - drag.current.x,
+                            event.clientY - drag.current.y,
+                          ) < 4 &&
+                          !drag.current.moved
+                        )
+                          return;
+                        drag.current.moved = true;
+                        const next = point(event.clientX, event.clientY);
+                        drag.current.pose = {
+                          ...drag.current.pose,
+                          x: Math.max(
+                            0.03,
+                            Math.min(0.97, next.x + drag.current.dx),
+                          ),
+                          y: Math.max(
+                            0.04,
+                            Math.min(0.96, next.y + drag.current.dy),
+                          ),
+                        };
+                      },
+                      (cancelled) => {
+                        const final = drag.current;
+                        drag.current = null;
+                        if (!cancelled && final?.moved)
+                          run((c) =>
+                            changePose(c, d.id, final.time, {
+                              x: final.pose.x,
+                              y: final.pose.y,
+                            }),
+                          );
+                        else if (
+                          !cancelled &&
+                          final &&
+                          wasSelected &&
+                          !final.moved
+                        )
+                          setModal("color");
+                      },
+                    );
+                  }}
+                >
+                  <title>{d.name}</title>
+                  <path
+                    data-hand="left"
+                    d="M0 -22 A22 22 0 0 0 0 22 Z"
+                    fill={colorHex(pose.left)}
+                    stroke="#536277"
+                    strokeWidth="1.5"
+                  />
+                  <path
+                    data-hand="right"
+                    d="M0 -22 A22 22 0 0 1 0 22 Z"
+                    fill={colorHex(pose.right)}
+                    stroke="#536277"
+                    strokeWidth="1.5"
+                  />
+                  <circle
+                    r="26"
+                    fill="none"
+                    stroke={selected === d.id ? "#4568d4" : "transparent"}
+                    strokeWidth="3"
+                    pointerEvents="none"
+                  />
+                </g>
+              );
+            })}
+            {showNames && (
+              <g
+                className="dancer-names-layer"
+                pointerEvents="none"
+                aria-hidden="true"
+              >
+                {c.dancers.map((d) => {
+                  const pose = sampleFormation(c, getTime()).find(
                     (p) => p.dancerId === d.id,
                   )!;
-                  const startPoint = point(e.clientX, e.clientY);
-                  const state = {
-                    id: d.id,
-                    time: t,
-                    x: e.clientX,
-                    y: e.clientY,
-                    moved: false,
-                    pose: current,
-                    dx: current.x - startPoint.x,
-                    dy: current.y - startPoint.y,
-                  };
-                  drag.current = state;
-                  setHand(
-                    (e.target as Element).getAttribute("data-hand") === "right"
-                      ? "right"
-                      : "left",
-                  );
-                  beginDrag(
-                    e,
-                    (event) => {
-                      if (!drag.current || drag.current.id !== d.id) return;
-                      if (
-                        Math.hypot(
-                          event.clientX - drag.current.x,
-                          event.clientY - drag.current.y,
-                        ) < 4 &&
-                        !drag.current.moved
-                      )
-                        return;
-                      drag.current.moved = true;
-                      const next = point(event.clientX, event.clientY);
-                      drag.current.pose = {
-                        ...drag.current.pose,
-                        x: Math.max(
-                          0.03,
-                          Math.min(0.97, next.x + drag.current.dx),
-                        ),
-                        y: Math.max(
-                          0.04,
-                          Math.min(0.96, next.y + drag.current.dy),
-                        ),
-                      };
-                    },
-                    (cancelled) => {
-                      const final = drag.current;
-                      drag.current = null;
-                      if (!cancelled && final?.moved)
-                        run((c) =>
-                          changePose(c, d.id, final.time, {
-                            x: final.pose.x,
-                            y: final.pose.y,
-                          }),
-                        );
-                      else if (
-                        !cancelled &&
-                        final &&
-                        wasSelected &&
-                        !final.moved
-                      )
-                        setModal("color");
-                    },
-                  );
-                }}
-              >
-                <title>{d.name}</title>
-                <path
-                  data-hand="left"
-                  d="M0 -22 A22 22 0 0 0 0 22 Z"
-                  fill={colorHex(pose.left)}
-                  stroke="#536277"
-                  strokeWidth="1.5"
-                />
-                <path
-                  data-hand="right"
-                  d="M0 -22 A22 22 0 0 1 0 22 Z"
-                  fill={colorHex(pose.right)}
-                  stroke="#536277"
-                  strokeWidth="1.5"
-                />
-                <circle
-                  r="26"
-                  fill="none"
-                  stroke={selected === d.id ? "#4568d4" : "transparent"}
-                  strokeWidth="3"
-                  pointerEvents="none"
-                />
-              </g>
-            );
-          })}
-          {showNames && (
-            <g
-              className="dancer-names-layer"
-              pointerEvents="none"
-              aria-hidden="true"
-            >
-              {c.dancers.map((d) => {
-                const pose = sampleFormation(c, getTime()).find(
-                  (p) => p.dancerId === d.id,
-                )!;
-                return (
-                  <g
-                    key={d.id}
-                    ref={(node) => {
-                      if (node) bubbles.current.set(d.id, node);
-                      else bubbles.current.delete(d.id);
-                    }}
-                    data-name-for={d.id}
-                    transform={`translate(${pose.x * stageWidth} ${pose.y * stageHeight}) scale(${scale})`}
-                    style={{ display: pose.visible ? "" : "none" }}
-                    className="dancer-name-bubble"
-                    data-bubble-width={Math.min(
-                      260,
-                      Math.max(52, Array.from(d.name).length * 18 + 20),
-                    )}
-                    pointerEvents="none"
-                    aria-hidden="true"
-                  >
-                    <rect
-                      x={
-                        -Math.min(
-                          260,
-                          Math.max(52, Array.from(d.name).length * 18 + 20),
-                        ) / 2
-                      }
-                      y={-62}
-                      width={Math.min(
+                  return (
+                    <g
+                      key={d.id}
+                      ref={(node) => {
+                        if (node) bubbles.current.set(d.id, node);
+                        else bubbles.current.delete(d.id);
+                      }}
+                      data-name-for={d.id}
+                      transform={`translate(${pose.x * stageWidth} ${pose.y * stageHeight}) scale(${scale})`}
+                      style={{ display: pose.visible ? "" : "none" }}
+                      className="dancer-name-bubble"
+                      data-bubble-width={Math.min(
                         260,
                         Math.max(52, Array.from(d.name).length * 18 + 20),
                       )}
-                      height={28}
-                      rx={9}
-                      fill="#ffffff"
-                      stroke="#bac8dc"
-                    />
-                    <path
-                      d="M -4 -34 L 0 -29 L 4 -34"
-                      fill="#ffffff"
-                      stroke="#bac8dc"
-                    />
-                    <text
-                      x={0}
-                      y={-43}
-                      textAnchor="middle"
-                      fontSize={18}
-                      fill="#34445e"
+                      pointerEvents="none"
+                      aria-hidden="true"
                     >
-                      {Array.from(d.name).length > 13
-                        ? Array.from(d.name).slice(0, 12).join("") + "…"
-                        : d.name}
-                    </text>
-                  </g>
-                );
-              })}
-            </g>
-          )}
-        </svg>
+                      <rect
+                        x={
+                          -Math.min(
+                            260,
+                            Math.max(52, Array.from(d.name).length * 18 + 20),
+                          ) / 2
+                        }
+                        y={-62}
+                        width={Math.min(
+                          260,
+                          Math.max(52, Array.from(d.name).length * 18 + 20),
+                        )}
+                        height={28}
+                        rx={9}
+                        fill="#ffffff"
+                        stroke="#bac8dc"
+                      />
+                      <path
+                        d="M -4 -34 L 0 -29 L 4 -34"
+                        fill="#ffffff"
+                        stroke="#bac8dc"
+                      />
+                      <text
+                        x={0}
+                        y={-43}
+                        textAnchor="middle"
+                        fontSize={18}
+                        fill="#34445e"
+                      >
+                        {Array.from(d.name).length > 13
+                          ? Array.from(d.name).slice(0, 12).join("") + "…"
+                          : d.name}
+                      </text>
+                    </g>
+                  );
+                })}
+              </g>
+            )}
+          </svg>
+          <FormationVideoLayer
+            project={project}
+            edit={edit}
+            readOnly={readOnly}
+            stageWidth={stageWidth}
+            stageHeight={stageHeight}
+            getTime={getTime}
+            isPlaying={isPlaying}
+            getPlaybackRate={getPlaybackRate}
+            pause={pause}
+            sources={videoSources}
+            selectedClipId={selectedVideoClipId}
+            onSelectClip={onVideoClipSelect}
+            onError={onError}
+            onRelinkVideo={onRelinkVideo}
+            storageKey={videoStorageKey ?? `wota-video-minimized:${project.id}`}
+          />
+        </div>
       </div>
       <small className="stage-help">
         左半圆：左手 · 右半圆：右手 · 登退场从当前时刻起

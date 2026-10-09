@@ -33,4 +33,22 @@ describe("浏览器存储与多标签页", () => {
     expect(outcomes.filter((o) => o.status === "rejected")).toHaveLength(1);
     expect((await db.projects.get(p.id))!.document.songName).toBe("first");
   });
+  it("视频源和压缩缓存与项目分开保存", async () => {
+    const db = new ProjectDatabase("test-" + crypto.randomUUID());
+    databases.push(db);
+    await db.videos.put({ id: "video", blob: new Blob(["video"]) });
+    await db.videoEncodes.put({
+      id: "encode",
+      blob: new Blob(["encoded"]),
+      sha256: "hash",
+      mimeType: "video/mp4",
+      sizeBytes: 7,
+      duration: 1,
+      width: 320,
+      height: 240,
+      frameRate: 30,
+    });
+    expect((await db.videos.get("video"))!.blob.size).toBe(5);
+    expect((await db.videoEncodes.get("encode"))!.frameRate).toBe(30);
+  });
 });

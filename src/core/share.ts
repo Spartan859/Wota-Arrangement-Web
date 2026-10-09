@@ -4,8 +4,24 @@ import { choreographySchema } from "./choreography";
 
 export const defaultQuotaBytes = 100 * 1024 * 1024;
 export const maxAudioBytes = defaultQuotaBytes;
+export const maxVideoBytes = defaultQuotaBytes;
+export const maxVideosPerShare = 64;
 export const audioDurationWarningSeconds = 0.5;
 export const maxSyncOffsetSeconds = 30;
+
+export const sharedVideoSchema = z.object({
+  id: z.string(),
+  sourceVersion: z.string(),
+  name: z.string(),
+  mimeType: z.string(),
+  sizeBytes: z.number().int().nonnegative(),
+  duration: z.number().finite().positive(),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  frameRate: z.number().finite().positive(),
+});
+
+export type SharedVideo = z.infer<typeof sharedVideoSchema>;
 
 export const shareSnapshotSchema = z.object({
   snapshotVersion: z.literal(1),
@@ -43,6 +59,7 @@ export const shareSummarySchema = z.object({
       duration: z.number().finite().positive(),
     })
     .nullable(),
+  videos: z.array(sharedVideoSchema).default([]),
 });
 
 export type ShareSummary = z.infer<typeof shareSummarySchema>;
@@ -55,6 +72,14 @@ export const publicShareSchema = z.object({
   snapshot: shareSnapshotSchema,
   audioAvailable: z.boolean(),
   audioUrl: z.string(),
+  videos: z
+    .array(
+      sharedVideoSchema.extend({
+        url: z.string(),
+        available: z.boolean(),
+      }),
+    )
+    .default([]),
 });
 
 export type PublicShare = z.infer<typeof publicShareSchema>;
@@ -106,13 +131,26 @@ export function createShareSnapshot(
       }
     : null,
 ): ShareSnapshot {
+  const referencedAssets = new Set(
+    project.choreography?.tracks.flatMap((track) =>
+      track.videoClips.map((clip) => clip.assetId),
+    ) ?? [],
+  );
+  const choreography = project.choreography
+    ? {
+        ...project.choreography,
+        videoAssets: project.choreography.videoAssets
+          .filter((asset) => referencedAssets.has(asset.id))
+          .map(({ localBlobId: _localBlobId, ...asset }) => asset),
+      }
+    : undefined;
   return shareSnapshotSchema.parse({
     snapshotVersion: 1,
     sourceProjectVersion: project.schemaVersion,
     songName: project.songName,
     bpm: project.bpm,
     blocks: project.blocks,
-    choreography: project.choreography,
+    choreography,
     audio,
   });
 }

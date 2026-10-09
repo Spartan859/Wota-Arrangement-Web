@@ -1,7 +1,13 @@
 import { and, asc, count, eq, inArray, isNull } from "drizzle-orm";
 import type { AppConfig } from "../config";
 import type { Database } from "../db/client";
-import { audioAssets, auditLogs, shares, users } from "../db/schema";
+import {
+  audioAssets,
+  auditLogs,
+  shares,
+  users,
+  videoAssets,
+} from "../db/schema";
 import type { AdminUserPage, ShareSummary } from "../../src/core/share";
 import { AppError } from "../lib/errors";
 import { KeycloakAdminService } from "./keycloak-admin";
@@ -88,16 +94,27 @@ export async function listAdminUserShares(
   userId: string,
 ): Promise<ShareSummary[]> {
   const rows = await db
-    .select({ share: shares, audio: audioAssets })
+    .select()
     .from(shares)
-    .leftJoin(
-      audioAssets,
-      and(eq(audioAssets.shareId, shares.id), isNull(audioAssets.deletedAt)),
-    )
     .where(and(eq(shares.userId, userId), isNull(shares.deletedAt)))
     .orderBy(asc(shares.updatedAt));
-  return rows.map((row) =>
-    toSummary(row.share, config.PUBLIC_ORIGIN, row.audio),
+  return Promise.all(
+    rows.map(async (share) => {
+      const [audio] = await db
+        .select()
+        .from(audioAssets)
+        .where(
+          and(eq(audioAssets.shareId, share.id), isNull(audioAssets.deletedAt)),
+        )
+        .limit(1);
+      const videos = await db
+        .select()
+        .from(videoAssets)
+        .where(
+          and(eq(videoAssets.shareId, share.id), isNull(videoAssets.deletedAt)),
+        );
+      return toSummary(share, config.PUBLIC_ORIGIN, audio, videos);
+    }),
   );
 }
 

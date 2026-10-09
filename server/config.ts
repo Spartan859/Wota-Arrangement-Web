@@ -1,6 +1,10 @@
 import "dotenv/config";
 import { z } from "zod";
-import { defaultQuotaBytes, maxAudioBytes } from "../src/core/share";
+import {
+  defaultQuotaBytes,
+  maxAudioBytes,
+  maxVideoBytes,
+} from "../src/core/share";
 
 const booleanString = z
   .string()
@@ -30,6 +34,7 @@ const schema = z.object({
     .positive()
     .default(defaultQuotaBytes),
   MAX_AUDIO_BYTES: z.coerce.number().int().positive().default(maxAudioBytes),
+  MAX_VIDEO_BYTES: z.coerce.number().int().positive().default(maxVideoBytes),
   TRUST_PROXY: booleanString,
   KEYCLOAK_ADMIN_BASE_URL: z.string().url().optional(),
   KEYCLOAK_ADMIN_REALM: z.string().default("wota"),

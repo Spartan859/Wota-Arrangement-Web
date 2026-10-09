@@ -73,6 +73,7 @@ export function uploadShare(
     shareId?: string;
     snapshot: ShareSnapshot;
     audio?: { blob: Blob; name: string };
+    videos?: { assetId: string; blob: Blob; name: string }[];
     preserveAudio: boolean;
   },
   csrfToken: string,
@@ -84,6 +85,8 @@ export function uploadShare(
   form.set("snapshot", JSON.stringify(input.snapshot));
   form.set("preserveAudio", input.preserveAudio ? "true" : "false");
   if (input.audio) form.set("audio", input.audio.blob, input.audio.name);
+  for (const video of input.videos ?? [])
+    form.set(`video:${video.assetId}`, video.blob, video.name);
   return uploadForm(
     "/api/shares",
     form,

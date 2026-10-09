@@ -20,6 +20,43 @@ function wav(seconds = 12) {
   return buffer;
 }
 
+async function syntheticWebm(page: Page) {
+  const base64 = await page.evaluate(async () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 160;
+    canvas.height = 120;
+    const context = canvas.getContext("2d")!;
+    const recorder = new MediaRecorder(canvas.captureStream(30), {
+      mimeType: "video/webm;codecs=vp8",
+    });
+    const chunks: BlobPart[] = [];
+    recorder.ondataavailable = (event) => {
+      if (event.data.size) chunks.push(event.data);
+    };
+    const done = new Promise<Blob>((resolve) => {
+      recorder.onstop = () => resolve(new Blob(chunks, { type: "video/webm" }));
+    });
+    recorder.start();
+    const start = performance.now();
+    await new Promise<void>((resolve) => {
+      const draw = () => {
+        const elapsed = performance.now() - start;
+        context.fillStyle = elapsed % 200 < 100 ? "#e85d75" : "#4778d6";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        if (elapsed >= 700) resolve();
+        else requestAnimationFrame(draw);
+      };
+      draw();
+    });
+    recorder.stop();
+    const bytes = new Uint8Array(await (await done).arrayBuffer());
+    let binary = "";
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return btoa(binary);
+  });
+  return Buffer.from(base64, "base64");
+}
+
 async function mockShare(page: Page) {
   await page.route("**/api/session", (route) =>
     route.fulfill({
@@ -167,4 +204,111 @@ test("只读分享页支持本地音乐、播放跟随、段落循环和移动�
     ),
   ).toBe(true);
   expect(errors).toEqual([]);
+});
+
+test("只读分享页播放云端视频并支持每片段最小化和恢复", async ({ page }) => {
+  await page.route("**/api/session", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        authenticated: false,
+        csrfToken: null,
+        user: null,
+      }),
+    }),
+  );
+  await page.route("**/api/public/shares/video-token", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        token: "video-token",
+        revision: 1,
+        publishedAt: "2026-10-10T00:00:00.000Z",
+        updatedAt: "2026-10-10T00:00:00.000Z",
+        audioAvailable: false,
+        audioUrl: "/api/public/shares/video-token/audio",
+        videos: [
+          {
+            id: "video-asset",
+            sourceVersion: "v1",
+            name: "video.webm",
+            mimeType: "video/webm",
+            sizeBytes: 1000,
+            duration: 1,
+            width: 160,
+            height: 120,
+            frameRate: 30,
+            url: "/api/public/shares/video-token/videos/video-asset",
+            available: true,
+          },
+        ],
+        snapshot: {
+          snapshotVersion: 1,
+          sourceProjectVersion: 2,
+          songName: "视频分享",
+          bpm: "120",
+          audio: null,
+          blocks: [],
+          choreography: {
+            canvas: { width: 800, height: 600 },
+            videoAssets: [
+              {
+                id: "video-asset",
+                sourceVersion: "v1",
+                name: "video.webm",
+                mimeType: "video/webm",
+                sizeBytes: 1000,
+                duration: 1,
+                width: 160,
+                height: 120,
+                frameRate: 30,
+              },
+            ],
+            dancers: [{ id: "dancer-a", name: "小一" }],
+            frames: [],
+            tracks: [
+              {
+                dancerId: "dancer-a",
+                positionFrames: [
+                  { id: "pos", time: 0, x: 0.5, y: 0.5, visible: true },
+                ],
+                colorFrames: [],
+                videoClips: [
+                  {
+                    id: "clip",
+                    assetId: "video-asset",
+                    inPoint: 0,
+                    crop: { x: 0, y: 0, width: 1, height: 1 },
+                    offset: { x: -0.175, y: -0.1167 },
+                    scale: 0.35,
+                  },
+                ],
+                videoFrames: [
+                  { id: "insert", clipId: "clip", kind: "insert", time: 0 },
+                ],
+              },
+            ],
+          },
+        },
+      }),
+    }),
+  );
+  await page.goto("/");
+  const video = await syntheticWebm(page);
+  await page.route(
+    "**/api/public/shares/video-token/videos/video-asset",
+    (route) =>
+      route.fulfill({
+        status: 206,
+        headers: { "content-type": "video/webm" },
+        body: video,
+      }),
+  );
+  await page.goto("/s/video-token");
+  await expect(page.getByRole("heading", { name: "视频分享" })).toBeVisible();
+  await expect(page.locator(".formation-video video")).toBeVisible();
+  await page.locator(".formation-video-tray button").first().click();
+  await expect(page.locator(".formation-video")).toBeHidden();
+  await page.locator(".formation-video-tray button").first().click();
+  await expect(page.locator(".formation-video")).toBeVisible();
 });

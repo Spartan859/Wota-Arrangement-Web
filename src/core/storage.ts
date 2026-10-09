@@ -2,12 +2,32 @@ import Dexie, { type EntityTable } from "dexie";
 import type { Project } from "./model";
 export type SavedProject = { id: string; revision: number; document: Project };
 export type AudioRecord = { id: string; blob: Blob };
+export type VideoRecord = { id: string; blob: Blob };
+export type VideoEncodeRecord = {
+  id: string;
+  blob: Blob;
+  sha256: string;
+  mimeType: string;
+  sizeBytes: number;
+  duration: number;
+  width: number;
+  height: number;
+  frameRate: number;
+};
 export class ProjectDatabase extends Dexie {
   projects!: EntityTable<SavedProject, "id">;
   audio!: EntityTable<AudioRecord, "id">;
+  videos!: EntityTable<VideoRecord, "id">;
+  videoEncodes!: EntityTable<VideoEncodeRecord, "id">;
   constructor(name = "wota-workbench") {
     super(name);
     this.version(1).stores({ projects: "id", audio: "id" });
+    this.version(2).stores({
+      projects: "id",
+      audio: "id",
+      videos: "id",
+      videoEncodes: "id",
+    });
   }
   async save(document: Project, expectedRevision: number): Promise<number> {
     return this.transaction("rw", this.projects, async () => {

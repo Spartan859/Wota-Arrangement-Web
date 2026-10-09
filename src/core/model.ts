@@ -149,6 +149,15 @@ export function backup(p: Project): string {
       ...p,
       schemaVersion: currentSchemaVersion,
       audio: p.audio ? { ...p.audio, id: null } : null,
+      choreography: p.choreography
+        ? {
+            ...p.choreography,
+            videoAssets: p.choreography.videoAssets.map((asset) => ({
+              ...asset,
+              localBlobId: null,
+            })),
+          }
+        : undefined,
     },
     null,
     2,

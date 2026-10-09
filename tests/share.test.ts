@@ -26,6 +26,7 @@ describe("online share snapshot", () => {
     ];
     source.choreography = {
       dancers: [{ id: "dancer-1", name: "舞者1" }],
+      videoAssets: [],
       canvas: { width: 800, height: 600 },
       frames: [
         {
@@ -81,6 +82,62 @@ describe("online share snapshot", () => {
   it("uses the documented 100 MiB default quota", () => {
     expect(defaultQuotaBytes).toBe(100 * 1024 * 1024);
     expect(quotaMiB(defaultQuotaBytes)).toBe(100);
+  });
+
+  it("分享快照保留视频元数据但清除本地 Blob 引用", () => {
+    const source = project();
+    source.choreography = {
+      canvas: { width: 800, height: 600 },
+      videoAssets: [
+        {
+          id: "video-asset",
+          localBlobId: "local-video-blob",
+          sourceVersion: "source-v1",
+          name: "clip.mp4",
+          mimeType: "video/mp4",
+          sizeBytes: 1234,
+          duration: 10,
+          width: 1280,
+          height: 720,
+          frameRate: 30,
+        },
+      ],
+      dancers: [{ id: "dancer-1", name: "舞者1" }],
+      frames: [],
+      tracks: [
+        {
+          dancerId: "dancer-1",
+          positionFrames: [],
+          colorFrames: [],
+          videoClips: [
+            {
+              id: "clip-1",
+              assetId: "video-asset",
+              inPoint: 2,
+              crop: { x: 0, y: 0, width: 1, height: 1 },
+              offset: { x: -0.175, y: -0.1 },
+              scale: 0.35,
+            },
+          ],
+          videoFrames: [
+            {
+              id: "video-insert",
+              clipId: "clip-1",
+              kind: "insert",
+              time: 1,
+            },
+          ],
+        },
+      ],
+    };
+    const snapshot = createShareSnapshot(source);
+    expect(snapshot.choreography?.videoAssets[0]).toMatchObject({
+      id: "video-asset",
+      sourceVersion: "source-v1",
+      duration: 10,
+    });
+    expect(JSON.stringify(snapshot)).not.toContain("local-video-blob");
+    expect(snapshot.choreography?.tracks[0].videoClips[0].inPoint).toBe(2);
   });
 });
 

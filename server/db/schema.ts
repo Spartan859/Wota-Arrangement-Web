@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -107,6 +108,40 @@ export const audioAssets = pgTable(
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (table) => [uniqueIndex("audio_assets_share_unique").on(table.shareId)],
+);
+
+export const videoAssets = pgTable(
+  "video_assets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    shareId: uuid("share_id")
+      .notNull()
+      .references(() => shares.id, { onDelete: "cascade" }),
+    assetKey: text("asset_key").notNull(),
+    storagePath: text("storage_path").notNull(),
+    originalName: text("original_name").notNull(),
+    mimeType: text("mime_type").notNull(),
+    sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
+    duration: integer("duration_milliseconds").notNull(),
+    width: integer("width").notNull(),
+    height: integer("height").notNull(),
+    frameRate: doublePrecision("frame_rate").notNull(),
+    sha256: text("sha256").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("video_assets_share_asset_unique").on(
+      table.shareId,
+      table.assetKey,
+    ),
+    index("video_assets_share_idx").on(table.shareId),
+  ],
 );
 
 export const quotaEvents = pgTable(

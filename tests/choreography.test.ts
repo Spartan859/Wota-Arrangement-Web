@@ -1,6 +1,10 @@
 import { resizeCanvas } from "../src/core/choreography";
 import { describe, it, expect } from "vitest";
 import {
+  activeVideoForDancer,
+  addVideoAsset,
+  addVideoClip,
+  addVideoRemoval,
   addDancer,
   changePose,
   choreographySchema,
@@ -14,7 +18,11 @@ import {
   colors,
   getDancerFrames,
   moveDancerFrame,
+  moveVideoFrame,
   removeDancerFrame,
+  removeVideoFrame,
+  setVideoInPoint,
+  videoFrameRect,
 } from "../src/core/choreography";
 import { backup, parseProject, project, History } from "../src/core/model";
 describe("全员队形", () => {
@@ -175,6 +183,111 @@ describe("画布尺寸", () => {
         false,
       );
     }
+  });
+});
+
+describe("视频片段轨道", () => {
+  it("按插入时间映射入点、移除后隐藏并在源结束时定格", () => {
+    const c = emptyChoreography();
+    const dancer = addDancer(c, "A", 0);
+    const asset = addVideoAsset(c, {
+      name: "clip.mp4",
+      mimeType: "video/mp4",
+      sizeBytes: 100,
+      duration: 4,
+      width: 1280,
+      height: 720,
+      frameRate: 30,
+    });
+    const clip = addVideoClip(c, dancer, asset.id, 2);
+    setVideoInPoint(c, dancer, clip, 1);
+    expect(activeVideoForDancer(c, dancer, 1.9)).toBeUndefined();
+    expect(activeVideoForDancer(c, dancer, 3)).toMatchObject({
+      sourceTime: 2,
+      frozen: false,
+    });
+    expect(activeVideoForDancer(c, dancer, 20)).toMatchObject({
+      sourceTime: 4,
+      frozen: true,
+    });
+    addVideoRemoval(c, dancer, clip, 5);
+    expect(activeVideoForDancer(c, dancer, 4.999)?.clip.id).toBe(clip);
+    expect(activeVideoForDancer(c, dancer, 5)).toBeUndefined();
+  });
+
+  it("移动关键帧不改变入点，拒绝重叠并允许移除后同刻插入", () => {
+    const c = emptyChoreography();
+    const dancer = addDancer(c, "A", 0);
+    const asset = addVideoAsset(c, {
+      name: "clip.mp4",
+      mimeType: "video/mp4",
+      sizeBytes: 100,
+      duration: 10,
+      width: 1280,
+      height: 720,
+      frameRate: 30,
+    });
+    const first = addVideoClip(c, dancer, asset.id, 1);
+    setVideoInPoint(c, dancer, first, 2.5);
+    const insert = c.tracks[0].videoFrames.find(
+      (frame) => frame.clipId === first && frame.kind === "insert",
+    )!;
+    moveVideoFrame(c, dancer, insert.id, 2, 20);
+    expect(
+      c.tracks[0].videoClips.find((clip) => clip.id === first)?.inPoint,
+    ).toBe(2.5);
+    expect(() => addVideoClip(c, dancer, asset.id, 3)).toThrow("重叠");
+    addVideoRemoval(c, dancer, first, 6);
+    const second = addVideoClip(c, dancer, asset.id, 6);
+    expect(second).not.toBe(first);
+    expect(activeVideoForDancer(c, dancer, 6)?.clip.id).toBe(second);
+    expect(() => moveVideoFrame(c, dancer, insert.id, 7, 20)).toThrow("重叠");
+  });
+
+  it("删除插入帧删除整段，删除移除帧延伸至歌曲结束", () => {
+    const c = emptyChoreography();
+    const dancer = addDancer(c, "A", 0);
+    const asset = addVideoAsset(c, {
+      name: "clip.mp4",
+      mimeType: "video/mp4",
+      sizeBytes: 100,
+      duration: 10,
+      width: 1280,
+      height: 720,
+      frameRate: 30,
+    });
+    const clip = addVideoClip(c, dancer, asset.id, 1);
+    const removal = addVideoRemoval(c, dancer, clip, 4);
+    removeVideoFrame(c, dancer, removal);
+    expect(activeVideoForDancer(c, dancer, 30)?.clip.id).toBe(clip);
+    const insert = c.tracks[0].videoFrames[0].id;
+    removeVideoFrame(c, dancer, insert);
+    expect(c.tracks[0].videoClips).toHaveLength(0);
+    expect(c.tracks[0].videoFrames).toHaveLength(0);
+  });
+
+  it("裁切和绑定位移生成保持源比例的舞台矩形", () => {
+    const c = emptyChoreography();
+    const dancer = addDancer(c, "A", 0);
+    const asset = addVideoAsset(c, {
+      name: "clip.mp4",
+      mimeType: "video/mp4",
+      sizeBytes: 100,
+      duration: 10,
+      width: 1920,
+      height: 1080,
+      frameRate: 30,
+    });
+    const id = addVideoClip(c, dancer, asset.id, 0);
+    const clip = c.tracks[0].videoClips[0];
+    clip.crop = { x: 0.25, y: 0.1, width: 0.5, height: 0.5 };
+    clip.offset = { x: 0.1, y: 0.2 };
+    const rect = videoFrameRect(clip, asset, { width: 800, height: 600 });
+    expect(rect.x).toBeCloseTo(0.1875);
+    expect(rect.y).toBeCloseTo(0.22625);
+    expect(rect.width).toBeCloseTo(0.175);
+    expect(rect.height).toBeCloseTo(0.13125);
+    expect(id).toBe(clip.id);
   });
 });
 

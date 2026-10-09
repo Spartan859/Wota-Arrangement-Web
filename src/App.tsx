@@ -33,6 +33,13 @@ import {
 import { ApiError, fetchShares, uploadShare } from "./api/client";
 import { db, download, safeName } from "./core/storage";
 import {
+  addVideoAsset,
+  addVideoClip,
+  emptyChoreography,
+} from "./core/choreography";
+import { inspectVideoFile } from "./core/videoEncoding";
+import { prepareVideoUploads } from "./core/publishVideos";
+import {
   activeBlock,
   activeLyric,
   formatTime,
@@ -64,6 +71,12 @@ export default function App() {
   const [workspaceView, setWorkspaceView] = useState("blocks");
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [formationDancer, setFormationDancer] = useState<string | null>(null);
+  const [formationVideoClip, setFormationVideoClip] = useState<string | null>(
+    null,
+  );
+  const [videoInsertTime, setVideoInsertTime] = useState(0);
+  const [videoRelinkAsset, setVideoRelinkAsset] = useState<string | null>(null);
+  const videoInput = useRef<HTMLInputElement>(null);
   const [follow, setFollow] = useState(true);
   const [audioReady, setAudioReady] = useState(false),
     [loop, setLoop] = useState<string | null>(null);
@@ -130,6 +143,7 @@ export default function App() {
     setSelectionAnchor(null);
     setMultiSelectMode(false);
     setFormationDancer(null);
+    setFormationVideoClip(null);
     setLoop(null);
     setModal(null);
     audioRequest.current++;
@@ -279,6 +293,87 @@ export default function App() {
       setBusy(false);
     }
   }
+  function requestVideoInsert(time: number) {
+    if (!formationDancer) {
+      fail("请先选择舞者，再插入视频。");
+      return;
+    }
+    setVideoInsertTime(time);
+    setVideoRelinkAsset(null);
+    videoInput.current?.click();
+  }
+  function requestVideoRelink(assetId: string) {
+    setVideoRelinkAsset(assetId);
+    videoInput.current?.click();
+  }
+  async function insertVideo(file: File) {
+    if (!formationDancer) {
+      fail("请先选择舞者，再插入视频。");
+      return;
+    }
+    player.current?.pause();
+    setBusy(true);
+    try {
+      const metadata = await inspectVideoFile(file);
+      const blobId = uid();
+      await db.videos.put({ id: blobId, blob: file });
+      let clipId = "";
+      store.edit((draft) => {
+        draft.choreography ??= emptyChoreography();
+        const asset = addVideoAsset(draft.choreography, {
+          ...metadata,
+          localBlobId: blobId,
+        });
+        clipId = addVideoClip(
+          draft.choreography,
+          formationDancer,
+          asset.id,
+          videoInsertTime,
+        );
+      });
+      setFormationVideoClip(clipId);
+      setNotice("视频片段已插入，可在第三轨或画布上调整。");
+    } catch (error) {
+      fail((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function relinkVideo(file: File) {
+    const assetId = videoRelinkAsset;
+    setVideoRelinkAsset(null);
+    if (!assetId) return;
+    setBusy(true);
+    try {
+      const metadata = await inspectVideoFile(file);
+      const blobId = uid();
+      await db.videos.put({ id: blobId, blob: file });
+      store.edit((draft) => {
+        const asset = draft.choreography?.videoAssets.find(
+          (item) => item.id === assetId,
+        );
+        if (!asset) throw new Error("视频资源不存在。");
+        asset.localBlobId = blobId;
+        asset.sourceVersion = uid();
+        asset.name = metadata.name;
+        asset.mimeType = metadata.mimeType;
+        asset.sizeBytes = metadata.sizeBytes;
+        asset.duration = metadata.duration;
+        asset.width = metadata.width;
+        asset.height = metadata.height;
+        asset.frameRate = metadata.frameRate;
+        for (const track of draft.choreography?.tracks ?? [])
+          for (const clip of track.videoClips)
+            if (clip.assetId === assetId)
+              clip.inPoint = Math.min(clip.inPoint, metadata.duration);
+      });
+      setNotice("视频已重新关联。");
+    } catch (error) {
+      fail((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   async function importProject(file: File) {
     setBusy(true);
     try {
@@ -340,6 +435,15 @@ export default function App() {
           ? { ...activeShare.audio }
           : null;
       const snapshot = createShareSnapshot(p, audioMeta);
+      const videoUploads = await prepareVideoUploads(
+        p,
+        activeShare?.videos ?? [],
+        session.user.quotaBytes,
+        session.user.usedBytes,
+        activeShare?.audio?.sizeBytes ?? 0,
+        audioMeta?.sizeBytes ?? activeShare?.audio?.sizeBytes ?? 0,
+        (percent) => setPublishProgress(Math.round(percent * 0.5)),
+      );
       const updated = await uploadShare(
         {
           projectId: p.id,
@@ -355,9 +459,10 @@ export default function App() {
               }
             : undefined,
           preserveAudio: Boolean(activeShare?.audio && !record),
+          videos: videoUploads,
         },
         session.csrfToken,
-        setPublishProgress,
+        (percent) => setPublishProgress(50 + Math.round((percent / 100) * 50)),
       );
       setShares((current) => {
         const exists = current.some((share) => share.id === updated.id);
@@ -370,7 +475,7 @@ export default function App() {
         setNotice("编排已发布；之后可在“我的分享”中补充云端音乐。");
     } catch (cause) {
       if (cause instanceof ApiError && cause.code === "quota_exceeded")
-        fail(`${cause.message} 可前往“我的分享”删除旧音乐。`);
+        fail(`${cause.message} 可前往“我的分享”删除旧媒体。`);
       else fail(cause instanceof Error ? cause.message : "发布失败，请重试。");
     } finally {
       setPublishing(false);
@@ -545,6 +650,21 @@ export default function App() {
           </button>
         </div>
       )}
+      <input
+        ref={videoInput}
+        className="visually-hidden"
+        aria-label="插入视频文件"
+        type="file"
+        accept="video/*,.mp4,.m4v,.mov,.webm"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) {
+            if (videoRelinkAsset) void relinkVideo(file);
+            else void insertVideo(file);
+          }
+          event.target.value = "";
+        }}
+      />
       {store.conflict && (
         <div className="conflict" role="alert">
           项目已在另一标签页更新。
@@ -619,7 +739,16 @@ export default function App() {
             getTime={() => (audioReady ? (player.current?.getTime() ?? 0) : 0)}
             pause={() => player.current?.pause()}
             onError={fail}
-            onDancerSelect={setFormationDancer}
+            onRelinkVideo={requestVideoRelink}
+            isPlaying={() => player.current?.isPlaying() ?? false}
+            getPlaybackRate={() => player.current?.getPlaybackRate() ?? 1}
+            onDancerSelect={(id) => {
+              setFormationDancer(id);
+              setFormationVideoClip(null);
+            }}
+            selectedVideoClipId={formationVideoClip}
+            onVideoClipSelect={setFormationVideoClip}
+            onRequestInsertVideo={requestVideoInsert}
           />
         </div>
         <section className="timeline-panel">
@@ -629,6 +758,9 @@ export default function App() {
             project={p}
             edit={store.edit}
             formationDancerId={formationDancer}
+            formationVideoClipId={formationVideoClip}
+            onFormationVideoClipSelect={setFormationVideoClip}
+            onRequestVideoInsert={requestVideoInsert}
             loopId={loop}
             onLoop={setLoop}
             onTime={(position, playing) => {

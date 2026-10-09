@@ -2,12 +2,17 @@ import { usePointerDrag } from "./usePointerDrag";
 import { useEffect, useRef, useState } from "react";
 import type { Project } from "../core/model";
 import {
+  activeVideoForDancer,
+  addVideoRemoval,
   cleanupRedundantKeyframes,
   emptyChoreography,
   frameTime,
   getDancerFrames,
+  getDancerVideoFrames,
   moveDancerFrame,
+  moveVideoFrame,
   removeDancerFrame,
+  removeVideoFrame,
   saveDancerFrame,
   type TrackKind,
 } from "../core/choreography";
@@ -26,7 +31,12 @@ type Props = {
   onError: (m: string) => void;
   onNotice: (m: string) => void;
   selectedDancerId?: string | null;
+  selectedVideoClipId?: string | null;
+  onVideoClipSelect?: (id: string | null) => void;
+  onRequestVideoInsert?: (time: number) => void;
 };
+
+type EditorTrackKind = TrackKind | "video";
 
 export function FormationTrack({
   project: p,
@@ -40,6 +50,9 @@ export function FormationTrack({
   onError,
   onNotice,
   selectedDancerId,
+  selectedVideoClipId,
+  onVideoClipSelect,
+  onRequestVideoInsert,
 }: Props) {
   const beginDrag = usePointerDrag(
     `${p.id}:${p.audio?.id}`,
@@ -49,29 +62,39 @@ export function FormationTrack({
   const dancer = c?.dancers.find((item) => item.id === selectedDancerId);
   const dancerId = dancer?.id;
   const [editing, setEditing] = useState<{
-    kind: TrackKind;
+    kind: EditorTrackKind;
     id: string;
   } | null>(null);
   const [value, setValue] = useState("");
   const [error, setError] = useState("");
   const [selectedFrames, setSelectedFrames] = useState<
-    Record<TrackKind, string | null>
-  >({ position: null, color: null });
+    Record<EditorTrackKind, string | null>
+  >({ position: null, color: null, video: null });
   const suppressClick = useRef(false);
   const current = loaded ? getTime() : 0;
   useEffect(() => {
-    setSelectedFrames({ position: null, color: null });
+    setSelectedFrames({ position: null, color: null, video: null });
   }, [dancerId]);
+  useEffect(() => {
+    if (!selectedVideoClipId) return;
+    const frame = p.choreography?.tracks
+      .find((track) => track.dancerId === dancerId)
+      ?.videoFrames.find((item) => item.clipId === selectedVideoClipId);
+    if (frame)
+      setSelectedFrames((selected) => ({ ...selected, video: frame.id }));
+  }, [dancerId, p.choreography, selectedVideoClipId]);
   const positionFrames = dancerId
     ? getDancerFrames(c!, dancerId, "position")
     : [];
   const colorFrames = dancerId ? getDancerFrames(c!, dancerId, "color") : [];
+  const videoFrames = dancerId ? getDancerVideoFrames(c!, dancerId) : [];
   const scale =
     duration ||
     Math.max(
       1,
       ...positionFrames.map((frame) => frame.time),
       ...colorFrames.map((frame) => frame.time),
+      ...videoFrames.map((frame) => frame.time),
     );
   const showError = (fn: () => void) => {
     try {
@@ -85,13 +108,17 @@ export function FormationTrack({
       return false;
     }
   };
-  const framesFor = (kind: TrackKind) =>
-    kind === "position" ? positionFrames : colorFrames;
-  const currentFrame = (kind: TrackKind) =>
+  const framesFor = (kind: EditorTrackKind) =>
+    kind === "position"
+      ? positionFrames
+      : kind === "color"
+        ? colorFrames
+        : videoFrames;
+  const currentFrame = (kind: EditorTrackKind) =>
     framesFor(kind).find(
       (frame) => Math.round(frame.time * 1000) === Math.round(current * 1000),
     );
-  const moveFrameBy = (kind: TrackKind, direction: -1 | 1) => {
+  const moveFrameBy = (kind: EditorTrackKind, direction: -1 | 1) => {
     const frames = framesFor(kind);
     if (!frames.length) return;
     const nextIndex = frames.findIndex((frame) => frame.time > current);
@@ -105,7 +132,7 @@ export function FormationTrack({
       seek(target.time);
     }
   };
-  const deleteFrame = (kind: TrackKind, id: string) => {
+  const deleteFrame = (kind: EditorTrackKind, id: string) => {
     if (readOnly || !dancerId) return;
     setSelectedFrames((selected) =>
       selected[kind] === id ? { ...selected, [kind]: null } : selected,
@@ -113,34 +140,60 @@ export function FormationTrack({
     pause();
     showError(() =>
       edit((draft) => {
-        if (draft.choreography)
-          removeDancerFrame(draft.choreography, dancerId, kind, id);
+        if (!draft.choreography) return;
+        if (kind === "video")
+          removeVideoFrame(draft.choreography, dancerId, id);
+        else removeDancerFrame(draft.choreography, dancerId, kind, id);
       }),
     );
   };
-  const toggleCurrentFrame = (kind: TrackKind) => {
+  const toggleCurrentFrame = (kind: EditorTrackKind) => {
     if (readOnly || !dancerId) return;
     pause();
     const frame = currentFrame(kind);
+    if (kind === "video" && !frame) {
+      const active = c
+        ? activeVideoForDancer(c, dancerId, loaded ? current : 0)
+        : undefined;
+      if (active) {
+        showError(() =>
+          edit((draft) => {
+            draft.choreography ??= emptyChoreography();
+            addVideoRemoval(
+              draft.choreography,
+              dancerId,
+              active.clip.id,
+              current,
+            );
+          }),
+        );
+      } else onRequestVideoInsert?.(current);
+      return;
+    }
     showError(() =>
       edit((draft) => {
         draft.choreography ??= emptyChoreography();
-        if (frame)
-          removeDancerFrame(draft.choreography, dancerId, kind, frame.id);
-        else
-          saveDancerFrame(
-            draft.choreography,
-            dancerId,
-            kind,
-            loaded ? frameTime(current, duration) : 0,
-          );
+        if (frame && kind === "video") {
+          removeVideoFrame(draft.choreography, dancerId, frame.id);
+        } else if (kind !== "video") {
+          if (frame)
+            removeDancerFrame(draft.choreography, dancerId, kind, frame.id);
+          else
+            saveDancerFrame(
+              draft.choreography,
+              dancerId,
+              kind,
+              loaded ? frameTime(current, duration) : 0,
+            );
+        }
       }),
     );
   };
-  const trackControls = (kind: TrackKind) => {
+  const trackControls = (kind: EditorTrackKind) => {
     const frames = framesFor(kind);
     const atCurrent = currentFrame(kind);
-    const label = kind === "position" ? "位置" : "颜色";
+    const label =
+      kind === "position" ? "位置" : kind === "color" ? "颜色" : "视频";
     return (
       <div className={`formation-track-row-tools formation-track-${kind}`}>
         <strong>{label}</strong>
@@ -181,10 +234,11 @@ export function FormationTrack({
       </div>
     );
   };
-  const track = (kind: TrackKind) => {
+  const track = (kind: EditorTrackKind) => {
     const frames = framesFor(kind);
     const atCurrent = currentFrame(kind);
-    const label = kind === "position" ? "位置" : "颜色";
+    const label =
+      kind === "position" ? "位置" : kind === "color" ? "颜色" : "视频";
     return (
       <div
         className={`formation-subtrack formation-subtrack-${kind}`}
@@ -211,6 +265,8 @@ export function FormationTrack({
                     ...selected,
                     [kind]: frame.id,
                   }));
+                  if (kind === "video" && "clipId" in frame)
+                    onVideoClipSelect?.(frame.clipId);
                   pause();
                   if (!outOfRange) seek(frame.time);
                 }}
@@ -256,7 +312,16 @@ export function FormationTrack({
                       if (moved && !cancelled)
                         showError(() =>
                           edit((draft) => {
-                            if (draft.choreography)
+                            if (!draft.choreography) return;
+                            if (kind === "video")
+                              moveVideoFrame(
+                                draft.choreography,
+                                dancerId!,
+                                frame.id,
+                                time,
+                                duration,
+                              );
+                            else
                               moveDancerFrame(
                                 draft.choreography,
                                 dancerId!,
@@ -298,6 +363,7 @@ export function FormationTrack({
             <div className="formation-track-name">{dancer.name} 关键帧</div>
             {trackControls("position")}
             {trackControls("color")}
+            {trackControls("video")}
             <button
               className="formation-cleanup"
               disabled={readOnly}
@@ -321,6 +387,7 @@ export function FormationTrack({
           </div>
           {track("position")}
           {track("color")}
+          {track("video")}
         </>
       ) : (
         <div className="formation-track-empty">
@@ -329,7 +396,7 @@ export function FormationTrack({
       )}
       {editing && editedFrame && dancerId && (
         <Modal
-          title={`${editing.kind === "position" ? "位置" : "颜色"}关键帧时间`}
+          title={`${editing.kind === "position" ? "位置" : editing.kind === "color" ? "颜色" : "视频"}关键帧时间`}
           onClose={() => setEditing(null)}
         >
           <label className="field">
@@ -351,7 +418,16 @@ export function FormationTrack({
             onClick={() => {
               const saved = showError(() =>
                 edit((draft) => {
-                  if (draft.choreography)
+                  if (!draft.choreography) return;
+                  if (editing.kind === "video")
+                    moveVideoFrame(
+                      draft.choreography,
+                      dancerId,
+                      editedFrame.id,
+                      Number(value),
+                      duration,
+                    );
+                  else
                     moveDancerFrame(
                       draft.choreography,
                       dancerId,

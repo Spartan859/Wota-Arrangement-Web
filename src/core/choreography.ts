@@ -55,10 +55,54 @@ const colorKeyframeSchema = z.object({
   left: color,
   right: color,
 });
+export const videoAssetSchema = z.object({
+  id: z.string().min(1),
+  localBlobId: z.string().min(1).nullable().optional(),
+  sourceVersion: z.string().min(1),
+  name: z.string().min(1),
+  mimeType: z.string(),
+  sizeBytes: z.number().int().nonnegative(),
+  duration: z.number().finite().positive(),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  frameRate: z.number().finite().positive(),
+});
+export const videoCropSchema = z.object({
+  x: z.number().finite().min(0).max(0.98),
+  y: z.number().finite().min(0).max(0.98),
+  width: z.number().finite().min(0.02).max(1),
+  height: z.number().finite().min(0.02).max(1),
+});
+const videoOffsetSchema = z.object({
+  x: z.number().finite().min(-2).max(3),
+  y: z.number().finite().min(-2).max(3),
+});
+export const videoClipSchema = z
+  .object({
+    id: z.string().min(1),
+    assetId: z.string().min(1),
+    inPoint: z.number().finite().nonnegative(),
+    crop: videoCropSchema,
+    offset: videoOffsetSchema,
+    scale: z.number().finite().min(0.02).max(2),
+  })
+  .refine(
+    (clip) =>
+      clip.crop.x + clip.crop.width <= 1 && clip.crop.y + clip.crop.height <= 1,
+    { message: "视频裁切范围无效。" },
+  );
+export const videoKeyframeSchema = z.object({
+  id: z.string().min(1),
+  clipId: z.string().min(1),
+  kind: z.enum(["insert", "remove"]),
+  time: z.number().finite().nonnegative(),
+});
 const dancerTrackSchema = z.object({
   dancerId: z.string().min(1),
   positionFrames: z.array(positionKeyframeSchema),
   colorFrames: z.array(colorKeyframeSchema),
+  videoFrames: z.array(videoKeyframeSchema).default([]),
+  videoClips: z.array(videoClipSchema).default([]),
 });
 export const canvasSchema = z.object({
   width: z.number().int().min(320).max(4000),
@@ -67,6 +111,7 @@ export const canvasSchema = z.object({
 export const choreographySchema = z
   .object({
     canvas: canvasSchema.default({ width: 800, height: 600 }),
+    videoAssets: z.array(videoAssetSchema).default([]),
     dancers: z.array(
       z.object({ id: z.string().min(1), name: z.string().min(1) }),
     ),
@@ -83,12 +128,18 @@ export const choreographySchema = z
     const trackFrames = c.tracks.flatMap((track) => [
       ...track.positionFrames,
       ...track.colorFrames,
+      ...track.videoFrames,
     ]);
     const ids = [
       ...c.dancers.map((d) => d.id),
       ...c.frames.map((f) => f.id),
       ...trackFrames.map((frame) => frame.id),
+      ...c.tracks.flatMap((track) => track.videoClips.map((clip) => clip.id)),
+      ...c.videoAssets.map((asset) => asset.id),
     ];
+    const videoAssets = new Map(
+      c.videoAssets.map((asset) => [asset.id, asset]),
+    );
     const invalid =
       new Set(ids).size !== ids.length ||
       new Set(c.frames.map((f) => Math.round(f.time * 1000))).size !==
@@ -109,7 +160,16 @@ export const choreographySchema = z
           ).size !== track.positionFrames.length ||
           new Set(
             track.colorFrames.map((frame) => Math.round(frame.time * 1000)),
-          ).size !== track.colorFrames.length,
+          ).size !== track.colorFrames.length ||
+          new Set(track.videoClips.map((clip) => clip.id)).size !==
+            track.videoClips.length ||
+          new Set(track.videoFrames.map((frame) => frame.id)).size !==
+            track.videoFrames.length ||
+          track.videoClips.some((clip) => {
+            const asset = videoAssets.get(clip.assetId);
+            return !asset || clip.inPoint > asset.duration;
+          }) ||
+          !validVideoTrack(track),
       );
     if (invalid)
       ctx.addIssue({ code: "custom", message: "队形 ID、时间或舞者引用无效" });
@@ -118,10 +178,15 @@ export type Choreography = z.infer<typeof choreographySchema>;
 export type Pose = z.infer<typeof poseSchema>;
 export type PositionKeyframe = z.infer<typeof positionKeyframeSchema>;
 export type ColorKeyframe = z.infer<typeof colorKeyframeSchema>;
+export type VideoAsset = z.infer<typeof videoAssetSchema>;
+export type VideoCrop = z.infer<typeof videoCropSchema>;
+export type VideoClip = z.infer<typeof videoClipSchema>;
+export type VideoKeyframe = z.infer<typeof videoKeyframeSchema>;
 export type DancerTrack = z.infer<typeof dancerTrackSchema>;
 export type TrackKind = "position" | "color";
 export const emptyChoreography = (): Choreography => ({
   canvas: { width: 800, height: 600 },
+  videoAssets: [],
   dancers: [],
   frames: [],
   tracks: [],
@@ -161,10 +226,13 @@ const derivedTrackFrameId = (
 /** Build per-dancer tracks from the original aggregate frame format on demand. */
 export function ensureTracks(c: Choreography): DancerTrack[] {
   c.tracks ??= [];
+  c.videoAssets ??= [];
   for (const dancer of c.dancers) {
     if (c.tracks.some((track) => track.dancerId === dancer.id)) continue;
     c.tracks.push({
       dancerId: dancer.id,
+      videoClips: [],
+      videoFrames: [],
       positionFrames: c.frames.flatMap((frame) => {
         const pose = frame.poses.find((item) => item.dancerId === dancer.id);
         return pose
@@ -198,6 +266,292 @@ export function ensureTracks(c: Choreography): DancerTrack[] {
     c.dancers.some((dancer) => dancer.id === track.dancerId),
   );
   return c.tracks;
+}
+
+const videoEventOrder = (a: VideoKeyframe, b: VideoKeyframe) =>
+  a.time - b.time || (a.kind === b.kind ? 0 : a.kind === "remove" ? -1 : 1);
+
+/** Validate that a dancer's video events form disjoint, correctly paired clips. */
+export function validVideoTrack(track: DancerTrack) {
+  const clips = new Map(track.videoClips.map((clip) => [clip.id, clip]));
+  const events = [...track.videoFrames].sort(videoEventOrder);
+  const inserts = new Map<string, number>();
+  const removals = new Map<string, number>();
+  let active: string | null = null;
+  for (const event of events) {
+    if (!clips.has(event.clipId)) return false;
+    if (event.kind === "insert") {
+      if (active !== null || inserts.has(event.clipId)) return false;
+      inserts.set(event.clipId, event.time);
+      active = event.clipId;
+    } else {
+      if (active !== event.clipId || removals.has(event.clipId)) return false;
+      const insert = inserts.get(event.clipId);
+      if (insert === undefined || event.time <= insert) return false;
+      removals.set(event.clipId, event.time);
+      active = null;
+    }
+  }
+  return track.videoClips.every((clip) => inserts.has(clip.id));
+}
+
+/** Sort and validate a video track after a mutation. */
+function normalizeVideoTrack(track: DancerTrack) {
+  track.videoFrames.sort(videoEventOrder);
+  if (!validVideoTrack(track))
+    throw new Error("视频片段存在重叠或关键帧顺序无效。");
+}
+
+export function getDancerVideoClips(c: Choreography, dancerId: string) {
+  const track = ensureTracks(c).find((item) => item.dancerId === dancerId);
+  if (!track) throw new Error("舞者不存在。");
+  return track.videoClips;
+}
+
+export function getDancerVideoFrames(c: Choreography, dancerId: string) {
+  const track = ensureTracks(c).find((item) => item.dancerId === dancerId);
+  if (!track) throw new Error("舞者不存在。");
+  return [...track.videoFrames].sort(videoEventOrder);
+}
+
+export type ActiveVideo = {
+  dancerId: string;
+  clip: VideoClip;
+  asset: VideoAsset;
+  insertTime: number;
+  sourceTime: number;
+  frozen: boolean;
+};
+
+export function activeVideoForDancer(
+  c: Choreography,
+  dancerId: string,
+  time: number,
+): ActiveVideo | undefined {
+  const track = ensureTracks(c).find((item) => item.dancerId === dancerId);
+  if (!track) return undefined;
+  const events = [...track.videoFrames].sort(videoEventOrder);
+  let active: { clipId: string; insertTime: number } | undefined;
+  for (const event of events) {
+    if (event.time > time) break;
+    if (event.kind === "insert")
+      active = { clipId: event.clipId, insertTime: event.time };
+    else if (active?.clipId === event.clipId) active = undefined;
+  }
+  if (!active) return undefined;
+  const clip = track.videoClips.find((item) => item.id === active!.clipId);
+  const asset = c.videoAssets?.find((item) => item.id === clip?.assetId);
+  if (!clip || !asset) return undefined;
+  const sourceTime = Math.min(
+    asset.duration,
+    clip.inPoint + Math.max(0, time - active.insertTime),
+  );
+  return {
+    dancerId,
+    clip,
+    asset,
+    insertTime: active.insertTime,
+    sourceTime,
+    frozen: sourceTime >= asset.duration,
+  };
+}
+
+export function sampleVideos(c: Choreography, time: number): ActiveVideo[] {
+  return c.dancers.flatMap((dancer) => {
+    const video = activeVideoForDancer(c, dancer.id, time);
+    return video ? [video] : [];
+  });
+}
+
+export function addVideoAsset(
+  c: Choreography,
+  asset: Omit<VideoAsset, "id" | "localBlobId" | "sourceVersion"> & {
+    id?: string;
+    localBlobId?: string | null;
+    sourceVersion?: string;
+  },
+) {
+  c.videoAssets ??= [];
+  const parsed = videoAssetSchema.parse({
+    id: asset.id ?? crypto.randomUUID(),
+    localBlobId: asset.localBlobId ?? crypto.randomUUID(),
+    sourceVersion: asset.sourceVersion ?? crypto.randomUUID(),
+    ...asset,
+  });
+  c.videoAssets.push(parsed);
+  return parsed;
+}
+
+export function addVideoClip(
+  c: Choreography,
+  dancerId: string,
+  assetId: string,
+  time: number,
+) {
+  const t = frameTime(time);
+  const track = ensureTracks(c).find((item) => item.dancerId === dancerId);
+  if (!track) throw new Error("舞者不存在。");
+  if (!c.videoAssets.some((asset) => asset.id === assetId))
+    throw new Error("视频资源不存在。");
+  const asset = c.videoAssets.find((item) => item.id === assetId)!;
+  const canvas = c.canvas ?? { width: 800, height: 600 };
+  const fullHeight =
+    0.35 * (asset.height / asset.width) * (canvas.width / canvas.height);
+  const clip = videoClipSchema.parse({
+    id: crypto.randomUUID(),
+    assetId,
+    inPoint: 0,
+    crop: { x: 0, y: 0, width: 1, height: 1 },
+    offset: { x: -0.175, y: -fullHeight / 2 },
+    scale: 0.35,
+  });
+  const frame: VideoKeyframe = {
+    id: crypto.randomUUID(),
+    clipId: clip.id,
+    kind: "insert",
+    time: t,
+  };
+  track.videoClips.push(clip);
+  track.videoFrames.push(frame);
+  try {
+    normalizeVideoTrack(track);
+  } catch (error) {
+    track.videoClips.pop();
+    track.videoFrames.pop();
+    throw error;
+  }
+  return clip.id;
+}
+
+export function addVideoRemoval(
+  c: Choreography,
+  dancerId: string,
+  clipId: string,
+  time: number,
+) {
+  const t = frameTime(time);
+  const track = ensureTracks(c).find((item) => item.dancerId === dancerId);
+  if (!track || !track.videoClips.some((clip) => clip.id === clipId))
+    throw new Error("视频片段不存在。");
+  if (
+    track.videoFrames.some(
+      (frame) => frame.clipId === clipId && frame.kind === "remove",
+    )
+  )
+    throw new Error("该视频片段已有移除关键帧。");
+  const frame: VideoKeyframe = {
+    id: crypto.randomUUID(),
+    clipId,
+    kind: "remove",
+    time: t,
+  };
+  track.videoFrames.push(frame);
+  try {
+    normalizeVideoTrack(track);
+  } catch (error) {
+    track.videoFrames.pop();
+    throw error;
+  }
+  return frame.id;
+}
+
+export function removeVideoFrame(
+  c: Choreography,
+  dancerId: string,
+  frameId: string,
+) {
+  const track = ensureTracks(c).find((item) => item.dancerId === dancerId);
+  const frame = track?.videoFrames.find((item) => item.id === frameId);
+  if (!track || !frame) throw new Error("视频关键帧不存在。");
+  if (frame.kind === "insert") {
+    track.videoFrames = track.videoFrames.filter(
+      (item) => item.clipId !== frame.clipId,
+    );
+    track.videoClips = track.videoClips.filter(
+      (clip) => clip.id !== frame.clipId,
+    );
+  } else {
+    track.videoFrames = track.videoFrames.filter((item) => item.id !== frameId);
+  }
+  normalizeVideoTrack(track);
+}
+
+export function moveVideoFrame(
+  c: Choreography,
+  dancerId: string,
+  frameId: string,
+  time: number,
+  duration?: number,
+) {
+  const t = frameTime(time, duration);
+  const track = ensureTracks(c).find((item) => item.dancerId === dancerId);
+  const frame = track?.videoFrames.find((item) => item.id === frameId);
+  if (!track || !frame) throw new Error("视频关键帧不存在。");
+  const previous = frame.time;
+  frame.time = t;
+  try {
+    normalizeVideoTrack(track);
+  } catch (error) {
+    frame.time = previous;
+    normalizeVideoTrack(track);
+    throw error;
+  }
+}
+
+export function setVideoInPoint(
+  c: Choreography,
+  dancerId: string,
+  clipId: string,
+  inPoint: number,
+) {
+  const track = ensureTracks(c).find((item) => item.dancerId === dancerId);
+  const clip = track?.videoClips.find((item) => item.id === clipId);
+  const asset = c.videoAssets.find((item) => item.id === clip?.assetId);
+  if (!track || !clip || !asset) throw new Error("视频片段不存在。");
+  if (!Number.isFinite(inPoint) || inPoint < 0 || inPoint > asset.duration)
+    throw new Error("视频入点必须在原视频时长范围内。");
+  clip.inPoint = Math.round(inPoint * 1000) / 1000;
+}
+
+export function changeVideoGeometry(
+  c: Choreography,
+  dancerId: string,
+  clipId: string,
+  patch: Partial<Pick<VideoClip, "crop" | "offset" | "scale">>,
+) {
+  const track = ensureTracks(c).find((item) => item.dancerId === dancerId);
+  const clip = track?.videoClips.find((item) => item.id === clipId);
+  if (!track || !clip) throw new Error("视频片段不存在。");
+  const next = videoClipSchema.parse({ ...clip, ...patch });
+  Object.assign(clip, {
+    crop: next.crop,
+    offset: next.offset,
+    scale: next.scale,
+  });
+}
+
+export function videoFrameRect(
+  clip: VideoClip,
+  asset: VideoAsset,
+  canvas: { width: number; height: number },
+) {
+  const width = clip.scale * clip.crop.width;
+  const height =
+    clip.scale *
+    (asset.height / asset.width) *
+    (canvas.width / canvas.height) *
+    clip.crop.height;
+  return {
+    x: clip.offset.x + clip.crop.x * clip.scale,
+    y:
+      clip.offset.y +
+      clip.crop.y *
+        clip.scale *
+        (asset.height / asset.width) *
+        (canvas.width / canvas.height),
+    width,
+    height,
+  };
 }
 export function getDancerFrames(
   c: Choreography,
@@ -394,6 +748,8 @@ export function addDancer(c: Choreography, name: string, time: number) {
   c.dancers.push({ id, name: name.trim() });
   tracks.push({
     dancerId: id,
+    videoClips: [],
+    videoFrames: [],
     positionFrames: [],
     colorFrames: [],
   });
