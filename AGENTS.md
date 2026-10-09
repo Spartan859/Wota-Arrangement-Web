@@ -4,10 +4,12 @@
 
 ## 项目边界
 
-这是一个纯浏览器 React + TypeScript + Vite 应用，用于双语歌词编排、动作备注、歌曲对时和排练循环。
+这是一个本地优先的 React + TypeScript + Vite 编排应用，用于双语歌词编排、动作备注、歌曲对时和排练循环；主动发布时，可把脱敏编排快照和音频同步到同仓库内的 Fastify/PostgreSQL/Keycloak 在线分享服务。
 
-- 不添加后端、账号、云同步或远程音频服务，除非用户另行要求。
-- 文件解析、音频播放和项目保存都在浏览器完成；不要把用户歌词、歌曲或本地项目上传到外部服务。
+- 未登录编辑、解析、播放和 IndexedDB 保存必须继续在浏览器完成，不能因 API 不可用阻断本地工作台。
+- 只有用户明确点击在线发布时才上传编排和音频；访客在分享页临时选择的本地音乐不得上传服务器。
+- `server/` 是唯一服务端边界。分享快照必须经过 `src/core/share.ts` 的脱敏和校验，不得直接上传完整本地 `Project`。
+- 服务端不得把音频放进静态目录；文件保存在 `AUDIO_STORAGE_DIR`，公开播放只通过支持 Range 的分享令牌接口。
 - 兼容对象是原 Python 仓库 `/Users/dijkstra0x3/Github/Wota-Arrangement-Tool` 生成的标准 XLSX 模板。修改表格格式前必须先检查 `tests/python-compat.test.ts`。
 - 个人歌词、歌曲、导出的 XLSX/JSON、音频、截图和构建产物不应提交到 Git。
 
@@ -26,9 +28,12 @@ npm audit
 脚本含义：
 
 - `npm run dev`：启动只监听 `127.0.0.1` 的 Vite 开发服务器。
+- `npm run dev:api`：启动 Fastify API；`npm run dev:all` 同时启动 Web 与 API。
 - `npm run typecheck`：只运行 TypeScript 检查。
 - `npm run test`：运行 `tests/**/*.test.ts` 中的 Vitest 测试。
-- `npm run build`：类型检查并生成 `dist/`。
+- `npm run build`：类型检查、构建 API 和迁移脚本，并生成 `dist/`。
+- `npm run db:migrate`：对 `DATABASE_URL` 执行 Drizzle SQL 迁移。
+- `npm run admin:create -- --email <email> --name <name>`：通过 Keycloak Admin API 创建或提升管理员。
 - `npm run test:e2e`：运行 Chromium 和 WebKit Playwright 测试；本机只有 Chrome 时使用 `PLAYWRIGHT_CHROME_CHANNEL=chrome npm run test:e2e -- --project=chromium`。
 - `npm run format` / `npm run format:check`：统一或检查 Prettier 格式。
 - `node scripts/capture.mjs`：用合成歌词和音频生成桌面、短屏及手机截图；不要替换为个人媒体文件。
@@ -42,9 +47,13 @@ npm audit
 - `src/core/timing.ts`：时间格式化、BPM 八拍时长建议、段落区间校验、播放高亮和顺序冲突检查。
 - `src/core/xlsx.ts`：ExcelJS 浏览器读写。读取合并单元格时只把主单元格作为字段值；必须保留连续块、空歌词行和纯动作块的语义。
 - `src/core/storage.ts`：Dexie/IndexedDB。项目记录和音频 Blob 分开保存；版本号用于阻止多标签页静默覆盖。
+- `src/core/share.ts`：在线分享快照、公开 API、账号会话和配额的共享类型与 Zod 校验。
 - `src/useProject.ts`：当前项目、自动保存、撤销/重做、项目切换、冲突恢复。编排修改统一通过 `store.edit`。
-- `src/components/`：歌词导入、段落编辑、Excel 预览、播放器和时间轴。
+- `src/components/`：歌词导入、段落编辑、Excel 预览、播放器、时间轴、只读分享页、用户云空间和管理员后台。
 - `src/App.tsx`：工作台布局和跨组件工作流；业务规则尽量放入 `src/core/`，不要继续堆积到此文件。
+- `server/routes/`：认证、公开分享、用户分享和管理员 API。
+- `server/services/`：OIDC/BFF 会话、Keycloak 管理、配额事务、音频校验和流式读取。
+- `server/db/`：Drizzle schema、迁移和数据库连接。
 - `tests/`：核心单元测试、存储/Excel 集成测试、Python 兼容测试和 Playwright 流程测试。
 
 ## 数据与编辑约束
@@ -66,6 +75,9 @@ npm audit
 - 时间轴 A/B 循环是播放器的瞬时练习状态：依次选择 A 入点和 B 出点，B 必须晚于 A；更换歌曲或项目时清除 A/B 点。它不写入 XLSX，也不应污染编排撤销历史。
 - 时间轴缩放后，选点必须根据可见时间轴元素的实际 `getBoundingClientRect()` 计算，不能假定容器宽度等于歌曲时长。
 - 音频 Blob 只存当前浏览器的 IndexedDB。JSON 只保存音频元信息，不嵌入音频；导入 JSON 后必须提示重新关联歌曲。
+- 分享页播放器以媒体时钟为基础，`编排时间 = 媒体时间 + 同步偏移`；云端音频默认偏移为 0，本地替代音频按分享保存在当前浏览器。
+- 发布使用固定分享令牌和递增 revision；重复发布不能生成第二条在线记录。删除音乐只释放配额并保留快照，删除分享才使令牌失效。
+- 默认配额为 100 MiB 且只计算音频；所有上传、替换和删除必须在数据库事务中同步更新 `used_bytes` 和 `quota_events`。
 
 ## 文件格式兼容
 
@@ -121,9 +133,9 @@ npm test -- tests/python-compat.test.ts
 
 - `.github/workflows/ci.yml` 是合并门禁。所有任务分支和 Pull Request 都必须通过适用的单元测试、类型检查、生产构建、格式检查、Python XLSX 兼容测试和容器检查。
 - `main` 是生产基线。任务分支只能通过 Pull Request 合并进入 `main`，不得把未经验证的提交直接写入 `main`。
-- 合并进入 `main` 后，不手动复制构建产物或登录服务器发布。等待 `main` 的 CI 成功，由 `.github/workflows/deploy.yml` 自动触发生产部署到 `https://wota.satintin.com`。
+- 合并进入 `main` 后，不手动复制构建产物或登录服务器发布。等待 `main` 的 CI 成功，由 `.github/workflows/deploy.yml` 构建并发布固定提交的 Web/API GHCR 镜像，再通过受限 Compose 命令更新 `https://wota.satintin.com` 和 `https://auth.wota.satintin.com`。
 - CI 成功只表示构建和检查完成，不等于部署成功。必须分别检查 Deploy 工作流结论及生产首页、健康检查；工作流失败或生产验证异常时，应先修复或回滚，不得宣称已经上线。
-- 手动触发 Deploy 仅用于获批的重试或恢复，不得用它绕过 `main` 合并和 CI 门禁。私钥、known hosts 等生产凭据只保存在 GitHub Actions Environment Secrets，不写入仓库、日志或提交信息；部署用户、目标主机和路径等非敏感配置可由工作流版本控制，或在需要跨环境配置时改用 Environment Variables。
+- 手动触发 Deploy 仅用于获批的重试或恢复，不得用它绕过 `main` 合并和 CI 门禁。私钥、known hosts、数据库/Keycloak/SMTP 凭据只保存在 GitHub Actions Environment Secrets 或服务器 `/opt/wota-stack/.env`，不写入仓库、日志或提交信息。
 
 ## 自动提交与 push
 

@@ -6,6 +6,7 @@ coverage
 test-results
 playwright-report
 .compat-cli
+.env
 .DS_Store
 *.local
 *.mp3
