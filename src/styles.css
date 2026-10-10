@@ -2392,6 +2392,67 @@ fieldset {
 .formation-track:focus-within {
   z-index: 31;
 }
+.video-marker-lane {
+  position: absolute;
+  top: 72px;
+  left: 0;
+  right: 0;
+  z-index: 12;
+  height: 42px;
+  pointer-events: none;
+}
+.video-marker-range {
+  position: absolute;
+  top: 12px;
+  height: 22px;
+  min-width: 8px;
+  border: 1px solid #7357b8;
+  border-radius: 4px;
+  background: #ede8ffcc;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.video-marker-range.selected {
+  background: #d9ceff;
+  box-shadow: 0 0 0 2px #7357b833;
+}
+.video-marker-label {
+  display: block;
+  overflow: hidden;
+  padding: 2px 14px;
+  color: #5e458f;
+  font:
+    9px ui-monospace,
+    monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.video-marker-handle {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  min-width: 28px;
+  padding: 2px 4px;
+  transform: translateY(-50%);
+  border-color: #7357b8;
+  color: #5e458f;
+  background: #fff;
+  font-size: 10px;
+  touch-action: none;
+}
+.video-marker-in {
+  left: -4px;
+}
+.video-marker-out {
+  right: -4px;
+}
+.video-marker-handle.open {
+  border-style: dashed;
+}
+.video-marker-handle.active {
+  color: #fff;
+  background: #7357b8;
+}
 @container (max-height: 350px) {
   .editor-card-head .beat-grid {
     min-width: 96px;
@@ -3333,11 +3394,10 @@ button.danger,
   padding: 6px 9px;
 }
 /* Selected-dancer PR-style tracks. */
-.formation-track.has-dancer,
-.formation-track.has-free-video {
+.formation-track.has-dancer {
   top: auto;
   bottom: 0;
-  height: 78px;
+  height: 76px;
 }
 .formation-track-header {
   position: absolute;
@@ -3348,7 +3408,7 @@ button.danger,
   display: flex;
   align-items: center;
   gap: 3px;
-  height: 20px;
+  height: 24px;
   padding: 0 4px;
   overflow-x: auto;
   background: #f7f9fc;
@@ -3369,7 +3429,7 @@ button.danger,
   position: absolute;
   left: 0;
   right: 0;
-  height: 18px;
+  height: 24px;
 }
 .formation-track-row-tools {
   --track-color: #16808b;
@@ -3377,19 +3437,12 @@ button.danger,
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  height: 18px;
+  height: 22px;
   gap: 3px;
 }
 .formation-track-color {
   --track-color: #bf6b2b;
   --track-soft: #fff1e5;
-}
-.formation-track-video {
-  --track-color: #7357b8;
-  --track-soft: #f0ebff;
-}
-.formation-key-video {
-  color: #7357b8;
 }
 .formation-track-row-tools strong {
   width: 24px;
@@ -3421,16 +3474,13 @@ button.danger,
   top: 1px;
   left: 0;
   right: 0;
-  height: 16px;
+  height: 22px;
 }
 .formation-subtrack:nth-of-type(2) {
-  top: 22px;
+  top: 26px;
 }
 .formation-subtrack:nth-of-type(3) {
-  top: 42px;
-}
-.formation-subtrack-video {
-  top: 62px;
+  top: 52px;
 }
 .formation-track-empty {
   height: 32px;

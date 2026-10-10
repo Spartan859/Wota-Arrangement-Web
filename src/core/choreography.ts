@@ -335,7 +335,7 @@ export function validVideoTrack(track: VideoTrackData) {
 function normalizeVideoTrack(track: VideoTrackData) {
   track.videoFrames.sort(videoEventOrder);
   if (!validVideoTrack(track))
-    throw new Error("视频片段存在重叠或关键帧顺序无效。");
+    throw new Error("视频片段存在重叠或入出点顺序无效。");
 }
 
 export function getDancerVideoClips(c: Choreography, dancerId: string | null) {
@@ -495,7 +495,7 @@ export function removeVideoFrame(
 ) {
   const track = videoTrack(c, dancerId);
   const frame = track.videoFrames.find((item) => item.id === frameId);
-  if (!frame) throw new Error("视频关键帧不存在。");
+  if (!frame) throw new Error("视频入点或出点不存在。");
   if (frame.kind === "insert") {
     track.videoFrames = track.videoFrames.filter(
       (item) => item.clipId !== frame.clipId,
@@ -519,7 +519,7 @@ export function moveVideoFrame(
   const t = frameTime(time, duration);
   const track = videoTrack(c, dancerId);
   const frame = track.videoFrames.find((item) => item.id === frameId);
-  if (!frame) throw new Error("视频关键帧不存在。");
+  if (!frame) throw new Error("视频入点或出点不存在。");
   const previous = frame.time;
   frame.time = t;
   try {

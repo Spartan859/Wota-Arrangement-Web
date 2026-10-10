@@ -146,7 +146,7 @@ test("舞者双手颜色、拖动建帧、插值、登退场、撤销和刷新",
   expect(errors).toEqual([]);
 });
 
-test("插入视频、第三轨、逐帧入点、移除和最小化", async ({ page }) => {
+test("插入视频、时间轴入出点、逐帧入点和最小化", async ({ page }) => {
   await boot(page);
   await song(page);
   await add(page, "视频舞者");
@@ -155,9 +155,9 @@ test("插入视频、第三轨、逐帧入点、移除和最小化", async ({ pa
     mimeType: "video/webm",
     buffer: await syntheticWebm(page),
   });
-  await expect(
-    page.getByLabel("视频关键帧").locator(".formation-key"),
-  ).toHaveCount(1);
+  await expect(page.locator(".video-marker-lane")).toBeVisible();
+  await expect(page.locator(".video-marker-in")).toBeVisible();
+  await expect(page.locator(".video-marker-out")).toBeVisible();
   await expect(page.locator(".formation-video video")).toBeVisible();
   const videoNode = page.locator(".formation-video");
   const beforeCanvasChange = (await videoNode.boundingBox())!;
@@ -206,13 +206,15 @@ test("插入视频、第三轨、逐帧入点、移除和最小化", async ({ pa
   await expect(page.locator(".formation-video video")).toBeHidden();
   await page.getByLabel(/最大化视频/).click();
   await expect(page.locator(".formation-video video")).toBeVisible();
+  const lane = (await page.locator(".video-marker-lane").boundingBox())!;
+  const outMarker = (await page.locator(".video-marker-out").boundingBox())!;
+  await page.mouse.move(outMarker.x + outMarker.width / 2, outMarker.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(lane.x + lane.width * (0.25 / 12), outMarker.y + 5, {
+    steps: 6,
+  });
+  await page.mouse.up();
   await at(page, 0.5);
-  await page
-    .getByRole("button", { name: "视频切换当前关键帧", exact: true })
-    .click();
-  await expect(
-    page.getByLabel("视频关键帧").locator(".formation-key"),
-  ).toHaveCount(2);
   await expect(page.locator(".formation-video")).toBeHidden();
   await at(page, 0);
   await expect(page.locator(".formation-video")).toBeVisible();
@@ -223,9 +225,7 @@ test("插入视频、第三轨、逐帧入点、移除和最小化", async ({ pa
   await expect(page.locator(".save-state")).toContainText("已保存");
   await page.reload();
   await page.getByLabel("选择舞者").selectOption({ label: "视频舞者" });
-  await expect(
-    page.getByLabel("视频关键帧").locator(".formation-key"),
-  ).toHaveCount(2);
+  await expect(page.locator(".video-marker-lane")).toBeVisible();
 });
 
 test("舞台空白取消选择，并可直接插入未绑定舞者的视频", async ({ page }) => {
@@ -236,13 +236,12 @@ test("舞台空白取消选择，并可直接插入未绑定舞者的视频", as
     mimeType: "video/webm",
     buffer: await syntheticWebm(page),
   });
-  await expect(page.locator(".formation-track-name")).toHaveText(
-    "舞台视频 关键帧",
-  );
+  await expect(page.locator(".video-marker-lane")).toBeVisible();
   await expect(page.locator(".formation-video video")).toBeVisible();
   await expect(page.locator(".formation-video.selected")).toHaveCount(1);
   await page.locator(".stage-frame").click({ position: { x: 5, y: 5 } });
   await expect(page.locator(".formation-video.selected")).toHaveCount(0);
+  await expect(page.locator(".video-marker-lane")).toHaveCount(0);
   await expect(page.getByLabel("选择舞者")).toHaveValue("");
 });
 test("独立轨道改时冲突、越界保留、删除与窄屏切换", async ({ page }) => {
@@ -366,21 +365,15 @@ test("位置与颜色轨道的当前帧菱形独立添加和删除", async ({ pa
       .locator(".formation-track-row-tools")
       .nth(1)
       .boundingBox())!,
-    videoToolsBox = (await page
-      .locator(".formation-track-row-tools")
-      .nth(2)
-      .boundingBox())!,
     cleanupBox = (await page.locator(".formation-cleanup").boundingBox())!;
+  await expect(page.locator(".formation-track-row-tools")).toHaveCount(2);
   expect(headerBox.y + headerBox.height).toBeLessThanOrEqual(
     positionLaneBox.y + 1,
   );
   expect(
     positionToolsBox.x - (dancerNameBox.x + dancerNameBox.width),
   ).toBeLessThan(6);
-  expect(
-    videoToolsBox.x - (colorToolsBox.x + colorToolsBox.width),
-  ).toBeLessThan(8);
-  expect(cleanupBox.x - (videoToolsBox.x + videoToolsBox.width)).toBeLessThan(
+  expect(cleanupBox.x - (colorToolsBox.x + colorToolsBox.width)).toBeLessThan(
     8,
   );
   expect(

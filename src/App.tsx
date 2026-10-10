@@ -752,7 +752,6 @@ export default function App() {
             formationDancerId={formationDancer}
             formationVideoClipId={formationVideoClip}
             onFormationVideoClipSelect={setFormationVideoClip}
-            onRequestVideoInsert={requestVideoInsert}
             loopId={loop}
             onLoop={setLoop}
             onTime={(position, playing) => {
