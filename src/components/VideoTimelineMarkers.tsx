@@ -137,7 +137,7 @@ export function VideoTimelineMarkers({
   };
   return (
     <div className="video-marker-lane" ref={lane} aria-label="视频入点和出点">
-      {selectedTrack.clips.map((clip) => {
+      {selectedTrack.clips.map((clip, index) => {
         const frames = selectedTrack.track.videoFrames.filter(
           (frame) => frame.clipId === clip.id,
         );
@@ -153,10 +153,11 @@ export function VideoTimelineMarkers({
         const visibleEnd = Math.max(outTime, insertTime);
         const showOut = removal || duration > insertTime;
         const selected = selectedClipId === clip.id;
+        const asset = c.videoAssets.find((item) => item.id === clip.assetId);
         return (
           <div
             key={clip.id}
-            className={`video-marker-range ${selected ? "selected" : ""}`}
+            className={`timeline-block video-marker-range tone-${index % 4} ${selected ? "selected" : ""}`}
             style={{
               left: `${Math.min(100, (insertTime / scale) * 100)}%`,
               width: `${Math.min(100, Math.max(0, ((visibleEnd - insertTime) / scale) * 100))}%`,
@@ -166,8 +167,12 @@ export function VideoTimelineMarkers({
               seekOrSelect(clip.id, insertTime);
             }}
           >
+            <span className="timeline-label">视频</span>
+            <span className="timeline-arrangement">
+              {asset?.name ?? "视频片段"}
+            </span>
             <button
-              className={`video-marker-handle video-marker-in ${selectedMarker === `${clip.id}:in` ? "active" : ""}`}
+              className="timeline-edge video-marker-handle video-marker-in"
               aria-label={`视频入点 ${formatTime(insertTime)}`}
               title={`入点 ${formatTime(insertTime)}`}
               onPointerDown={(event) =>
@@ -185,7 +190,7 @@ export function VideoTimelineMarkers({
             ></button>
             {showOut && (
               <button
-                className={`video-marker-handle video-marker-out ${removal ? "" : "open"} ${selectedMarker === `${clip.id}:out` ? "active" : ""}`}
+                className={`timeline-edge video-marker-handle video-marker-out ${removal ? "" : "open"}`}
                 aria-label={`视频出点 ${formatTime(outTime)}`}
                 title={`${removal ? "出点" : "歌曲结束（拖动可设置出点）"} ${formatTime(outTime)}`}
                 onPointerDown={(event) =>

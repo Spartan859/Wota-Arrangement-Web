@@ -156,6 +156,9 @@ test("插入视频、时间轴入出点、逐帧入点和最小化", async ({ pa
     buffer: await syntheticWebm(page),
   });
   await expect(page.locator(".video-marker-lane")).toBeVisible();
+  await expect(page.locator(".video-marker-range")).toHaveClass(
+    /timeline-block.*tone-/,
+  );
   await expect(page.locator(".video-marker-in")).toBeVisible();
   await expect(page.locator(".video-marker-out")).toBeVisible();
   await expect(page.locator(".video-marker-in")).toHaveText("");

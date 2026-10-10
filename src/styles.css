@@ -2422,44 +2422,24 @@ fieldset {
   pointer-events: none;
 }
 .video-marker-range {
-  position: absolute;
   top: 12px;
-  height: 22px;
-  min-width: 8px;
-  border: 1px solid #7357b8;
-  border-radius: 4px;
-  background: #ede8ffcc;
   pointer-events: auto;
-  cursor: pointer;
-}
-.video-marker-range.selected {
-  background: #d9ceff;
-  box-shadow: 0 0 0 2px #7357b833;
 }
 .video-marker-handle {
-  position: absolute;
-  top: -3px;
-  bottom: -3px;
-  z-index: 2;
-  width: 8px;
+  z-index: 3;
   min-width: 0;
   padding: 0;
   border: 0;
-  border-radius: 2px;
-  background: #4568d444;
   touch-action: none;
 }
 .video-marker-in {
-  left: -4px;
+  left: 0;
 }
 .video-marker-out {
-  right: -4px;
+  right: 0;
 }
 .video-marker-handle.open {
   opacity: 0.65;
-}
-.video-marker-handle.active {
-  background: #7357b8;
 }
 @container (max-height: 350px) {
   .editor-card-head .beat-grid {
