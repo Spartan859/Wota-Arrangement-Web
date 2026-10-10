@@ -124,7 +124,7 @@ npm test -- tests/python-compat.test.ts
 4. 先修改纯逻辑和测试，再连接 UI；不要用测试专用分支绕开生产代码的校验。
 5. 运行最小相关测试，再运行 `npm run check`、`npm run format:check` 和必要的端到端测试。
 6. 检查 `git diff --check`、`git status --short`，确认没有 `dist/`、`node_modules/`、个人媒体或测试结果被加入。
-7. 通过相关检查后，自动提交并 push 当前任务分支，不需要逐次请求授权；创建 Pull Request 前必须获得用户明确授权。PR 创建后，合并前必须确认分支 CI 通过、Copilot review 已完成，逐条评估和处理审查意见，回复并解决所有可执行线程，同时处理与 `main` 的冲突。任何 review 驱动的修订 push 后，默认允许立即重新请求 Copilot review，无需再次向用户确认；重新请求后必须等待新审查明确完成且无未处理意见。合并操作前再次刷新 review 状态；Copilot review 尚未返回、仍在运行或存在未处理意见时不得合并。满足全部合并门禁后仍须获得用户明确的合并授权，不得把 PR 创建授权视为合并授权。不要绕过失败检查直接合并，也不要直接 push 到 `main`。
+7. 通过相关检查后，自动提交并 push 当前任务分支，不需要逐次请求授权；创建 Pull Request 前必须获得用户明确授权。PR 创建后，合并前必须确认分支 CI 通过、Copilot review 已明确完成，逐条评估和处理审查意见，回复并解决所有可执行线程，同时处理与 `main` 的冲突。任何 review 驱动的修订 push 后，默认允许立即重新请求 Copilot review，无需再次向用户确认；重新请求后必须等待新审查明确完成且无未处理意见。若 Copilot review 因配额耗尽无法执行，且没有产生实际审查意见或未处理线程，则 Copilot review 门禁视为满足，可在 CI 通过且无冲突时合并。合并操作前再次刷新 review 和 CI 状态；Copilot review 仍在运行，或存在实际审查意见、未处理线程时不得合并。满足全部合并门禁后仍须获得用户明确的合并授权，不得把 PR 创建授权视为合并授权。不要绕过失败检查直接合并，也不要直接 push 到 `main`。
 8. Pull Request 合并后，记录当前任务分支名，切换回 `main`，运行 `git pull --ff-only origin main` 同步合并结果。随后确认 GitHub 上的 PR 状态为 `MERGED`，并确认对应的 squash 合并提交已进入最新 `main`；完成这两项验证后，使用 `git branch -D <任务分支>` 删除本地任务分支，因为 squash 合并不会让任务分支提交成为 `main` 的祖先。若 PR 未合并但已明确永久关闭，只有确认其中提交不再需要时才能使用 `git branch -D <任务分支>`；仍需保留提交的分支不得删除。若远端任务分支未被 GitHub 自动删除，确认 PR 已完成且分支不再需要后使用 `git push origin --delete <任务分支>` 删除远端分支，最后运行 `git fetch --prune` 清理远端跟踪引用。
 9. 报告实际通过的命令和未能执行的浏览器/环境检查；不要把“启动成功”写成“部署成功”。
 
@@ -148,4 +148,4 @@ npm run commit -- <feat|fix|docs|chore> "简短说明" <文件>...
 
 脚本只会暂存命令中明确列出的文件，提交前运行 `git diff --check` 并验证暂存区；不会提交依赖、构建产物、个人媒体、日志、账号数据或凭据。脚本在暂存或提交前拒绝 `main`，配置 `origin` 时会自动 push 当前任务分支；未配置 remote 或当前为 detached HEAD 时脚本只完成本地提交并明确报告原因。每次运行前仍需先检查 `git status --short`，不要把已有的无关修改带入提交。push 后仍须获得用户对创建 Pull Request 的明确授权；即使 PR 已创建且全部门禁通过，合并前也须另行获得用户明确授权。禁止让脚本或代理直接向 `main` 提交或 push。
 
-当 GitHub 连接器的 PR 操作因权限审批超时不可用时，若提权执行 `gh auth status` 明确显示有效账号和 `repo` 权限，可使用提权 `gh pr create` 或 `gh pr merge` 作为 fallback。不得输出或写入 token；仍须遵守 CI、Copilot review、冲突检查和 PR 创建/合并授权门禁。
+当 GitHub 连接器的 PR 操作因权限审批超时不可用时，若提权执行 `gh auth status` 明确显示有效账号和 `repo` 权限，可使用提权 `gh pr create` 或 `gh pr merge` 作为 fallback。不得输出或写入 token；仍须遵守 CI、Copilot review、冲突检查和 PR 创建/合并授权门禁。Copilot 配额耗尽且没有实际审查意见时，按上一条规则允许在 CI 通过且无冲突后合并。
