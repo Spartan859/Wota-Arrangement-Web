@@ -55,8 +55,8 @@ jobs:
         env:
           RELEASE_ID: ${{ steps.revision.outputs.sha }}
         run: |
-          ssh -i ~/.ssh/deploy_key wota-deploy@120.77.57.144 \
-            "sudo /usr/local/sbin/wota-compose-deploy '$RELEASE_ID'"
+          ssh -tt -i ~/.ssh/deploy_key wota-deploy@120.77.57.144 \
+            "sudo -n /usr/local/sbin/wota-compose-deploy '$RELEASE_ID'"
           curl --fail --silent --show-error --retry 10 --retry-delay 2 \
             https://wota.satintin.com/healthz
           curl --fail --silent --show-error --retry 10 --retry-delay 2 \
