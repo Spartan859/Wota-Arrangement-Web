@@ -172,6 +172,19 @@ test("插入视频、时间轴入出点、逐帧入点和最小化", async ({ pa
   await expect(page.locator(".formation-video-actions")).toBeHidden();
   await videoNode.hover();
   await expect(page.locator(".formation-video-actions")).toBeVisible();
+  expect(
+    await videoNode.evaluate((node) => getComputedStyle(node).overflow),
+  ).toBe("visible");
+  expect(
+    await page.locator(".formation-video-actions").evaluate((node) => {
+      const box = node.getBoundingClientRect();
+      const target = document.elementFromPoint(
+        box.left + box.width / 2,
+        box.top + box.height / 2,
+      );
+      return Boolean(target?.closest(".formation-video-actions"));
+    }),
+  ).toBe(true);
   await page.mouse.move(0, 0);
   await expect(page.locator(".formation-video-actions")).toBeHidden();
   await videoNode.hover();

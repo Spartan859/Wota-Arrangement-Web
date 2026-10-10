@@ -2110,12 +2110,16 @@ fieldset {
 }
 .formation-video {
   position: absolute;
-  overflow: hidden;
   border: 1px solid transparent;
   background: #dce4ef;
   pointer-events: auto;
   touch-action: none;
   cursor: grab;
+}
+.formation-video-crop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
 }
 .formation-video.selected {
   border-color: #4568d4;

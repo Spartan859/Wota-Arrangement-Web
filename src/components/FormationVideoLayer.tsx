@@ -450,34 +450,36 @@ export function FormationVideoLayer({
               if (!isMinimized) beginMutation(event, item, "move");
             }}
           >
-            {source ? (
-              <video
-                ref={(node) => {
-                  if (node) videos.current.set(item.clip.id, node);
-                  else videos.current.delete(item.clip.id);
-                }}
-                muted
-                playsInline
-                preload="auto"
-                aria-label={`视频 ${asset?.name ?? ""}`}
-              />
-            ) : (
-              <div className="formation-video-missing">
-                <span>缺少视频</span>
-                <strong>{asset?.name ?? "未知资源"}</strong>
-                {!readOnly && asset && (
-                  <button
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onRelinkVideo?.(asset.id);
-                    }}
-                  >
-                    重新关联
-                  </button>
-                )}
-              </div>
-            )}
+            <div className="formation-video-crop">
+              {source ? (
+                <video
+                  ref={(node) => {
+                    if (node) videos.current.set(item.clip.id, node);
+                    else videos.current.delete(item.clip.id);
+                  }}
+                  muted
+                  playsInline
+                  preload="auto"
+                  aria-label={`视频 ${asset?.name ?? ""}`}
+                />
+              ) : (
+                <div className="formation-video-missing">
+                  <span>缺少视频</span>
+                  <strong>{asset?.name ?? "未知资源"}</strong>
+                  {!readOnly && asset && (
+                    <button
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onRelinkVideo?.(asset.id);
+                      }}
+                    >
+                      重新关联
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
             <div className="formation-video-actions">
               {!readOnly && selected && !isMinimized && (
                 <>
