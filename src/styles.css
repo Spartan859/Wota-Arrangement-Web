@@ -2102,7 +2102,6 @@ fieldset {
 .formation-video-layer {
   position: absolute;
   inset: 0;
-  z-index: 1;
   pointer-events: none;
 }
 .formation-video-layer > dialog,
@@ -2154,7 +2153,7 @@ fieldset {
   position: absolute;
   left: 50%;
   top: 4px;
-  z-index: 6;
+  z-index: 60;
   display: flex;
   gap: 3px;
   transform: translateX(-50%);
@@ -2162,6 +2161,27 @@ fieldset {
   border-radius: 4px;
   background: #ffffffdd;
   white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.12s ease,
+    visibility 0.12s ease;
+}
+.formation-video:hover .formation-video-actions,
+.formation-video-actions:hover,
+.formation-video-actions:focus-within {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+@media (hover: none) {
+  .formation-video.selected .formation-video-actions,
+  .formation-video.minimized .formation-video-actions {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
 }
 .formation-video-actions button {
   padding: 3px 6px;
@@ -2416,28 +2436,17 @@ fieldset {
   background: #d9ceff;
   box-shadow: 0 0 0 2px #7357b833;
 }
-.video-marker-label {
-  display: block;
-  overflow: hidden;
-  padding: 2px 14px;
-  color: #5e458f;
-  font:
-    9px ui-monospace,
-    monospace;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .video-marker-handle {
   position: absolute;
-  top: 50%;
+  top: -3px;
+  bottom: -3px;
   z-index: 2;
-  min-width: 28px;
-  padding: 2px 4px;
-  transform: translateY(-50%);
-  border-color: #7357b8;
-  color: #5e458f;
-  background: #fff;
-  font-size: 10px;
+  width: 8px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: #4568d444;
   touch-action: none;
 }
 .video-marker-in {
@@ -2447,10 +2456,9 @@ fieldset {
   right: -4px;
 }
 .video-marker-handle.open {
-  border-style: dashed;
+  opacity: 0.65;
 }
 .video-marker-handle.active {
-  color: #fff;
   background: #7357b8;
 }
 @container (max-height: 350px) {

@@ -144,7 +144,6 @@ export function VideoTimelineMarkers({
         const insert = frames.find((frame) => frame.kind === "insert");
         const removal = frames.find((frame) => frame.kind === "remove");
         if (!insert) return null;
-        const draftTime = draft?.clipId === clip.id ? draft.time : null;
         const insertTime =
           draft?.frameId === insert.id ? draft.time : insert.time;
         const outTime =
@@ -183,12 +182,7 @@ export function VideoTimelineMarkers({
                 setSelectedMarker(`${clip.id}:in`);
                 seekOrSelect(clip.id, insertTime);
               }}
-            >
-              入
-            </button>
-            <span className="video-marker-label">
-              {draftTime === null ? clip.id.slice(0, 4) : formatTime(draftTime)}
-            </span>
+            ></button>
             {showOut && (
               <button
                 className={`video-marker-handle video-marker-out ${removal ? "" : "open"} ${selectedMarker === `${clip.id}:out` ? "active" : ""}`}
@@ -206,9 +200,7 @@ export function VideoTimelineMarkers({
                   setSelectedMarker(`${clip.id}:out`);
                   seekOrSelect(clip.id, outTime);
                 }}
-              >
-                出
-              </button>
+              ></button>
             )}
           </div>
         );

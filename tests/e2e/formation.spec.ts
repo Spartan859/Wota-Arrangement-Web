@@ -158,8 +158,17 @@ test("插入视频、时间轴入出点、逐帧入点和最小化", async ({ pa
   await expect(page.locator(".video-marker-lane")).toBeVisible();
   await expect(page.locator(".video-marker-in")).toBeVisible();
   await expect(page.locator(".video-marker-out")).toBeVisible();
+  await expect(page.locator(".video-marker-in")).toHaveText("");
+  await expect(page.locator(".video-marker-out")).toHaveText("");
   await expect(page.locator(".formation-video video")).toBeVisible();
   const videoNode = page.locator(".formation-video");
+  await page.mouse.move(0, 0);
+  await expect(page.locator(".formation-video-actions")).toBeHidden();
+  await videoNode.hover();
+  await expect(page.locator(".formation-video-actions")).toBeVisible();
+  await page.mouse.move(0, 0);
+  await expect(page.locator(".formation-video-actions")).toBeHidden();
+  await videoNode.hover();
   const beforeCanvasChange = (await videoNode.boundingBox())!;
   await page.getByRole("button", { name: "画布尺寸", exact: true }).click();
   await page.getByLabel("画布宽度").fill("1600");
@@ -218,6 +227,7 @@ test("插入视频、时间轴入出点、逐帧入点和最小化", async ({ pa
   await expect(page.locator(".formation-video")).toBeHidden();
   await at(page, 0);
   await expect(page.locator(".formation-video")).toBeVisible();
+  await videoNode.hover();
   await page.getByLabel("粗略选择视频入点").click();
   await expect(page.getByLabel("视频入点秒数")).toBeVisible();
   await page.getByLabel("视频入点秒数").fill("0.2");
