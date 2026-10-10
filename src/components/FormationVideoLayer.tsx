@@ -591,46 +591,50 @@ export function FormationVideoLayer({
             />
           </label>
           <div className="video-inpoint-controls">
-            <label className="field">
-              <span>精确秒数</span>
-              <input
-                type="number"
-                min="0"
-                max={previewClip.asset.duration}
-                step="0.001"
-                value={previewInPoint}
-                onChange={(event) => setPreviewInPoint(event.target.value)}
-              />
-            </label>
-            <button
-              onClick={() =>
-                setPreviewInPoint((value) =>
-                  String(
-                    Math.max(
-                      0,
-                      Number(value) - 1 / Math.max(0.001, Number(previewRate)),
+            <div className="video-inpoint-group">
+              <label className="field">
+                <span>精确秒数</span>
+                <input
+                  type="number"
+                  min="0"
+                  max={previewClip.asset.duration}
+                  step="0.001"
+                  value={previewInPoint}
+                  onChange={(event) => setPreviewInPoint(event.target.value)}
+                />
+              </label>
+              <button
+                onClick={() =>
+                  setPreviewInPoint((value) =>
+                    String(
+                      Math.max(
+                        0,
+                        Number(value) -
+                          1 / Math.max(0.001, Number(previewRate)),
+                      ),
                     ),
-                  ),
-                )
-              }
-            >
-              −1 帧
-            </button>
-            <button
-              onClick={() =>
-                setPreviewInPoint((value) =>
-                  String(
-                    Math.min(
-                      previewClip.asset!.duration,
-                      Number(value) + 1 / Math.max(0.001, Number(previewRate)),
+                  )
+                }
+              >
+                −1 帧
+              </button>
+              <button
+                onClick={() =>
+                  setPreviewInPoint((value) =>
+                    String(
+                      Math.min(
+                        previewClip.asset!.duration,
+                        Number(value) +
+                          1 / Math.max(0.001, Number(previewRate)),
+                      ),
                     ),
-                  ),
-                )
-              }
-            >
-              +1 帧
-            </button>
-            <label className="field">
+                  )
+                }
+              >
+                +1 帧
+              </button>
+            </div>
+            <label className="field video-inpoint-rate">
               <span>帧率</span>
               <input
                 aria-label="视频帧率"

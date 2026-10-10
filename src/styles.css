@@ -2289,14 +2289,31 @@ fieldset {
 }
 .video-inpoint-controls {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto minmax(0, 1fr);
-  align-items: end;
+  grid-template-columns: minmax(0, 2.2fr) minmax(130px, 1fr);
+  align-items: start;
   gap: 8px;
 }
-.video-inpoint-controls > button {
+.video-inpoint-group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: end;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px;
+  border: 1px solid #d7dfeb;
+  border-radius: 8px;
+}
+.video-inpoint-group .field {
+  margin-bottom: 0;
+}
+.video-inpoint-group > button {
   min-height: 34px;
-  margin-bottom: 14px;
+  margin-bottom: 0;
   white-space: nowrap;
+}
+.video-inpoint-rate {
+  margin-bottom: 0;
+  padding-top: 7px;
 }
 .visually-hidden {
   position: fixed !important;
