@@ -22,8 +22,9 @@ if [[ ! -f .env ]]; then
   exit 2
 fi
 
-export WOTA_WEB_IMAGE="ghcr.io/spartan859/wota-arrangement-web:$release_id"
-export WOTA_API_IMAGE="ghcr.io/spartan859/wota-arrangement-api:$release_id"
+release_tag="sha-${release_id:0:7}"
+export WOTA_WEB_IMAGE="ghcr.io/spartan859/wota-arrangement-web:$release_tag"
+export WOTA_API_IMAGE="ghcr.io/spartan859/wota-arrangement-web-api:$release_tag"
 
 docker compose --profile production-mail pull
 docker compose --profile production-mail up -d --remove-orphans
