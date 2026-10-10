@@ -653,7 +653,7 @@ export function FormationVideoLayer({
             </p>
           )}
           <button
-            className="primary"
+            className="primary video-inpoint-save"
             onClick={() => {
               const inPoint = Number(previewInPoint);
               const frameRate = Number(previewRate);

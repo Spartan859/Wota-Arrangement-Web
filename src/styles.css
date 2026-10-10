@@ -2315,6 +2315,9 @@ fieldset {
   margin-bottom: 0;
   padding-top: 7px;
 }
+.video-inpoint-save {
+  margin-top: 10px;
+}
 .visually-hidden {
   position: fixed !important;
   width: 1px !important;
