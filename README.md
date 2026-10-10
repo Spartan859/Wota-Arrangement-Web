@@ -15,7 +15,7 @@ npm run dev
 
 打开终端显示的本地地址，默认 `http://127.0.0.1:5173`。开发服务器只监听本机。
 
-需要同时调试在线分享、Keycloak 和数据库时，先复制 `.env.example` 为 `.env`，再启动隔离 Compose 栈：
+需要同时调试在线分享、Authentik 和数据库时，先复制 `.env.example` 为 `.env`，替换其中的开发密码和 token，再启动隔离 Compose 栈：
 
 ```sh
 cp .env.example .env
@@ -26,7 +26,7 @@ npm run dev:all
 本地服务地址：
 
 - Web 与 API 反向代理：`http://127.0.0.1:8080`
-- Keycloak：`http://127.0.0.1:8081`
+- Authentik：`http://127.0.0.1:8081`
 - Mailpit 邮件捕获：`http://127.0.0.1:8025`
 - Vite 开发服务器：`http://127.0.0.1:5173`
 
@@ -39,7 +39,7 @@ npm run preview
 
 ## Docker
 
-仓库提供多阶段 `Dockerfile`，包含静态 Web、API 和迁移运行目标。Compose 栈包含 Web/Nginx、API、PostgreSQL、Keycloak、Postfix 或 Mailpit。需要 Docker Engine 与 Compose v2：
+仓库提供多阶段 `Dockerfile`，包含静态 Web、API 和迁移运行目标。Compose 栈包含 Web/Nginx、API、PostgreSQL、Authentik server/worker、Postfix 或 Mailpit。需要 Docker Engine 与 Compose v2：
 
 ```sh
 docker compose --profile local-mail up -d --build
@@ -53,9 +53,13 @@ docker compose down
 
 本地邮件使用 `local-mail` profile 和 Mailpit；生产邮件使用 `production-mail` profile 和 Postfix 中继。生产凭据只放在服务器 `/opt/wota-stack/.env`，不得提交。项目草稿和未发布音频仍保存在浏览器 IndexedDB；发布后的音频保存在 Compose 持久化卷。
 
+Authentik 首次启动前至少生成并替换以下值：`AUTHENTIK_SECRET_KEY`、`AUTHENTIK_BOOTSTRAP_TOKEN`、`AUTHENTIK_ADMIN_TOKEN`、`OIDC_CLIENT_SECRET` 和 `AUTHENTIK_BOOTSTRAP_PASSWORD`。本地使用后者即可；生产建议执行 `docker compose run --rm authentik-server hash_password` 生成 `AUTHENTIK_BOOTSTRAP_PASSWORD_HASH`，删除明文密码变量，并把所有 token 和 OIDC secret 替换为独立随机值。Compose 中的 `authentik-configure` 会使用 bootstrap token 创建受限的 `wota-api-admin` 服务账号；Wota API 运行时只使用 `AUTHENTIK_ADMIN_TOKEN`。
+
+生产 `.env` 还需设置 `PUBLIC_ORIGIN=https://wota.satintin.com`、`AUTHENTIK_HOSTNAME=https://auth.wota.satintin.com` 和 `OIDC_ISSUER_URL=https://auth.wota.satintin.com/application/o/wota/`。Discovery 与内部请求分别设置为 `OIDC_DISCOVERY_URL=http://authentik-server:9000/application/o/wota/` 和 `OIDC_INTERNAL_BASE_URL=http://authentik-server:9000`；redirect URI 默认随 `PUBLIC_ORIGIN` 生成为 `/api/auth/callback`。
+
 GitHub Actions 的 CI 位于 `.github/workflows/ci.yml`：所有分支和 PR 执行单元测试、类型检查、构建、格式检查、Python XLSX 兼容测试和容器构建；推送到 `main` 或 `v*` 标签时，额外将镜像发布到 GitHub Container Registry。Chromium/WebKit Playwright 测试只在本地运行，不进入 CI。
 
-生产发布位于 `.github/workflows/deploy.yml`。`main` 的 CI 全部通过后，Actions 构建 Web/API 固定提交镜像并发布到 GHCR，再通过受限 SSH 命令在 `/opt/wota-stack` 拉取 Compose 镜像。宿主 Nginx 将 `wota.satintin.com` 路由到 Web/API，将 `auth.wota.satintin.com` 路由到 Keycloak。仓库的 `production` Environment 需要配置 `DEPLOY_SSH_KEY` 和 `DEPLOY_KNOWN_HOSTS`；一次性 root 安装可参考 `deploy/install-compose-runtime.sh`。
+生产发布位于 `.github/workflows/deploy.yml`。`main` 的 CI 全部通过后，Actions 构建 Web/API 固定提交镜像并发布到 GHCR，再通过受限 SSH 命令在 `/opt/wota-stack` 拉取 Compose 镜像。宿主 Nginx 将 `wota.satintin.com` 路由到 Web/API，将 `auth.wota.satintin.com` 路由到 Authentik。仓库的 `production` Environment 需要配置 `DEPLOY_SSH_KEY` 和 `DEPLOY_KNOWN_HOSTS`；一次性 root 安装可参考 `deploy/install-compose-runtime.sh`。
 
 ## 一次编排
 
@@ -97,8 +101,8 @@ GitHub Actions 的 CI 位于 `.github/workflows/ci.yml`：所有分支和 PR 执
 - 分享页无需登录，任何持有随机链接的人都可以查看；每位访客独立播放，不进行多人实时同步。
 - 云端音乐只提供支持 Range 的流式播放，不提供下载按钮。删除云端音乐后分享链接继续有效，访客可在本机选择同一首歌并通过同步偏移校准。
 - `/shares` 显示登录用户的在线编排、用量、音频恢复/删除和分享取消操作。
-- `/admin` 显示 Keycloak 用户、音频用量、分享和配额；管理员可扩容、删除用户文件并邀请其他管理员。
-- 普通用户通过 Keycloak 公开注册并完成邮箱验证；服务器脚本 `npm run admin:create -- --email <email> --name <name>` 用于首个管理员。
+- `/admin` 显示 Authentik 用户、音频用量、分享和配额；管理员可扩容、删除用户文件并邀请其他管理员。
+- 普通用户通过 Authentik 公开注册并完成邮箱验证；服务器脚本 `npm run admin:create -- --email <email> --name <name>` 用于首个管理员。
 
 主要 API：
 

@@ -48,7 +48,7 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-      keycloak-setup:
+      authentik-configure:
         condition: service_completed_successfully
     networks: [wota]
 
@@ -78,7 +78,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-wota}
     volumes:
       - wota-postgres:/var/lib/postgresql/data
-      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/10-keycloak.sql:ro
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/10-authentik.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -87,43 +87,100 @@ services:
     restart: unless-stopped
     networks: [wota]
 
-  keycloak:
-    image: quay.io/keycloak/keycloak:26.3
-    command: ["start", "--http-enabled=true", "--http-port=8080"]
+  authentik-db-init:
+    image: postgres:17-alpine
     environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_BOOTSTRAP_USERNAME:-admin}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_BOOTSTRAP_PASSWORD:?set KEYCLOAK_BOOTSTRAP_PASSWORD in .env}
-      KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
-      KC_DB_USERNAME: ${POSTGRES_USER:-wota}
-      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      KC_HTTP_ENABLED: "true"
-      KC_PROXY_HEADERS: xforwarded
-      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME:-http://127.0.0.1:8081}
-      KC_HOSTNAME_STRICT: "true"
-    ports:
-      - "127.0.0.1:${WOTA_KEYCLOAK_PORT:-8081}:8080"
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-wota}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      PGDATABASE: postgres
+    command:
+      - sh
+      - -ec
+      - |
+        if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname = 'authentik'" | grep -q 1; then
+          psql -v ON_ERROR_STOP=1 -c "CREATE DATABASE authentik"
+        fi
     depends_on:
       postgres:
         condition: service_healthy
+    restart: "no"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    networks: [wota]
+
+  authentik-server:
+    image: ghcr.io/goauthentik/server:2026.8.3
+    command: ["server"]
+    env_file: .env
+    environment:
+      AUTHENTIK_POSTGRESQL__HOST: postgres
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_POSTGRESQL__USER: ${POSTGRES_USER:-wota}
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?set AUTHENTIK_SECRET_KEY in .env}
+      AUTHENTIK_WEB__BASE_URL: ${AUTHENTIK_HOSTNAME:-http://127.0.0.1:8081}
+    volumes:
+      - wota-authentik-data:/data
+      - ./docker/authentik/blueprints:/blueprints/custom:ro
+    ports:
+      - "127.0.0.1:${WOTA_AUTHENTIK_PORT:-8081}:9000"
+    depends_on:
+      authentik-db-init:
+        condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
+      test: ["CMD", "ak", "healthcheck"]
       interval: 10s
       timeout: 5s
       retries: 30
       start_period: 30s
     restart: unless-stopped
+    shm_size: 512mb
+    security_opt:
+      - no-new-privileges:true
     networks: [wota]
 
-  keycloak-setup:
+  authentik-worker:
+    image: ghcr.io/goauthentik/server:2026.8.3
+    command: ["worker"]
+    env_file: .env
+    environment:
+      AUTHENTIK_POSTGRESQL__HOST: postgres
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_POSTGRESQL__USER: ${POSTGRES_USER:-wota}
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?set AUTHENTIK_SECRET_KEY in .env}
+      AUTHENTIK_WEB__BASE_URL: ${AUTHENTIK_HOSTNAME:-http://127.0.0.1:8081}
+    volumes:
+      - wota-authentik-data:/data
+      - ./docker/authentik/blueprints:/blueprints/custom:ro
+    depends_on:
+      authentik-db-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "ak", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    restart: unless-stopped
+    shm_size: 512mb
+    security_opt:
+      - no-new-privileges:true
+    networks: [wota]
+
+  authentik-configure:
     build:
       context: .
       target: api
     image: ${WOTA_API_IMAGE:-wota-arrangement-api:local}
-    command: ["node", "server-dist/scripts/configure-keycloak.js"]
+    command: ["node", "server-dist/scripts/configure-authentik.js"]
     env_file: .env
     depends_on:
-      keycloak:
+      authentik-server:
+        condition: service_healthy
+      authentik-worker:
         condition: service_healthy
     restart: "no"
     read_only: true
@@ -156,6 +213,7 @@ services:
 volumes:
   wota-postgres:
   wota-audio:
+  wota-authentik-data:
 
 networks:
   wota:

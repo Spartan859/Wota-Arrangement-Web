@@ -2,6 +2,18 @@
 
 日期：2026-09-19。所有测试仅使用合成歌词和音频。
 
+## 2026-10-11 Authentik 替换
+
+- 使用 Authentik `2026.8.3`，新增 `authentik-server`、`authentik-worker`、数据库初始化、受限服务账号初始化和自定义 blueprint；旧认证实现及其环境变量、脚本和数据库初始化已移除。
+- `npm run check`：53 项测试通过、1 项 Python 兼容测试按默认条件跳过；TypeScript、API 构建和前端生产构建通过。`npm run format:check`、Compose 配置校验、Authentik blueprint 官方 dry-run 通过；`npm audit --omit=dev --audit-level=moderate` 为 0 漏洞。
+- 新增的 OIDC 和管理服务测试覆盖 Authentik `groups`、邮箱验证、分页、重复邮箱、Wota 用户筛选、用户创建、组分配、恢复邮件和错误映射。完整审计仍报告 3 个既有开发依赖问题（`concurrently` 间接依赖及 `source-map-js`），本轮未扩展为依赖升级任务。
+- 本地隔离 Compose 实际启动成功：Authentik server/worker、PostgreSQL、Mailpit、API 和 Web 健康检查通过；`wota-api-admin` 服务账号和 `wota-user`、`wota-admin` 组创建成功，OIDC discovery 和 RSA JWKS 可访问且 provider 已绑定签名密钥。
+- 最终版 `authentik-configure` 已在本地实例运行，幂等创建受限服务账号、权限和 token，并在默认证书可用后绑定 OIDC 签名密钥。随后 discovery 公布 `RS256`，JWKS 返回 1 个 RSA 签名密钥；blueprint 官方 dry-run 通过。
+- 使用合成用户在 Wota 公开注册流程中创建账号，Mailpit 收到验证邮件；确认邮箱后通过 Authentik 登录，BFF 会话返回 `emailVerified=true`。
+- 使用服务器脚本创建合成管理员，Authentik 自动加入 `wota-admin` 并发送恢复邮件；管理员登录后 BFF `isAdmin=true`，`/api/admin/users` 返回 200。
+- 已验证用户可发布并删除一个无音频在线分享，确认 Authentik 登录到分享 API 的端到端链路可用。
+- 本轮生产的 DNS、证书、SMTP 中继、服务器 `/opt/wota-stack/.env` 和生产 Deploy 未修改；未运行 WebKit/Safari。
+
 - 本机 Node.js 24.15.0，npm 11.12.1。
 - 单元及集成测试：19 项通过，包含真实 Python 双向兼容测试。覆盖歌词配对与时间戳、offset、状态和历史、时间边界与重叠、项目备份校验、IndexedDB 并发写入、XLSX 合并范围与文本安全。
 - 原 Python CLI：从原实现生成 XLSX，Web 导入并导出后由原实现读取，数据和合并范围完全一致；原提交为 `d61296eb31b01b692c8fd3a30ee42578a4e59dca`。
@@ -216,9 +228,7 @@ TypeScript 检查、生产构建和格式检查通过；`npm audit` 为 0 漏洞
 
 - `npm run check`：44 项单元/集成测试通过，Python 专项按设计跳过；TypeScript、API 构建、前端生产构建通过。
 - `npm run format:check`、`npm run db:generate`、`git diff --check` 通过；`npm audit --audit-level=moderate` 为 0 漏洞。
-- 本地隔离 Compose 栈实际构建并启动：PostgreSQL 迁移成功，Keycloak 26.3 realm/client 初始化成功，Mailpit、API 与 Web 健康检查通过。
-- 使用服务器脚本创建合成管理员后，数据库角色为 `admin`、默认配额为 104857600 字节，Mailpit 收到 Keycloak 的邮箱验证与设置密码邮件。
-- 真实 Chrome 通过 BFF 完成 Keycloak 登录，登录后返回工作台并显示账号入口。
+- 该轮在线分享验证使用现已移除的旧认证实现，当前认证验证以“2026-10-11 Authentik 替换”章节为准。
 - 通过浏览器向隔离 API 上传合成编排和 WAV，验证固定分享令牌、revision 递增、公开快照脱敏、音频 Range 206、配额累计与释放。
 - 验证删除云端音乐后公开分享仍返回编排且 `audioAvailable=false`；随后恢复音频成功复用同一资产行并重新计入配额。
 - 验证管理员接口可读取用户和分享、把配额从 100 MiB 调整为 120 MiB、删除在线分享；删除后令牌返回 404，用户用量归零。
