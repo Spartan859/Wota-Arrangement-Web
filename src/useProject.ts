@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { History, project, uid, type Project } from "./core/model";
+import { normalizeChoreography } from "./core/choreography";
 import { db, type SavedProject } from "./core/storage";
 export function useProject() {
   const [document, setDocument] = useState<Project>(project);
@@ -24,6 +25,7 @@ export function useProject() {
     setDocument(p);
   }
   function install(p: Project, revision: number) {
+    if (p.choreography) normalizeChoreography(p.choreography);
     revisions.current.set(p.id, revision);
     history.current = new History();
     conflictRef.current = false;

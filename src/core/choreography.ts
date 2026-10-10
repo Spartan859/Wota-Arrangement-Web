@@ -214,6 +214,18 @@ export const emptyChoreography = (): Choreography => ({
   frames: [],
   tracks: [],
 });
+
+/** Add optional video fields to drafts saved before they existed. */
+export function normalizeChoreography(c: Choreography): Choreography {
+  c.videoAssets ??= [];
+  c.freeVideoTrack ??= { videoFrames: [], videoClips: [] };
+  c.tracks ??= [];
+  for (const track of c.tracks) {
+    track.videoFrames ??= [];
+    track.videoClips ??= [];
+  }
+  return c;
+}
 export const defaultPose = (dancerId: string): Pose => ({
   dancerId,
   x: 0.5,
@@ -248,9 +260,8 @@ const derivedTrackFrameId = (
 
 /** Build per-dancer tracks from the original aggregate frame format on demand. */
 export function ensureTracks(c: Choreography): DancerTrack[] {
+  normalizeChoreography(c);
   c.tracks ??= [];
-  c.videoAssets ??= [];
-  c.freeVideoTrack ??= { videoFrames: [], videoClips: [] };
   for (const dancer of c.dancers) {
     if (c.tracks.some((track) => track.dancerId === dancer.id)) continue;
     c.tracks.push({

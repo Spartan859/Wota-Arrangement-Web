@@ -135,7 +135,7 @@ export function createShareSnapshot(
     ...(project.choreography?.tracks.flatMap((track) =>
       track.videoClips.map((clip) => clip.assetId),
     ) ?? []),
-    ...(project.choreography?.freeVideoTrack.videoClips.map(
+    ...(project.choreography?.freeVideoTrack?.videoClips.map(
       (clip) => clip.assetId,
     ) ?? []),
   ]);

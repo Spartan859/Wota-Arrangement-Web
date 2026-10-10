@@ -5,6 +5,7 @@ import {
   activeVideoForDancer,
   changeVideoGeometry,
   emptyChoreography,
+  normalizeChoreography,
   sampleFormation,
   setVideoInPoint,
   videoFrameRect,
@@ -106,7 +107,7 @@ export function FormationVideoLayer({
   selectionResetKey = 0,
 }: Props) {
   const c = useMemo(
-    () => p.choreography ?? emptyChoreography(),
+    () => normalizeChoreography(p.choreography ?? emptyChoreography()),
     [p.choreography],
   );
   const beginDrag = usePointerDrag(`${p.id}:${p.audio?.id}`, readOnly);

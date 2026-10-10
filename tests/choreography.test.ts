@@ -20,10 +20,12 @@ import {
   getDancerFrames,
   moveDancerFrame,
   moveVideoFrame,
+  normalizeChoreography,
   removeDancerFrame,
   removeVideoFrame,
   setVideoInPoint,
   videoFrameRect,
+  type Choreography,
 } from "../src/core/choreography";
 import { backup, parseProject, project, History } from "../src/core/model";
 describe("全员队形", () => {
@@ -188,6 +190,29 @@ describe("画布尺寸", () => {
 });
 
 describe("视频片段轨道", () => {
+  it("加载旧队形草稿时补齐视频字段", () => {
+    const legacy = {
+      canvas: { width: 800, height: 600 },
+      dancers: [{ id: "dancer", name: "旧舞者" }],
+      frames: [],
+      tracks: [
+        {
+          dancerId: "dancer",
+          positionFrames: [],
+          colorFrames: [],
+        },
+      ],
+    } as unknown as Choreography;
+    normalizeChoreography(legacy);
+    expect(legacy.videoAssets).toEqual([]);
+    expect(legacy.freeVideoTrack).toEqual({
+      videoFrames: [],
+      videoClips: [],
+    });
+    expect(legacy.tracks[0].videoFrames).toEqual([]);
+    expect(legacy.tracks[0].videoClips).toEqual([]);
+  });
+
   it("按插入时间映射入点、移除后隐藏并在源结束时定格", () => {
     const c = emptyChoreography();
     const dancer = addDancer(c, "A", 0);
