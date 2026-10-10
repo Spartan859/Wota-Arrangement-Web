@@ -167,7 +167,6 @@ export function VideoTimelineMarkers({
               seekOrSelect(clip.id, insertTime);
             }}
           >
-            <span className="timeline-label">视频</span>
             <span className="timeline-arrangement">
               {asset?.name ?? "视频片段"}
             </span>

@@ -2422,8 +2422,15 @@ fieldset {
   pointer-events: none;
 }
 .video-marker-range {
-  top: 12px;
+  top: 15px;
+  height: 22px;
+  padding: 2px 8px;
+  display: flex;
+  align-items: center;
   pointer-events: auto;
+}
+.video-marker-range .timeline-arrangement {
+  line-height: 16px;
 }
 .video-marker-handle {
   z-index: 3;
