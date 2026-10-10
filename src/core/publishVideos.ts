@@ -25,11 +25,14 @@ export async function prepareVideoUploads(
   nextAudioSizeBytes: number,
   onProgress: (percent: number) => void,
 ) {
-  const referenced = new Set(
-    project.choreography?.tracks.flatMap((track) =>
+  const referenced = new Set([
+    ...(project.choreography?.tracks.flatMap((track) =>
       track.videoClips.map((clip) => clip.assetId),
-    ) ?? [],
-  );
+    ) ?? []),
+    ...(project.choreography?.freeVideoTrack.videoClips.map(
+      (clip) => clip.assetId,
+    ) ?? []),
+  ]);
   const assets =
     project.choreography?.videoAssets.filter((asset) =>
       referenced.has(asset.id),

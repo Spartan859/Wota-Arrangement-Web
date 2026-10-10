@@ -3333,7 +3333,8 @@ button.danger,
   padding: 6px 9px;
 }
 /* Selected-dancer PR-style tracks. */
-.formation-track.has-dancer {
+.formation-track.has-dancer,
+.formation-track.has-free-video {
   top: auto;
   bottom: 0;
   height: 78px;

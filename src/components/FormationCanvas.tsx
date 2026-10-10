@@ -95,6 +95,7 @@ export function FormationCanvas({
   const [videoSources, setVideoSources] = useState<Record<string, string>>(
     externalVideoSources ?? {},
   );
+  const [videoSelectionReset, setVideoSelectionReset] = useState(0);
   const frozenTime = useRef(0);
   const svg = useRef<SVGSVGElement>(null);
   const drag = useRef<{
@@ -318,9 +319,11 @@ export function FormationCanvas({
             画布尺寸
           </button>
           <button
-            disabled={!selectedDancer || readOnly}
+            disabled={readOnly}
             title={
-              selectedDancer ? "为当前舞者在播放头处插入视频" : "先选择舞者"
+              selectedDancer
+                ? "为当前舞者在播放头处插入视频"
+                : "在舞台图层中插入不绑定舞者的视频"
             }
             onClick={() => onRequestInsertVideo?.(freeze())}
           >
@@ -336,7 +339,17 @@ export function FormationCanvas({
           </label>
         </div>
       </div>
-      <div className="stage-container">
+      <div
+        className="stage-container"
+        onClick={(event) => {
+          const target = event.target as Element;
+          if (target.closest(".formation-video,[data-dancer]")) return;
+          setSelected(null);
+          onDancerSelect?.(null);
+          onVideoClipSelect?.(null);
+          setVideoSelectionReset((current) => current + 1);
+        }}
+      >
         <div
           className="stage-frame"
           style={{ aspectRatio: `${stageWidth} / ${stageHeight}` }}
@@ -598,6 +611,7 @@ export function FormationCanvas({
           onError={onError}
           onRelinkVideo={onRelinkVideo}
           storageKey={videoStorageKey ?? `wota-video-minimized:${project.id}`}
+          selectionResetKey={videoSelectionReset}
         />
       </div>
       <small className="stage-help">

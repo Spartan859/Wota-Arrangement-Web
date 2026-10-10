@@ -11,6 +11,7 @@ import {
   cleanupRedundantKeyframes,
   emptyChoreography,
   sampleFormation,
+  sampleVideos,
   setVisibility,
   saveFrame,
   moveFrame,
@@ -264,6 +265,25 @@ describe("视频片段轨道", () => {
     removeVideoFrame(c, dancer, insert);
     expect(c.tracks[0].videoClips).toHaveLength(0);
     expect(c.tracks[0].videoFrames).toHaveLength(0);
+  });
+
+  it("支持不绑定舞者的舞台视频轨", () => {
+    const c = emptyChoreography();
+    const asset = addVideoAsset(c, {
+      name: "stage.mp4",
+      mimeType: "video/mp4",
+      sizeBytes: 100,
+      duration: 10,
+      width: 1280,
+      height: 720,
+      frameRate: 30,
+    });
+    const clip = addVideoClip(c, null, asset.id, 1);
+    expect(c.freeVideoTrack.videoClips.map((item) => item.id)).toEqual([clip]);
+    expect(activeVideoForDancer(c, null, 2)?.clip.id).toBe(clip);
+    expect(sampleVideos(c, 2).some((item) => item.dancerId === null)).toBe(
+      true,
+    );
   });
 
   it("裁切和绑定位移生成保持源比例的舞台矩形", () => {

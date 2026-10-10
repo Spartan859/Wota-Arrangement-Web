@@ -131,11 +131,14 @@ export function createShareSnapshot(
       }
     : null,
 ): ShareSnapshot {
-  const referencedAssets = new Set(
-    project.choreography?.tracks.flatMap((track) =>
+  const referencedAssets = new Set([
+    ...(project.choreography?.tracks.flatMap((track) =>
       track.videoClips.map((clip) => clip.assetId),
-    ) ?? [],
-  );
+    ) ?? []),
+    ...(project.choreography?.freeVideoTrack.videoClips.map(
+      (clip) => clip.assetId,
+    ) ?? []),
+  ]);
   const choreography = project.choreography
     ? {
         ...project.choreography,

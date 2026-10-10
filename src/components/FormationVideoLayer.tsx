@@ -29,6 +29,7 @@ type Props = {
   onError: (message: string) => void;
   onRelinkVideo?: (assetId: string) => void;
   storageKey: string;
+  selectionResetKey?: number;
 };
 
 type DragState = {
@@ -102,6 +103,7 @@ export function FormationVideoLayer({
   onError,
   onRelinkVideo,
   storageKey,
+  selectionResetKey = 0,
 }: Props) {
   const c = useMemo(
     () => p.choreography ?? emptyChoreography(),
@@ -125,13 +127,24 @@ export function FormationVideoLayer({
   const [previewError, setPreviewError] = useState("");
   const clips = useMemo(
     () =>
-      c.tracks.flatMap((track) =>
-        track.videoClips.map((clip) => ({
-          clip,
-          dancerId: track.dancerId,
+      [
+        ...c.tracks.map((track) => ({
+          dancerId: track.dancerId as string | null,
           dancerName:
             c.dancers.find((dancer) => dancer.id === track.dancerId)?.name ??
             "舞者",
+          videoClips: track.videoClips,
+        })),
+        {
+          dancerId: null,
+          dancerName: "舞台",
+          videoClips: c.freeVideoTrack.videoClips,
+        },
+      ].flatMap((track) =>
+        track.videoClips.map((clip) => ({
+          clip,
+          dancerId: track.dancerId,
+          dancerName: track.dancerName,
           asset: c.videoAssets.find((asset) => asset.id === clip.assetId),
         })),
       ),
@@ -167,8 +180,13 @@ export function FormationVideoLayer({
   useEffect(() => {
     drag.current = null;
     setPreviewClipId(null);
+    setLocalSelectedClipId(null);
     setMinimized(minimizedFromStorage(storageKey));
   }, [storageKey]);
+  useEffect(() => {
+    setLocalSelectedClipId(null);
+    setPreviewClipId(null);
+  }, [selectionResetKey]);
   useEffect(() => {
     if (selectedClipId) {
       setLocalSelectedClipId(selectedClipId);
@@ -205,23 +223,30 @@ export function FormationVideoLayer({
           item.dancerId,
           current.getTime(),
         );
-        const pose = poses.get(item.dancerId);
+        const bound = item.dancerId !== null;
+        const pose = bound ? poses.get(item.dancerId!) : undefined;
         const source = current.sources[item.asset.id];
-        const dancerPoint = current.getDancerClientPoint?.(
-          pose?.x ?? 0.5,
-          pose?.y ?? 0.5,
-        );
+        const dancerPoint = bound
+          ? current.getDancerClientPoint?.(pose?.x ?? 0.5, pose?.y ?? 0.5)
+          : undefined;
         const hasDancerPoint =
           dancerPoint &&
           Number.isFinite(dancerPoint.x) &&
           Number.isFinite(dancerPoint.y);
-        const dancerX = hasDancerPoint
-          ? (dancerPoint.x - bounds.left) / bounds.width
-          : (pose?.x ?? 0.5);
-        const dancerY = hasDancerPoint
-          ? (dancerPoint.y - bounds.top) / bounds.height
-          : (pose?.y ?? 0.5);
-        const isActive = active?.clip.id === item.clip.id && pose?.visible;
+        const dancerX =
+          bound && hasDancerPoint
+            ? (dancerPoint.x - bounds.left) / bounds.width
+            : bound
+              ? (pose?.x ?? 0.5)
+              : 0;
+        const dancerY =
+          bound && hasDancerPoint
+            ? (dancerPoint.y - bounds.top) / bounds.height
+            : bound
+              ? (pose?.y ?? 0.5)
+              : 0;
+        const isActive =
+          active?.clip.id === item.clip.id && (!bound || pose?.visible);
         if (!isActive) {
           node.style.display = "none";
           video?.pause();

@@ -60,7 +60,7 @@ export function FormationTrack({
   );
   const c = p.choreography;
   const dancer = c?.dancers.find((item) => item.id === selectedDancerId);
-  const dancerId = dancer?.id;
+  const dancerId = dancer?.id ?? null;
   const [editing, setEditing] = useState<{
     kind: EditorTrackKind;
     id: string;
@@ -77,9 +77,12 @@ export function FormationTrack({
   }, [dancerId]);
   useEffect(() => {
     if (!selectedVideoClipId) return;
-    const frame = p.choreography?.tracks
-      .find((track) => track.dancerId === dancerId)
-      ?.videoFrames.find((item) => item.clipId === selectedVideoClipId);
+    const frame = (
+      dancerId
+        ? p.choreography?.tracks.find((track) => track.dancerId === dancerId)
+            ?.videoFrames
+        : p.choreography?.freeVideoTrack.videoFrames
+    )?.find((item) => item.clipId === selectedVideoClipId);
     if (frame)
       setSelectedFrames((selected) => ({ ...selected, video: frame.id }));
   }, [dancerId, p.choreography, selectedVideoClipId]);
@@ -87,7 +90,7 @@ export function FormationTrack({
     ? getDancerFrames(c!, dancerId, "position")
     : [];
   const colorFrames = dancerId ? getDancerFrames(c!, dancerId, "color") : [];
-  const videoFrames = dancerId ? getDancerVideoFrames(c!, dancerId) : [];
+  const videoFrames = c ? getDancerVideoFrames(c, dancerId) : [];
   const scale =
     duration ||
     Math.max(
@@ -133,7 +136,7 @@ export function FormationTrack({
     }
   };
   const deleteFrame = (kind: EditorTrackKind, id: string) => {
-    if (readOnly || !dancerId) return;
+    if (readOnly) return;
     setSelectedFrames((selected) =>
       selected[kind] === id ? { ...selected, [kind]: null } : selected,
     );
@@ -143,12 +146,13 @@ export function FormationTrack({
         if (!draft.choreography) return;
         if (kind === "video")
           removeVideoFrame(draft.choreography, dancerId, id);
-        else removeDancerFrame(draft.choreography, dancerId, kind, id);
+        else if (dancerId)
+          removeDancerFrame(draft.choreography, dancerId, kind, id);
       }),
     );
   };
   const toggleCurrentFrame = (kind: EditorTrackKind) => {
-    if (readOnly || !dancerId) return;
+    if (readOnly) return;
     pause();
     const frame = currentFrame(kind);
     if (kind === "video" && !frame) {
@@ -175,7 +179,7 @@ export function FormationTrack({
         draft.choreography ??= emptyChoreography();
         if (frame && kind === "video") {
           removeVideoFrame(draft.choreography, dancerId, frame.id);
-        } else if (kind !== "video") {
+        } else if (kind !== "video" && dancerId) {
           if (frame)
             removeDancerFrame(draft.choreography, dancerId, kind, frame.id);
           else
@@ -316,15 +320,15 @@ export function FormationTrack({
                             if (kind === "video")
                               moveVideoFrame(
                                 draft.choreography,
-                                dancerId!,
+                                dancerId,
                                 frame.id,
                                 time,
                                 duration,
                               );
-                            else
+                            else if (dancerId)
                               moveDancerFrame(
                                 draft.choreography,
-                                dancerId!,
+                                dancerId,
                                 kind,
                                 frame.id,
                                 time,
@@ -349,7 +353,7 @@ export function FormationTrack({
     : undefined;
   return (
     <div
-      className={`formation-track ${dancer ? "has-dancer" : ""}`}
+      className={`formation-track ${dancer ? "has-dancer" : videoFrames.length ? "has-free-video" : ""}`}
       aria-label="队形关键帧轨道"
       onClick={(event) => event.stopPropagation()}
     >
@@ -389,12 +393,26 @@ export function FormationTrack({
           {track("color")}
           {track("video")}
         </>
-      ) : (
+      ) : selectedDancerId || !videoFrames.length ? (
         <div className="formation-track-empty">
-          选择舞者后显示位置和颜色关键帧
+          {selectedDancerId
+            ? "选择舞者后显示位置和颜色关键帧"
+            : "在队形画布中可插入不绑定舞者的视频"}
         </div>
+      ) : (
+        <>
+          <div
+            className="formation-track-header"
+            role="group"
+            aria-label="舞台视频关键帧操作"
+          >
+            <div className="formation-track-name">舞台视频 关键帧</div>
+            {trackControls("video")}
+          </div>
+          {track("video")}
+        </>
       )}
-      {editing && editedFrame && dancerId && (
+      {editing && editedFrame && (dancerId || editing.kind === "video") && (
         <Modal
           title={`${editing.kind === "position" ? "位置" : editing.kind === "color" ? "颜色" : "视频"}关键帧时间`}
           onClose={() => setEditing(null)}
@@ -427,7 +445,7 @@ export function FormationTrack({
                       Number(value),
                       duration,
                     );
-                  else
+                  else if (dancerId)
                     moveDancerFrame(
                       draft.choreography,
                       dancerId,

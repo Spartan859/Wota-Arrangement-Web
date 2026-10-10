@@ -27,6 +27,7 @@ describe("online share snapshot", () => {
     source.choreography = {
       dancers: [{ id: "dancer-1", name: "舞者1" }],
       videoAssets: [],
+      freeVideoTrack: { videoFrames: [], videoClips: [] },
       canvas: { width: 800, height: 600 },
       frames: [
         {
@@ -103,6 +104,7 @@ describe("online share snapshot", () => {
         },
       ],
       dancers: [{ id: "dancer-1", name: "舞者1" }],
+      freeVideoTrack: { videoFrames: [], videoClips: [] },
       frames: [],
       tracks: [
         {

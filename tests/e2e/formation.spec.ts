@@ -227,6 +227,24 @@ test("插入视频、第三轨、逐帧入点、移除和最小化", async ({ pa
     page.getByLabel("视频关键帧").locator(".formation-key"),
   ).toHaveCount(2);
 });
+
+test("舞台空白取消选择，并可直接插入未绑定舞者的视频", async ({ page }) => {
+  await boot(page);
+  await song(page);
+  await page.getByLabel("插入视频文件").setInputFiles({
+    name: "stage.webm",
+    mimeType: "video/webm",
+    buffer: await syntheticWebm(page),
+  });
+  await expect(page.locator(".formation-track-name")).toHaveText(
+    "舞台视频 关键帧",
+  );
+  await expect(page.locator(".formation-video video")).toBeVisible();
+  await expect(page.locator(".formation-video.selected")).toHaveCount(1);
+  await page.locator(".stage-frame").click({ position: { x: 5, y: 5 } });
+  await expect(page.locator(".formation-video.selected")).toHaveCount(0);
+  await expect(page.getByLabel("选择舞者")).toHaveValue("");
+});
 test("独立轨道改时冲突、越界保留、删除与窄屏切换", async ({ page }) => {
   await page.setViewportSize({ width: 922, height: 880 });
   await boot(page);

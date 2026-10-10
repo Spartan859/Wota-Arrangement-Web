@@ -294,10 +294,6 @@ export default function App() {
     }
   }
   function requestVideoInsert(time: number) {
-    if (!formationDancer) {
-      fail("请先选择舞者，再插入视频。");
-      return;
-    }
     setVideoInsertTime(time);
     setVideoRelinkAsset(null);
     videoInput.current?.click();
@@ -307,10 +303,6 @@ export default function App() {
     videoInput.current?.click();
   }
   async function insertVideo(file: File) {
-    if (!formationDancer) {
-      fail("请先选择舞者，再插入视频。");
-      return;
-    }
     player.current?.pause();
     setBusy(true);
     try {
