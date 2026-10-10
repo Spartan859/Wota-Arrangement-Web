@@ -32,7 +32,7 @@ for attempt in {1..30}; do
   if curl --fail --silent --show-error \
       https://wota.satintin.com/healthz | grep -qx 'ok' && \
     curl --fail --silent --show-error \
-      https://auth.wota.satintin.com/realms/wota/.well-known/openid-configuration \
+      https://auth.wota.satintin.com/application/o/wota/.well-known/openid-configuration \
       >/dev/null; then
     echo "Deployed $release_id"
     exit 0

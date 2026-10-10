@@ -1,0 +1,441 @@
+version: 1
+metadata:
+  name: Wota Authentik configuration
+entries:
+  - identifiers:
+      name: wota-user
+    id: group-user
+    model: authentik_core.group
+  - identifiers:
+      name: wota-admin
+    id: group-admin
+    model: authentik_core.group
+
+  - identifiers:
+      name: wota-email-verified
+    id: scope-email
+    model: authentik_providers_oauth2.scopemapping
+    attrs:
+      scope_name: email
+      description: Verified Wota email address
+      expression: |
+        email = request.user.email
+        verified_address = request.user.attributes.get("email_verified_address")
+        return {
+            "email": email,
+            "email_verified": bool(email and verified_address == email),
+        }
+
+  - identifiers:
+      name: wota-record-email-verification
+    id: policy-record-email
+    model: authentik_policies_expression.expressionpolicy
+    attrs:
+      expression: |
+        user = request.context.get("pending_user")
+        token = request.context.get("is_restored")
+        if user and user.pk and user.email and token and token.user_id == user.pk:
+            user.attributes["email_verified_address"] = user.email
+            user.save(update_fields=["attributes"])
+        return True
+
+  - identifiers:
+      name: wota-unique-email
+    id: policy-unique-email
+    model: authentik_policies_expression.expressionpolicy
+    attrs:
+      expression: |
+        email = request.context.get("prompt_data", {}).get("email")
+        if not email:
+            return False
+        from authentik.core.models import User
+        if User.objects.filter(email__iexact=email).exists():
+            ak_message("该邮箱已注册。")
+            return False
+        return True
+
+  - identifiers:
+      name: wota-set-username-from-email
+    id: policy-set-username
+    model: authentik_policies_expression.expressionpolicy
+    attrs:
+      expression: |
+        email = request.context.get("prompt_data", {}).get("email", "")
+        if not email:
+            return False
+        request.context["prompt_data"]["username"] = email
+        return True
+
+  - identifiers:
+      name: wota-enrollment-name
+    id: prompt-name
+    model: authentik_stages_prompt.prompt
+    attrs:
+      field_key: name
+      label: 姓名
+      type: text
+      required: true
+      placeholder: 姓名
+      placeholder_expression: false
+      order: 0
+  - identifiers:
+      name: wota-enrollment-email
+    id: prompt-email
+    model: authentik_stages_prompt.prompt
+    attrs:
+      field_key: email
+      label: 邮箱
+      type: email
+      required: true
+      placeholder: 邮箱
+      placeholder_expression: false
+      order: 1
+  - identifiers:
+      name: wota-enrollment-password
+    id: prompt-password
+    model: authentik_stages_prompt.prompt
+    attrs:
+      field_key: password
+      label: 密码
+      type: password
+      required: true
+      placeholder: 密码
+      placeholder_expression: false
+      order: 1
+  - identifiers:
+      name: wota-enrollment-password-repeat
+    id: prompt-password-repeat
+    model: authentik_stages_prompt.prompt
+    attrs:
+      field_key: password_repeat
+      label: 确认密码
+      type: password
+      required: true
+      placeholder: 确认密码
+      placeholder_expression: false
+      order: 2
+
+  - identifiers:
+      name: wota-enrollment-details
+    id: stage-enrollment-details
+    model: authentik_stages_prompt.promptstage
+    attrs:
+      fields:
+        - !KeyOf prompt-name
+        - !KeyOf prompt-email
+      validation_policies:
+        - !KeyOf policy-unique-email
+  - identifiers:
+      name: wota-enrollment-credentials
+    id: stage-enrollment-credentials
+    model: authentik_stages_prompt.promptstage
+    attrs:
+      fields:
+        - !KeyOf prompt-password
+        - !KeyOf prompt-password-repeat
+  - identifiers:
+      name: wota-enrollment-write
+    id: stage-enrollment-write
+    model: authentik_stages_user_write.userwritestage
+    attrs:
+      create_users_as_inactive: true
+      user_creation_mode: always_create
+      create_users_group: !KeyOf group-user
+      user_path_template: users
+      user_type: internal
+  - identifiers:
+      name: wota-enrollment-email
+    id: stage-enrollment-email
+    model: authentik_stages_email.emailstage
+    attrs:
+      use_global_settings: true
+      template: email/account_confirmation.html
+      token_expiry: days=7
+      subject: 验证 Wota 邮箱
+      activate_user_on_success: true
+
+  - identifiers:
+      slug: wota-enrollment
+    id: flow-enrollment
+    model: authentik_flows.flow
+    attrs:
+      name: Wota registration
+      title: 注册 Wota
+      designation: enrollment
+      authentication: require_unauthenticated
+  - identifiers:
+      name: wota-enrollment-login
+    id: stage-enrollment-login
+    model: authentik_stages_user_login.userloginstage
+  - identifiers:
+      target: !KeyOf flow-enrollment
+      stage: !KeyOf stage-enrollment-details
+      order: 10
+    id: binding-enrollment-details
+    model: authentik_flows.flowstagebinding
+  - identifiers:
+      target: !KeyOf flow-enrollment
+      stage: !KeyOf stage-enrollment-credentials
+      order: 11
+    id: binding-enrollment-credentials
+    model: authentik_flows.flowstagebinding
+    attrs:
+      evaluate_on_plan: false
+      re_evaluate_policies: true
+  - identifiers:
+      target: !KeyOf flow-enrollment
+      stage: !KeyOf stage-enrollment-write
+      order: 20
+    id: binding-enrollment-write
+    model: authentik_flows.flowstagebinding
+    attrs:
+      re_evaluate_policies: true
+  - identifiers:
+      target: !KeyOf flow-enrollment
+      stage: !KeyOf stage-enrollment-email
+      order: 30
+    model: authentik_flows.flowstagebinding
+  - identifiers:
+      target: !KeyOf flow-enrollment
+      stage: !KeyOf stage-enrollment-login
+      order: 100
+    id: binding-enrollment-login
+    model: authentik_flows.flowstagebinding
+  - identifiers:
+      target: !KeyOf binding-enrollment-login
+      policy: !KeyOf policy-record-email
+      order: 0
+    model: authentik_policies.policybinding
+    attrs:
+      enabled: true
+  - identifiers:
+      target: !KeyOf binding-enrollment-write
+      policy: !KeyOf policy-set-username
+      order: 0
+    model: authentik_policies.policybinding
+    attrs:
+      enabled: true
+
+  - identifiers:
+      name: wota-recovery-password
+    id: prompt-recovery-password
+    model: authentik_stages_prompt.prompt
+    attrs:
+      field_key: password
+      label: 新密码
+      type: password
+      required: true
+      placeholder: 新密码
+      placeholder_expression: false
+      order: 0
+  - identifiers:
+      name: wota-recovery-password-repeat
+    id: prompt-recovery-password-repeat
+    model: authentik_stages_prompt.prompt
+    attrs:
+      field_key: password_repeat
+      label: 确认新密码
+      type: password
+      required: true
+      placeholder: 确认新密码
+      placeholder_expression: false
+      order: 1
+  - identifiers:
+      name: wota-recovery-password-stage
+    id: stage-recovery-password
+    model: authentik_stages_prompt.promptstage
+    attrs:
+      fields:
+        - !KeyOf prompt-recovery-password
+        - !KeyOf prompt-recovery-password-repeat
+  - identifiers:
+      name: wota-recovery-identification
+    id: stage-recovery-identification
+    model: authentik_stages_identification.identificationstage
+    attrs:
+      user_fields:
+        - email
+        - username
+  - identifiers:
+      name: wota-recovery-email
+    id: stage-recovery-email
+    model: authentik_stages_email.emailstage
+    attrs:
+      use_global_settings: true
+      template: email/password_reset.html
+      token_expiry: days=7
+      subject: 重置 Wota 密码
+      activate_user_on_success: true
+      recovery_max_attempts: 5
+      recovery_cache_timeout: minutes=5
+  - identifiers:
+      name: wota-recovery-write
+    id: stage-recovery-write
+    model: authentik_stages_user_write.userwritestage
+    attrs:
+      user_creation_mode: never_create
+  - identifiers:
+      name: wota-recovery-login
+    id: stage-recovery-login
+    model: authentik_stages_user_login.userloginstage
+  - identifiers:
+      name: wota-recovery-skip-restored
+    id: policy-recovery-skip-restored
+    model: authentik_policies_expression.expressionpolicy
+    attrs:
+      expression: |
+        return bool(request.context.get("is_restored", True))
+
+  - identifiers:
+      slug: wota-recovery
+    id: flow-recovery
+    model: authentik_flows.flow
+    attrs:
+      name: Wota recovery
+      title: 重置 Wota 密码
+      designation: recovery
+      authentication: require_unauthenticated
+  - identifiers:
+      target: !KeyOf flow-recovery
+      stage: !KeyOf stage-recovery-identification
+      order: 10
+    id: binding-recovery-identification
+    model: authentik_flows.flowstagebinding
+    attrs:
+      evaluate_on_plan: true
+      re_evaluate_policies: true
+  - identifiers:
+      target: !KeyOf flow-recovery
+      stage: !KeyOf stage-recovery-email
+      order: 20
+    model: authentik_flows.flowstagebinding
+  - identifiers:
+      target: !KeyOf flow-recovery
+      stage: !KeyOf stage-recovery-password
+      order: 30
+    model: authentik_flows.flowstagebinding
+  - identifiers:
+      target: !KeyOf flow-recovery
+      stage: !KeyOf stage-recovery-write
+      order: 40
+    model: authentik_flows.flowstagebinding
+  - identifiers:
+      target: !KeyOf flow-recovery
+      stage: !KeyOf stage-recovery-login
+      order: 100
+    id: binding-recovery-login
+    model: authentik_flows.flowstagebinding
+  - identifiers:
+      target: !KeyOf binding-recovery-identification
+      policy: !KeyOf policy-recovery-skip-restored
+      order: 0
+    model: authentik_policies.policybinding
+    attrs:
+      enabled: true
+  - identifiers:
+      target: !KeyOf binding-recovery-login
+      policy: !KeyOf policy-record-email
+      order: 0
+    model: authentik_policies.policybinding
+    attrs:
+      enabled: true
+
+  - identifiers:
+      name: wota-authentication-identification
+    id: stage-authentication-identification
+    model: authentik_stages_identification.identificationstage
+    attrs:
+      user_fields:
+        - email
+        - username
+      enrollment_flow: !KeyOf flow-enrollment
+      recovery_flow: !KeyOf flow-recovery
+  - identifiers:
+      slug: wota-authentication
+    id: flow-authentication
+    model: authentik_flows.flow
+    attrs:
+      name: Wota authentication
+      title: 登录 Wota
+      designation: authentication
+      authentication: none
+  - identifiers:
+      target: !KeyOf flow-authentication
+      stage: !KeyOf stage-authentication-identification
+      order: 10
+    model: authentik_flows.flowstagebinding
+  - identifiers:
+      target: !KeyOf flow-authentication
+      stage:
+        !Find [
+          authentik_stages_password.passwordstage,
+          [name, default-authentication-password],
+        ]
+      order: 20
+    model: authentik_flows.flowstagebinding
+  - identifiers:
+      target: !KeyOf flow-authentication
+      stage: !KeyOf stage-enrollment-login
+      order: 100
+    model: authentik_flows.flowstagebinding
+
+  - identifiers:
+      name: Wota
+    id: provider-wota
+    model: authentik_providers_oauth2.oauth2provider
+    attrs:
+      client_type: confidential
+      client_id: !Env OIDC_CLIENT_ID
+      client_secret: !Env OIDC_CLIENT_SECRET
+      grant_types:
+        - authorization_code
+        - refresh_token
+      include_claims_in_id_token: true
+      sub_mode: user_uuid
+      issuer_mode: per_provider
+      authentication_flow: !KeyOf flow-authentication
+      authorization_flow:
+        !Find [
+          authentik_flows.flow,
+          [slug, default-provider-authorization-implicit-consent],
+        ]
+      invalidation_flow:
+        !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      redirect_uris:
+        - matching_mode: strict
+          url: !Env OIDC_REDIRECT_URI
+      logout_uri: !Env OIDC_POST_LOGOUT_REDIRECT_URI
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+        - !KeyOf scope-email
+        - !Find [
+            authentik_providers_oauth2.scopemapping,
+            [scope_name, offline_access],
+          ]
+
+  - identifiers:
+      slug: wota
+    id: application-wota
+    model: authentik_core.application
+    attrs:
+      name: Wota
+      provider: !KeyOf provider-wota
+      meta_description: Wota 编排工作台
+      meta_publisher: Wota
+      meta_hide: true
+  - identifiers:
+      target: !KeyOf application-wota
+      group: !KeyOf group-user
+      order: 0
+    model: authentik_policies.policybinding
+    attrs:
+      enabled: true
+
+  - identifiers:
+      domain: authentik-default
+    model: authentik_brands.brand
+    attrs:
+      default: true
+      flow_authentication: !KeyOf flow-authentication
+      flow_recovery: !KeyOf flow-recovery

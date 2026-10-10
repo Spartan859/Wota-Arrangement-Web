@@ -4,7 +4,7 @@
 
 ## 项目边界
 
-这是一个本地优先的 React + TypeScript + Vite 编排应用，用于双语歌词编排、动作备注、歌曲对时和排练循环；主动发布时，可把脱敏编排快照和音频同步到同仓库内的 Fastify/PostgreSQL/Keycloak 在线分享服务。
+这是一个本地优先的 React + TypeScript + Vite 编排应用，用于双语歌词编排、动作备注、歌曲对时和排练循环；主动发布时，可把脱敏编排快照和音频同步到同仓库内的 Fastify/PostgreSQL/Authentik 在线分享服务。
 
 - 未登录编辑、解析、播放和 IndexedDB 保存必须继续在浏览器完成，不能因 API 不可用阻断本地工作台。
 - 只有用户明确点击在线发布时才上传编排和音频；访客在分享页临时选择的本地音乐不得上传服务器。
@@ -33,7 +33,8 @@ npm audit
 - `npm run test`：运行 `tests/**/*.test.ts` 中的 Vitest 测试。
 - `npm run build`：类型检查、构建 API 和迁移脚本，并生成 `dist/`。
 - `npm run db:migrate`：对 `DATABASE_URL` 执行 Drizzle SQL 迁移。
-- `npm run admin:create -- --email <email> --name <name>`：通过 Keycloak Admin API 创建或提升管理员。
+- `npm run admin:create -- --email <email> --name <name>`：通过 Authentik API 创建或提升管理员。
+- `npm run authentik:configure`：用 bootstrap token 初始化或更新 Wota 的受限 Authentik API 服务账号和 token。
 - `npm run test:e2e`：运行 Chromium 和 WebKit Playwright 测试；本机只有 Chrome 时使用 `PLAYWRIGHT_CHROME_CHANNEL=chrome npm run test:e2e -- --project=chromium`。
 - `npm run format` / `npm run format:check`：统一或检查 Prettier 格式。
 - `node scripts/capture.mjs`：用合成歌词和音频生成桌面、短屏及手机截图；不要替换为个人媒体文件。
@@ -52,7 +53,7 @@ npm audit
 - `src/components/`：歌词导入、段落编辑、Excel 预览、播放器、时间轴、只读分享页、用户云空间和管理员后台。
 - `src/App.tsx`：工作台布局和跨组件工作流；业务规则尽量放入 `src/core/`，不要继续堆积到此文件。
 - `server/routes/`：认证、公开分享、用户分享和管理员 API。
-- `server/services/`：OIDC/BFF 会话、Keycloak 管理、配额事务、音频校验和流式读取。
+- `server/services/`：OIDC/BFF 会话、Authentik 管理、配额事务、音频校验和流式读取。
 - `server/db/`：Drizzle schema、迁移和数据库连接。
 - `tests/`：核心单元测试、存储/Excel 集成测试、Python 兼容测试和 Playwright 流程测试。
 
@@ -135,7 +136,7 @@ npm test -- tests/python-compat.test.ts
 - `main` 是生产基线。任务分支只能通过 Pull Request 合并进入 `main`，不得把未经验证的提交直接写入 `main`。
 - 合并进入 `main` 后，不手动复制构建产物或登录服务器发布。等待 `main` 的 CI 成功，由 `.github/workflows/deploy.yml` 构建并发布固定提交的 Web/API GHCR 镜像，再通过受限 Compose 命令更新 `https://wota.satintin.com` 和 `https://auth.wota.satintin.com`。
 - CI 成功只表示构建和检查完成，不等于部署成功。必须分别检查 Deploy 工作流结论及生产首页、健康检查；工作流失败或生产验证异常时，应先修复或回滚，不得宣称已经上线。
-- 手动触发 Deploy 仅用于获批的重试或恢复，不得用它绕过 `main` 合并和 CI 门禁。私钥、known hosts、数据库/Keycloak/SMTP 凭据只保存在 GitHub Actions Environment Secrets 或服务器 `/opt/wota-stack/.env`，不写入仓库、日志或提交信息。
+- 手动触发 Deploy 仅用于获批的重试或恢复，不得用它绕过 `main` 合并和 CI 门禁。私钥、known hosts、数据库/Authentik/SMTP 凭据只保存在 GitHub Actions Environment Secrets 或服务器 `/opt/wota-stack/.env`，不写入仓库、日志或提交信息。
 
 ## 自动提交与 push
 

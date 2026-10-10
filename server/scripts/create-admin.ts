@@ -1,7 +1,7 @@
 import { auditLogs } from "../db/schema";
 import { loadConfig } from "../config";
 import { createDatabase } from "../db/client";
-import { KeycloakAdminService } from "../services/keycloak-admin";
+import { AuthentikAdminService } from "../services/authentik-admin";
 import { upsertProvisionedUser } from "../services/users";
 
 function argument(name: string) {
@@ -20,10 +20,10 @@ if (!email || !name) {
 
 const config = loadConfig();
 const { db, pool } = createDatabase(config);
-const keycloak = new KeycloakAdminService(config);
+const authentik = new AuthentikAdminService(config);
 
 try {
-  const provisioned = await keycloak.provisionUser({
+  const provisioned = await authentik.provisionUser({
     email,
     name,
     isAdmin: true,

@@ -50,6 +50,25 @@ function safeReturnTo(value: string) {
   return value.startsWith("/") && !value.startsWith("//") ? value : "/";
 }
 
+export function identityFromClaims(
+  claims: Record<string, unknown>,
+): OidcIdentity {
+  const groups = Array.isArray(claims.groups)
+    ? claims.groups.filter(
+        (group): group is string => typeof group === "string",
+      )
+    : [];
+  return {
+    subject: typeof claims.sub === "string" ? claims.sub : "",
+    email: String(claims.email ?? claims.preferred_username ?? ""),
+    name: String(
+      claims.name ?? claims.preferred_username ?? claims.email ?? "",
+    ),
+    emailVerified: claims.email_verified === true,
+    isAdmin: groups.includes("wota-admin"),
+  };
+}
+
 export class OidcService {
   private discovery?: Discovery;
   private jwks?: ReturnType<typeof createRemoteJWKSet>;
@@ -60,6 +79,7 @@ export class OidcService {
     if (!this.discovery) {
       const response = await fetch(
         `${this.config.oidcDiscoveryUrl.replace(/\/$/, "")}/.well-known/openid-configuration`,
+        { headers: this.publicForwardedHeaders() },
       );
       if (!response.ok)
         throw new Error(`OIDC discovery failed: ${response.status}`);
@@ -86,7 +106,7 @@ export class OidcService {
     url.searchParams.set("client_id", this.config.OIDC_CLIENT_ID);
     url.searchParams.set("redirect_uri", this.config.oidcRedirectUri);
     url.searchParams.set("response_type", "code");
-    url.searchParams.set("scope", "openid profile email");
+    url.searchParams.set("scope", "openid profile email offline_access");
     url.searchParams.set("state", state);
     url.searchParams.set("nonce", nonce);
     url.searchParams.set("code_challenge", challenge);
@@ -105,7 +125,10 @@ export class OidcService {
     const metadata = await this.metadata();
     const response = await fetch(this.internalUrl(metadata.token_endpoint), {
       method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        ...this.publicForwardedHeaders(),
+      },
       body: new URLSearchParams({
         grant_type: "authorization_code",
         code,
@@ -127,25 +150,9 @@ export class OidcService {
     });
     if (verified.payload.nonce !== attempt.nonce)
       throw new Error("OIDC nonce validation failed.");
-    const claims = verified.payload as Record<string, unknown> & {
-      sub: string;
-      email?: string;
-      name?: string;
-      preferred_username?: string;
-      email_verified?: boolean;
-      realm_access?: { roles?: string[] };
-    };
     return {
       tokens: this.tokensFromResponse(token),
-      identity: {
-        subject: claims.sub,
-        email: String(claims.email ?? claims.preferred_username ?? ""),
-        name: String(
-          claims.name ?? claims.preferred_username ?? claims.email ?? "",
-        ),
-        emailVerified: claims.email_verified === true,
-        isAdmin: claims.realm_access?.roles?.includes("wota-admin") === true,
-      } satisfies OidcIdentity,
+      identity: identityFromClaims(verified.payload as Record<string, unknown>),
     };
   }
 
@@ -153,7 +160,10 @@ export class OidcService {
     const metadata = await this.metadata();
     const response = await fetch(this.internalUrl(metadata.token_endpoint), {
       method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        ...this.publicForwardedHeaders(),
+      },
       body: new URLSearchParams({
         grant_type: "refresh_token",
         refresh_token: refreshToken,
@@ -201,5 +211,14 @@ export class OidcService {
     source.protocol = internal.protocol;
     source.host = internal.host;
     return source.toString();
+  }
+
+  private publicForwardedHeaders() {
+    const publicUrl = new URL(this.config.OIDC_ISSUER_URL);
+    return {
+      "x-forwarded-host": publicUrl.host,
+      "x-forwarded-proto": publicUrl.protocol.replace(":", ""),
+      ...(publicUrl.port ? { "x-forwarded-port": publicUrl.port } : {}),
+    };
   }
 }

@@ -9,7 +9,7 @@ import {
   promoteAdmin,
   setUserQuota,
 } from "../services/admin";
-import type { KeycloakAdminService } from "../services/keycloak-admin";
+import type { AuthentikAdminService } from "../services/authentik-admin";
 import type { SessionContext, SessionService } from "../services/session";
 import { deleteShare, deleteShareAudio } from "../services/shares";
 
@@ -17,7 +17,7 @@ type Dependencies = {
   config: AppConfig;
   db: Database;
   sessions: SessionService;
-  keycloak: KeycloakAdminService;
+  authentik: AuthentikAdminService;
 };
 
 async function adminSession(request: FastifyRequest, sessions: SessionService) {
@@ -35,7 +35,7 @@ function csrf(request: FastifyRequest, session: SessionContext) {
 
 export async function registerAdminRoutes(
   app: FastifyInstance,
-  { config, db, sessions, keycloak }: Dependencies,
+  { config, db, sessions, authentik }: Dependencies,
 ) {
   app.get<{
     Querystring: { page?: string; pageSize?: string; search?: string };
@@ -49,7 +49,7 @@ export async function registerAdminRoutes(
     return listAdminUsers(
       db,
       config,
-      keycloak,
+      authentik,
       page,
       pageSize,
       request.query.search ?? "",
@@ -94,7 +94,7 @@ export async function registerAdminRoutes(
           name: z.string().max(120).default(""),
         })
         .parse(request.body);
-      const user = await promoteAdmin(db, config, keycloak, {
+      const user = await promoteAdmin(db, config, authentik, {
         actorUserId: session.user.id,
         email: body.email,
         name: body.name,

@@ -60,5 +60,5 @@ jobs:
           curl --fail --silent --show-error --retry 10 --retry-delay 2 \
             https://wota.satintin.com/healthz
           curl --fail --silent --show-error --retry 10 --retry-delay 2 \
-            https://auth.wota.satintin.com/realms/wota/.well-known/openid-configuration \
+            https://auth.wota.satintin.com/application/o/wota/.well-known/openid-configuration \
             >/dev/null

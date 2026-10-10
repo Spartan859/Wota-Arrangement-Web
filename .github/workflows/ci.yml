@@ -125,7 +125,7 @@ jobs:
           docker run --rm --network host \
             -e DATABASE_URL=postgres://wota:ci-password@127.0.0.1:5432/wota \
             -e SESSION_SECRET=ci-session-secret-at-least-32-characters \
-            -e OIDC_ISSUER_URL=http://127.0.0.1:8081/realms/wota \
+            -e OIDC_ISSUER_URL=http://127.0.0.1:8081/application/o/wota/ \
             -e OIDC_CLIENT_ID=wota-bff \
             -e OIDC_CLIENT_SECRET=ci-client-secret \
             -e AUDIO_STORAGE_DIR=/tmp/wota-audio \
@@ -134,7 +134,7 @@ jobs:
           docker run --detach --name wota-api-ci --network host \
             -e DATABASE_URL=postgres://wota:ci-password@127.0.0.1:5432/wota \
             -e SESSION_SECRET=ci-session-secret-at-least-32-characters \
-            -e OIDC_ISSUER_URL=http://127.0.0.1:8081/realms/wota \
+            -e OIDC_ISSUER_URL=http://127.0.0.1:8081/application/o/wota/ \
             -e OIDC_CLIENT_ID=wota-bff \
             -e OIDC_CLIENT_SECRET=ci-client-secret \
             -e AUDIO_STORAGE_DIR=/tmp/wota-audio \

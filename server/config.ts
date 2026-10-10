@@ -31,15 +31,22 @@ const schema = z.object({
     .default(defaultQuotaBytes),
   MAX_AUDIO_BYTES: z.coerce.number().int().positive().default(maxAudioBytes),
   TRUST_PROXY: booleanString,
-  KEYCLOAK_ADMIN_BASE_URL: z.string().url().optional(),
-  KEYCLOAK_ADMIN_REALM: z.string().default("wota"),
-  KEYCLOAK_ADMIN_CLIENT_ID: z.string().optional(),
-  KEYCLOAK_ADMIN_CLIENT_SECRET: z.string().optional(),
-  KEYCLOAK_BOOTSTRAP_USERNAME: z.string().optional(),
-  KEYCLOAK_BOOTSTRAP_PASSWORD: z.string().optional(),
-  KEYCLOAK_SMTP_HOST: z.string().default("postfix"),
-  KEYCLOAK_SMTP_PORT: z.coerce.number().int().positive().default(25),
-  KEYCLOAK_SMTP_FROM: z.string().email().default("no-reply@wota.satintin.com"),
+  AUTHENTIK_ADMIN_BASE_URL: z.string().url().optional(),
+  AUTHENTIK_ADMIN_TOKEN: z.string().min(1).optional(),
+  AUTHENTIK_BOOTSTRAP_TOKEN: z.string().min(1).optional(),
+  AUTHENTIK_RECOVERY_EMAIL_STAGE: z
+    .string()
+    .min(1)
+    .default("wota-recovery-email"),
+  AUTHENTIK_API_ADMIN_SERVICE_ACCOUNT: z
+    .string()
+    .min(1)
+    .default("wota-api-admin"),
+  AUTHENTIK_API_ADMIN_ROLE: z.string().min(1).default("wota-api-admin"),
+  AUTHENTIK_API_ADMIN_TOKEN_IDENTIFIER: z
+    .string()
+    .min(1)
+    .default("wota-api-admin-token"),
 });
 
 export type AppConfig = ReturnType<typeof loadConfig>;
