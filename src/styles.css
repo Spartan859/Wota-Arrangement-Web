@@ -2289,7 +2289,7 @@ fieldset {
 }
 .video-inpoint-controls {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto minmax(0, 1fr);
   align-items: end;
   gap: 8px;
 }

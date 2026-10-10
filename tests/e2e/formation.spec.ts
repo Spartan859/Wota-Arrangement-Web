@@ -266,8 +266,10 @@ test("插入视频、时间轴入出点、逐帧入点和最小化", async ({ pa
   const forwardButton = page.getByRole("button", { name: /\+1 帧/ });
   const backBox = (await backButton.boundingBox())!;
   const forwardBox = (await forwardButton.boundingBox())!;
+  const rateBox = (await page.getByLabel("视频帧率").boundingBox())!;
   expect(Math.abs(preciseBox.y - backBox.y)).toBeLessThan(30);
   expect(Math.abs(backBox.y - forwardBox.y)).toBeLessThan(2);
+  expect(Math.abs(preciseBox.y - rateBox.y)).toBeLessThan(2);
   await page.getByLabel("视频入点秒数").fill("0.2");
   await page.getByRole("button", { name: "保存入点", exact: true }).click();
   await expect(page.locator(".save-state")).toContainText("已保存");

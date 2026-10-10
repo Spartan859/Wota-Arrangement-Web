@@ -630,19 +630,19 @@ export function FormationVideoLayer({
             >
               +1 帧
             </button>
+            <label className="field">
+              <span>帧率</span>
+              <input
+                aria-label="视频帧率"
+                type="number"
+                min="1"
+                max="240"
+                step="0.001"
+                value={previewRate}
+                onChange={(event) => setPreviewRate(event.target.value)}
+              />
+            </label>
           </div>
-          <label className="field">
-            <span>帧率</span>
-            <input
-              aria-label="视频帧率"
-              type="number"
-              min="1"
-              max="240"
-              step="0.001"
-              value={previewRate}
-              onChange={(event) => setPreviewRate(event.target.value)}
-            />
-          </label>
           {previewError && (
             <p className="error" role="alert">
               {previewError}
