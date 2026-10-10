@@ -2295,6 +2295,7 @@ fieldset {
 }
 .video-inpoint-controls > button {
   min-height: 34px;
+  margin-bottom: 14px;
   white-space: nowrap;
 }
 .visually-hidden {
