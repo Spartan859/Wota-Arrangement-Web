@@ -249,6 +249,25 @@ test("插入视频、时间轴入出点、逐帧入点和最小化", async ({ pa
   await videoNode.hover();
   await page.getByLabel("粗略选择视频入点").click();
   await expect(page.getByLabel("视频入点秒数")).toBeVisible();
+  const inPointSlider = page.getByLabel("视频入点秒数");
+  const sliderBox = (await inPointSlider.boundingBox())!;
+  await page.mouse.move(sliderBox.x + 4, sliderBox.y + sliderBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    sliderBox.x + sliderBox.width * 0.6,
+    sliderBox.y + sliderBox.height / 2,
+    { steps: 5 },
+  );
+  await page.mouse.up();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  const preciseInput = page.getByLabel("精确秒数");
+  const preciseBox = (await preciseInput.boundingBox())!;
+  const backButton = page.getByRole("button", { name: /−1 帧/ });
+  const forwardButton = page.getByRole("button", { name: /\+1 帧/ });
+  const backBox = (await backButton.boundingBox())!;
+  const forwardBox = (await forwardButton.boundingBox())!;
+  expect(Math.abs(preciseBox.y - backBox.y)).toBeLessThan(30);
+  expect(Math.abs(backBox.y - forwardBox.y)).toBeLessThan(2);
   await page.getByLabel("视频入点秒数").fill("0.2");
   await page.getByRole("button", { name: "保存入点", exact: true }).click();
   await expect(page.locator(".save-state")).toContainText("已保存");

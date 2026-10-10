@@ -343,7 +343,7 @@ export function FormationCanvas({
         className="stage-container"
         onClick={(event) => {
           const target = event.target as Element;
-          if (target.closest(".formation-video,[data-dancer]")) return;
+          if (target.closest(".formation-video,[data-dancer],dialog")) return;
           setSelected(null);
           onDancerSelect?.(null);
           onVideoClipSelect?.(null);

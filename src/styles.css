@@ -2287,6 +2287,16 @@ fieldset {
   max-height: 46vh;
   background: #111827;
 }
+.video-inpoint-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: end;
+  gap: 8px;
+}
+.video-inpoint-controls > button {
+  min-height: 34px;
+  white-space: nowrap;
+}
 .visually-hidden {
   position: fixed !important;
   width: 1px !important;

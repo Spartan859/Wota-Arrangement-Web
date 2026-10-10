@@ -590,7 +590,7 @@ export function FormationVideoLayer({
               }}
             />
           </label>
-          <div className="two-fields">
+          <div className="video-inpoint-controls">
             <label className="field">
               <span>精确秒数</span>
               <input
@@ -602,20 +602,6 @@ export function FormationVideoLayer({
                 onChange={(event) => setPreviewInPoint(event.target.value)}
               />
             </label>
-            <label className="field">
-              <span>帧率</span>
-              <input
-                aria-label="视频帧率"
-                type="number"
-                min="1"
-                max="240"
-                step="0.001"
-                value={previewRate}
-                onChange={(event) => setPreviewRate(event.target.value)}
-              />
-            </label>
-          </div>
-          <div className="toolbar">
             <button
               onClick={() =>
                 setPreviewInPoint((value) =>
@@ -645,6 +631,18 @@ export function FormationVideoLayer({
               +1 帧
             </button>
           </div>
+          <label className="field">
+            <span>帧率</span>
+            <input
+              aria-label="视频帧率"
+              type="number"
+              min="1"
+              max="240"
+              step="0.001"
+              value={previewRate}
+              onChange={(event) => setPreviewRate(event.target.value)}
+            />
+          </label>
           {previewError && (
             <p className="error" role="alert">
               {previewError}
