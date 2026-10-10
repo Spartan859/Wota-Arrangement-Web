@@ -8,7 +8,7 @@
 - `npm run check`：53 项测试通过、1 项 Python 兼容测试按默认条件跳过；TypeScript、API 构建和前端生产构建通过。`npm run format:check`、Compose 配置校验、Authentik blueprint 官方 dry-run 通过；`npm audit --omit=dev --audit-level=moderate` 为 0 漏洞。
 - 新增的 OIDC 和管理服务测试覆盖 Authentik `groups`、邮箱验证、分页、重复邮箱、Wota 用户筛选、用户创建、组分配、恢复邮件和错误映射。完整审计仍报告 3 个既有开发依赖问题（`concurrently` 间接依赖及 `source-map-js`），本轮未扩展为依赖升级任务。
 - 本地隔离 Compose 实际启动成功：Authentik server/worker、PostgreSQL、Mailpit、API 和 Web 健康检查通过；`wota-api-admin` 服务账号和 `wota-user`、`wota-admin` 组创建成功，OIDC discovery 和 RSA JWKS 可访问且 provider 已绑定签名密钥。
-- `authentik-configure` 已在本地实例运行并创建受限服务账号、权限、token；其最终版本新增了等待默认证书后绑定 OIDC 签名密钥的初始化步骤。该最终脚本通过类型检查和构建，blueprint dry-run 通过，但未再次运行脚本，因为这会使用忽略的 `.env` 中 bootstrap token 调用 Authentik 管理 API。
+- 最终版 `authentik-configure` 已在本地实例运行，幂等创建受限服务账号、权限和 token，并在默认证书可用后绑定 OIDC 签名密钥。随后 discovery 公布 `RS256`，JWKS 返回 1 个 RSA 签名密钥；blueprint 官方 dry-run 通过。
 - 使用合成用户在 Wota 公开注册流程中创建账号，Mailpit 收到验证邮件；确认邮箱后通过 Authentik 登录，BFF 会话返回 `emailVerified=true`。
 - 使用服务器脚本创建合成管理员，Authentik 自动加入 `wota-admin` 并发送恢复邮件；管理员登录后 BFF `isAdmin=true`，`/api/admin/users` 返回 200。
 - 已验证用户可发布并删除一个无音频在线分享，确认 Authentik 登录到分享 API 的端到端链路可用。
