@@ -2,6 +2,17 @@
 
 日期：2026-09-19。所有测试仅使用合成歌词和音频。
 
+## 2026-10-12 只读分享本地混合调试
+
+- README 现在明确：Compose 路径使用 `8080` 入口和 `npm run dev` 热更新，`5173` 通过 Vite 代理访问 Compose API；不再建议与 Compose 同时执行 `npm run dev:all`。
+- Vite API 代理支持通过 `VITE_API_PROXY_TARGET` 覆盖，默认仍为 `http://127.0.0.1:8787`；文档补充了默认端口占用时的 `WOTA_*_PORT`、`PUBLIC_ORIGIN`、OIDC 回调和代理地址联动方式。
+- `npm run check`：13 个测试文件通过、1 个按设计跳过；65 项测试通过、1 项跳过。TypeScript、API 构建和前端生产构建通过。`npm run format:check` 通过。
+- Chromium 只读分享专项 2/2 通过，覆盖本地音乐、播放跟随、段落循环、移动端布局和云端视频最小化/恢复。
+- 为避免停止另一 worktree 的旧 `wota-codex` 栈，本轮使用独立 `wota-local-share` Compose 项目：Web `18080`、API `18787`、Authentik `18081`、Mailpit `18025`，并让 Vite 代理指向 `18787`。
+- Compose 全部服务健康；`/api/health` 返回 `{"ok":true,"service":"wota-api"}`，Authentik OIDC discovery 返回 200 且包含 RSA 签名算法。
+- 使用合成 WAV 和本地临时已验证用户发布真实分享，公开快照返回 `audioAvailable=true`；`Range: bytes=0-99` 返回 `206` 和 100 字节。Chrome 打开分享页后音频 `readyState=1`、时长 2 秒、页面无横向溢出。
+- 本轮未运行 WebKit/Safari，也未修改公开 API、数据库 schema 或分享数据模型。
+
 ## 2026-10-11 Deploy 修复
 
 - 复现原 Deploy 失败：服务器仍执行旧 Keycloak runtime，且部署脚本使用错误的 API 镜像名与完整 SHA 标签；CI 实际发布的是 `wota-arrangement-web-api:sha-<短 SHA>`。

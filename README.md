@@ -15,13 +15,19 @@ npm run dev
 
 打开终端显示的本地地址，默认 `http://127.0.0.1:5173`。开发服务器只监听本机。
 
-需要同时调试在线分享、Authentik 和数据库时，先复制 `.env.example` 为 `.env`，替换其中的开发密码和 token，再启动隔离 Compose 栈：
+需要调试真实的在线分享、Authentik 和数据库链路时，先复制 `.env.example` 为 `.env`，替换其中的开发密码和 token，再启动隔离 Compose 栈：
 
 ```sh
 cp .env.example .env
 docker compose --profile local-mail up -d --build
-npm run dev:all
+npm run dev
 ```
+
+Compose 提供稳定的 `8080` Web/API 入口和 `8787` API；Vite 的 `5173` 仅用于前端热更新，并把 `/api` 代理到该 API。不要在与 Compose 同时运行时再执行 `npm run dev:api` 或 `npm run dev:all`，否则会争用 `8787` 端口；`dev:all` 只适用于另行准备、可从主机访问数据库和 OIDC 服务的 API 环境。
+
+调试只读分享时，在 `http://127.0.0.1:8080` 完成注册、登录和发布，并从 `http://127.0.0.1:8025` 查看验证邮件。发布得到 `/s/<token>` 后，可用 `http://127.0.0.1:8080/s/<token>` 检查真实入口，再用 `http://127.0.0.1:5173/s/<token>` 获得 Vite 热更新；公开分享无需登录，5173 会通过 Vite 代理访问 Compose API。
+
+若默认端口已被其他本地栈占用，可同时覆盖 `WOTA_WEB_PORT`、`WOTA_API_PORT`、`WOTA_AUTHENTIK_PORT` 和 `WOTA_MAILPIT_PORT`，让对应的 `PUBLIC_ORIGIN`、OIDC 回调和 `AUTHENTIK_HOSTNAME` 使用新地址，并通过 `VITE_API_PROXY_TARGET=http://127.0.0.1:<API 端口> npm run dev` 启动 Vite。
 
 本地服务地址：
 
