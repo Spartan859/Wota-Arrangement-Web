@@ -21,6 +21,7 @@ function wav(seconds = 12) {
 async function boot(page: Page) {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "当前段落" })).toBeVisible();
+  await expect(page.getByTestId("playback-time")).toHaveCount(0);
   await expect(page.getByText("歌词池")).toHaveCount(0);
   await expect(page.getByText("暂存区")).toHaveCount(0);
 }

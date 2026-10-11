@@ -150,6 +150,12 @@ export function PublicSharePage() {
             share.snapshot.audio?.duration ?? project.audio?.duration ?? 0,
         }
       : null;
+  const audioName = externalSource?.name || project.audio?.name || "未关联歌曲";
+  const audioStatus = audioReady
+    ? "音频已在此浏览器就绪"
+    : externalSource
+      ? "正在加载音频…"
+      : "尚未关联歌曲";
   const chooseLocalAudio = async (file: File) => {
     const url = URL.createObjectURL(file);
     const probe = new Audio();
@@ -195,11 +201,15 @@ export function PublicSharePage() {
   return (
     <div className="public-share-page">
       <header className="public-share-header">
-        <Link className="public-back" to="/">
-          <ArrowLeft size={17} /> 工作台
+        <Link
+          className="public-back"
+          to="/"
+          aria-label="返回工作台"
+          title="返回工作台"
+        >
+          <ArrowLeft size={17} />
         </Link>
         <div>
-          <span>Wota 在线编排</span>
           <h1>{project.songName}</h1>
           <p>
             BPM {project.bpm} · 更新于{" "}
@@ -221,23 +231,48 @@ export function PublicSharePage() {
       {settingsOpen && (
         <Modal title="播放设置" onClose={() => setSettingsOpen(false)}>
           <div className="settings-panel">
-            <div>
-              <strong>同步偏移</strong>
-              <span>
-                {syncOffset > 0 ? "+" : ""}
-                {syncOffset.toFixed(2)} 秒
-              </span>
-            </div>
-            <input
-              aria-label="同步偏移"
-              type="range"
-              min={-maxSyncOffsetSeconds}
-              max={maxSyncOffsetSeconds}
-              step="0.01"
-              value={syncOffset}
-              onChange={(event) => setSyncOffset(Number(event.target.value))}
-            />
-            <button onClick={() => setSyncOffset(0)}>归零</button>
+            <section className="settings-audio" aria-label="歌曲设置">
+              <div className="settings-audio-source">
+                <Music2 size={20} />
+                <div>
+                  <strong>{audioName}</strong>
+                  <span>{audioStatus}</span>
+                </div>
+              </div>
+              <label className="file-button">
+                <FileAudio size={15} />
+                {externalSource ? "更换歌曲" : "导入歌曲"}
+                <input
+                  aria-label="音频文件"
+                  type="file"
+                  accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void chooseLocalAudio(file);
+                    event.target.value = "";
+                  }}
+                />
+              </label>
+            </section>
+            <section className="settings-offset" aria-label="同步偏移设置">
+              <div>
+                <strong>同步偏移</strong>
+                <span>
+                  {syncOffset > 0 ? "+" : ""}
+                  {syncOffset.toFixed(2)} 秒
+                </span>
+              </div>
+              <input
+                aria-label="同步偏移"
+                type="range"
+                min={-maxSyncOffsetSeconds}
+                max={maxSyncOffsetSeconds}
+                step="0.01"
+                value={syncOffset}
+                onChange={(event) => setSyncOffset(Number(event.target.value))}
+              />
+              <button onClick={() => setSyncOffset(0)}>归零</button>
+            </section>
           </div>
         </Modal>
       )}
@@ -294,6 +329,7 @@ export function PublicSharePage() {
             activeLyricId={currentLyric?.id}
             audioReady={audioReady}
             time={time}
+            showCompactSummary
           />
         </section>
         <FormationCanvas
@@ -309,37 +345,42 @@ export function PublicSharePage() {
           externalVideoSources={externalVideoSources}
           videoStorageKey={`wota-share-video-minimized:${share.token}`}
         />
+        <section className="public-timeline-panel" aria-label="歌曲时间轴">
+          <Player
+            key={`${share.token}:${externalSource?.url ?? "none"}`}
+            ref={player}
+            project={project}
+            edit={() => undefined}
+            formationDancerId={null}
+            loopId={loopId}
+            onLoop={setLoopId}
+            onTime={(position, playing) => {
+              setTime(position);
+              if (playing && follow)
+                setSelectedId(
+                  activeBlock(project.blocks, position)?.id ?? null,
+                );
+            }}
+            onPersist={() => undefined}
+            onError={setError}
+            onNotice={setNotice}
+            onUpload={(file) => void chooseLocalAudio(file)}
+            externalSource={externalSource}
+            timelineOffset={syncOffset}
+            audioReplaceable
+            follow={follow}
+            onFollow={setFollow}
+            readOnly
+            showEditingControls={false}
+            showFormationTrack={false}
+            showSourceControls={false}
+            onReady={setAudioReady}
+            selectedIds={selectedId ? [selectedId] : []}
+            primarySelectedId={selectedId}
+            onSelect={setSelectedId}
+          />
+        </section>
       </main>
-      <Player
-        key={`${share.token}:${externalSource?.url ?? "none"}`}
-        ref={player}
-        project={project}
-        edit={() => undefined}
-        formationDancerId={null}
-        loopId={loopId}
-        onLoop={setLoopId}
-        onTime={(position, playing) => {
-          setTime(position);
-          if (playing && follow)
-            setSelectedId(activeBlock(project.blocks, position)?.id ?? null);
-        }}
-        onPersist={() => undefined}
-        onError={setError}
-        onNotice={setNotice}
-        onUpload={(file) => void chooseLocalAudio(file)}
-        externalSource={externalSource}
-        timelineOffset={syncOffset}
-        audioReplaceable
-        follow={follow}
-        onFollow={setFollow}
-        readOnly
-        showEditingControls={false}
-        showFormationTrack={false}
-        onReady={setAudioReady}
-        selectedIds={selectedId ? [selectedId] : []}
-        primarySelectedId={selectedId}
-        onSelect={setSelectedId}
-      />
       {!audioReady && (
         <div className="audio-gate" role="status">
           <Music2 size={19} />

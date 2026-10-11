@@ -29,6 +29,7 @@ type Props = {
   audioReady: boolean;
   time: number;
   readOnly?: boolean;
+  showCompactSummary?: boolean;
   looping?: boolean;
 };
 export function BlockEditor({
@@ -44,6 +45,7 @@ export function BlockEditor({
   audioReady,
   time,
   readOnly = false,
+  showCompactSummary = false,
   looping = false,
 }: Props) {
   const [modal, setModal] = useState<
@@ -62,9 +64,21 @@ export function BlockEditor({
   const beatCount = Math.max(1, Number.parseInt(b?.beats ?? "0", 10) || 1);
   const beatDuration = Number(p.bpm) > 0 ? 60 / Number(p.bpm) : 0;
   const currentBeat =
-    b?.start !== null && b?.start !== undefined && time >= b.start
+    b?.start !== null &&
+    b?.start !== undefined &&
+    beatDuration > 0 &&
+    time >= b.start &&
+    (b.end === null || time < b.end)
       ? Math.floor((time - b.start) / beatDuration)
       : -1;
+  const compactBeat =
+    currentBeat >= 0 && currentBeat < beatCount ? currentBeat : null;
+  const compactBeatText =
+    compactBeat === null
+      ? "—"
+      : `${Math.floor(compactBeat / 8) + 1}-${(compactBeat % 8) + 1}（第${
+          Math.floor(compactBeat / 8) + 1
+        }八拍的第${(compactBeat % 8) + 1}拍）`;
   const rows = useMemo(
     () => b?.lyrics.filter((l) => l.jp || l.cn || l.time !== null) ?? [],
     [b],
@@ -81,6 +95,29 @@ export function BlockEditor({
       className={`editor-card ${readOnly ? "readonly" : ""}`}
       data-testid="editor-card"
     >
+      {showCompactSummary && (
+        <div
+          className="block-compact-summary"
+          data-testid="compact-block-summary"
+          aria-label="当前段落摘要"
+        >
+          <strong className="compact-block-title">
+            {b.type || "未命名"} {b.beats} 拍
+          </strong>
+          <span aria-label={`动作编排：${b.arrangement || "无"}`}>
+            {b.arrangement || "无"}
+          </span>
+          <span aria-label={`备注：${b.remarks || "无"}`}>
+            {b.remarks || "无"}
+          </span>
+          <span
+            className="compact-block-beat"
+            aria-label={`当前位置：${compactBeat === null ? "当前不在已对时段落内" : compactBeatText}`}
+          >
+            {compactBeatText}
+          </span>
+        </div>
+      )}
       <div className="editor-card-head">
         <div>
           <span className="eyebrow">CURRENT BLOCK</span>
