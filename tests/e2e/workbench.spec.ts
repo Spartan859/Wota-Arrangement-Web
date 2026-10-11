@@ -1029,3 +1029,120 @@ test("复选框滑块和下拉框获得焦点后空格仍播放暂停", async ({
   );
   expect(await paused()).toBe(true);
 });
+
+test("导出弹窗内显示共享链接复制成功和失败反馈", async ({ page }) => {
+  let projectId = "";
+  await page.addInitScript(() => {
+    Object.defineProperty(globalThis, "__wotaClipboardFails", {
+      value: false,
+      writable: true,
+      configurable: true,
+    });
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async () => {
+          if (
+            (
+              globalThis as typeof globalThis & {
+                __wotaClipboardFails?: boolean;
+              }
+            ).__wotaClipboardFails
+          )
+            throw new Error("clipboard blocked");
+        },
+      },
+    });
+  });
+  await page.route("**/api/session", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        authenticated: true,
+        csrfToken: "csrf",
+        user: {
+          id: "debug-user",
+          email: "debug@example.test",
+          name: "Debug",
+          emailVerified: true,
+          isAdmin: false,
+          quotaBytes: 104857600,
+          usedBytes: 0,
+        },
+      }),
+    }),
+  );
+  await page.route("**/api/shares", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        shares: projectId
+          ? [
+              {
+                id: "debug-share",
+                projectId,
+                token: "debug-token",
+                url: "http://127.0.0.1:18080/s/debug-token",
+                songName: "未命名歌曲",
+                revision: 2,
+                publishedAt: "2026-10-12T00:00:00.000Z",
+                updatedAt: "2026-10-12T00:00:00.000Z",
+                audio: null,
+                videos: [],
+              },
+            ]
+          : [],
+      }),
+    }),
+  );
+  await boot(page);
+  await clickTimeline(page, 0.1);
+  await page.getByRole("button", { name: "创建", exact: true }).click();
+  await expect(page.locator(".save-state")).toContainText("已保存");
+  projectId = await page.evaluate(
+    () =>
+      new Promise<string>((resolve, reject) => {
+        const open = indexedDB.open("wota-workbench");
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const db = open.result;
+          const request = db
+            .transaction("projects", "readonly")
+            .objectStore("projects")
+            .getAll();
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => {
+            db.close();
+            const entries = request.result.sort(
+              (a, b) => b.document.updatedAt - a.document.updatedAt,
+            );
+            if (!entries[0]) reject(new Error("saved project missing"));
+            else resolve(entries[0].id);
+          };
+        };
+      }),
+  );
+  await page.reload();
+  await page.getByRole("button", { name: "导出", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(
+    dialog.getByRole("button", { name: "复制共享链接", exact: true }),
+  ).toBeVisible();
+  await dialog
+    .getByRole("button", { name: "复制共享链接", exact: true })
+    .click();
+  await expect(dialog.getByRole("status")).toContainText("分享链接已复制。");
+
+  await page.evaluate(() => {
+    (
+      globalThis as typeof globalThis & { __wotaClipboardFails?: boolean }
+    ).__wotaClipboardFails = true;
+  });
+  await dialog
+    .getByRole("button", { name: "复制共享链接", exact: true })
+    .click();
+  await expect(dialog.getByRole("alert")).toContainText("浏览器未允许自动复制");
+  await expect(dialog.getByLabel("共享链接")).toHaveValue(
+    "http://127.0.0.1:18080/s/debug-token",
+  );
+});

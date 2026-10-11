@@ -2775,6 +2775,9 @@ fieldset {
   margin-top: 10px;
   font-family: ui-monospace, monospace;
 }
+.share-copy-feedback {
+  margin: 12px 0 0;
+}
 .public-share-page,
 .account-page,
 .admin-page {

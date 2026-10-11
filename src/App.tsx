@@ -90,6 +90,10 @@ export default function App() {
     [publishProgress, setPublishProgress] = useState(0),
     [shares, setShares] = useState<ShareSummary[]>([]),
     [shareUrlFallback, setShareUrlFallback] = useState("");
+  const [shareFeedback, setShareFeedback] = useState<{
+    message: string;
+    error: boolean;
+  } | null>(null);
   const currentBlock =
     p.blocks.find((b) => b.id === primarySelectedId) ??
     activeBlock(p.blocks, time);
@@ -130,6 +134,9 @@ export default function App() {
     setModal("export");
     navigate("/", { replace: true });
   }, [p.id, session.authenticated, store.ready]);
+  useEffect(() => {
+    if (modal !== "export") setShareFeedback(null);
+  }, [modal]);
   async function attempt(fn: () => void | Promise<void>) {
     try {
       await fn();
@@ -389,12 +396,17 @@ export default function App() {
   }
   async function copyShareUrl(url: string) {
     setShareUrlFallback("");
+    setShareFeedback(null);
     try {
       await navigator.clipboard.writeText(url);
-      setNotice("分享链接已复制。");
+      const message = "分享链接已复制。";
+      setNotice(message);
+      setShareFeedback({ message, error: false });
     } catch {
       setShareUrlFallback(url);
-      setNotice("浏览器未允许自动复制，请使用下方链接手动复制。");
+      const message = "浏览器未允许自动复制，请使用下方链接手动复制。";
+      setNotice(message);
+      setShareFeedback({ message, error: true });
     }
   }
   async function publishOnline() {
@@ -881,6 +893,17 @@ export default function App() {
                 </button>
               )}
             </div>
+            {shareFeedback && (
+              <div
+                className={
+                  "message share-copy-feedback " +
+                  (shareFeedback.error ? "error" : "")
+                }
+                role={shareFeedback.error ? "alert" : "status"}
+              >
+                <span>{shareFeedback.message}</span>
+              </div>
+            )}
             {publishing && <progress max={100} value={publishProgress} />}
             {shareUrlFallback && (
               <input
