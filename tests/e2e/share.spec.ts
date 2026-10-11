@@ -168,7 +168,37 @@ test("只读分享页支持本地音乐、播放跟随、段落循环和移动�
   await mockShare(page);
   await page.goto("/s/demo-token");
   await expect(page.getByRole("heading", { name: "合成分享" })).toBeVisible();
+  await expect(page.getByText("Wota 在线编排")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "返回工作台" })).toHaveText("");
   await expect(page.locator(".public-arrangement .editor-card")).toBeVisible();
+  await expect(page.getByTestId("playback-time")).toHaveCount(0);
+  await expect(page.locator(".public-timeline-panel .song-badge")).toHaveCount(
+    0,
+  );
+  await expect(page.locator(".public-timeline-panel .file-button")).toHaveCount(
+    0,
+  );
+  const wideArrangement = (await page
+    .locator(".public-arrangement")
+    .boundingBox())!;
+  const wideFormation = (await page
+    .locator(".public-stage > .formation-panel")
+    .boundingBox())!;
+  const wideTimeline = (await page
+    .locator(".public-timeline-panel")
+    .boundingBox())!;
+  expect(Math.abs(wideArrangement.y - wideFormation.y)).toBeLessThanOrEqual(1);
+  expect(wideTimeline.y).toBeGreaterThanOrEqual(
+    wideArrangement.y + wideArrangement.height - 1,
+  );
+  expect(wideTimeline.y).toBeGreaterThanOrEqual(
+    wideFormation.y + wideFormation.height - 1,
+  );
+  expect(wideTimeline.x).toBeCloseTo(wideArrangement.x, 0);
+  expect(wideTimeline.width).toBeCloseTo(
+    wideFormation.x + wideFormation.width - wideArrangement.x,
+    0,
+  );
   await expect(page.getByRole("button", { name: /当前作为入点/ })).toHaveCount(
     0,
   );
@@ -185,24 +215,57 @@ test("只读分享页支持本地音乐、播放跟随、段落循环和移动�
   ).toBeEnabled();
   await page.getByRole("button", { name: "播放", exact: true }).click();
   await expect(
-    page.getByRole("region", { name: "当前编排" }).getByText("中心集合"),
+    page
+      .getByRole("region", { name: "当前编排" })
+      .locator(".arrangement-surface")
+      .getByText("中心集合"),
   ).toBeVisible();
   await page.getByRole("button", { name: "播放设置" }).click();
-  await page.getByLabel("同步偏移").fill("0.25");
+  const settings = page.getByRole("dialog");
+  await expect(settings.getByText("synthetic.wav")).toBeVisible();
+  await expect(settings.getByText("更换歌曲")).toBeVisible();
+  await expect(settings.getByLabel("音频文件")).toBeAttached();
+  await settings.getByRole("slider", { name: "同步偏移" }).fill("0.25");
   await expect(page.getByText("+0.25 秒")).toBeVisible();
   await page.getByRole("button", { name: "关闭对话框" }).click();
   await page.getByRole("button", { name: "循环", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "退出循环", exact: true }).first(),
   ).toBeEnabled();
-  await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.getByLabel("舞台俯视图")).toBeVisible();
-  await expect(page.locator(".public-arrangement .editor-card")).toBeVisible();
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-  ).toBe(true);
+  const pause = page.getByRole("button", { name: "暂停", exact: true });
+  if (await pause.count()) await pause.click();
+  for (const viewport of [
+    { width: 1000, height: 900 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await expect(page.getByLabel("舞台俯视图")).toBeVisible();
+    await expect(
+      page.locator(".public-arrangement .editor-card"),
+    ).toBeVisible();
+    await expect(page.getByTestId("compact-block-summary")).toBeVisible();
+    await expect(page.locator(".editor-card-head")).toBeHidden();
+    await expect(page.getByText("双语歌词")).toBeHidden();
+    await expect(page.getByText("技 / 动作编排")).toBeHidden();
+    await page.getByLabel("播放进度").fill("1.2");
+    await expect(page.getByTestId("compact-block-summary")).toContainText(
+      /1-[1-8]（第1八拍的第[1-8]拍）/,
+    );
+    const tops = await page
+      .locator(
+        ".public-arrangement, .public-stage > .formation-panel, .public-timeline-panel",
+      )
+      .evaluateAll((elements) =>
+        elements.map((element) => element.getBoundingClientRect().top),
+      );
+    expect(tops[0]).toBeLessThan(tops[1]);
+    expect(tops[1]).toBeLessThan(tops[2]);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  }
   expect(errors).toEqual([]);
 });
 

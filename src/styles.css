@@ -747,15 +747,6 @@ fieldset {
 .play-button:hover {
   background: #3659c3;
 }
-.clock {
-  font-family: ui-monospace, monospace;
-  font-size: 12px;
-  white-space: nowrap;
-}
-.clock > span {
-  color: #a2abbb;
-  font-size: 11px;
-}
 .compact {
   display: flex;
   align-items: center;
@@ -1325,12 +1316,6 @@ fieldset {
   .play-button {
     width: 30px;
     height: 30px;
-  }
-  .clock {
-    font-size: 10px;
-  }
-  .clock > span {
-    font-size: 9px;
   }
   .player-controls > .compact {
     margin-left: auto;
@@ -2865,15 +2850,54 @@ fieldset {
 }
 .settings-panel {
   display: grid;
+  gap: 18px;
+}
+.settings-audio {
+  display: grid;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.settings-audio-source {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: #7086b2;
+}
+.settings-audio-source > svg {
+  flex-shrink: 0;
+}
+.settings-audio-source > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.settings-audio-source strong {
+  color: #445572;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-audio-source span {
+  color: var(--muted);
+  font-size: 11px;
+}
+.settings-audio .file-button {
+  justify-self: start;
+}
+.settings-offset {
+  display: grid;
   gap: 12px;
 }
-.settings-panel > div {
+.settings-offset > div {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
-.settings-panel > div span {
+.settings-offset > div span {
   color: var(--muted);
   font:
     11px ui-monospace,
@@ -2882,7 +2906,7 @@ fieldset {
 .settings-panel input {
   width: 100%;
 }
-.settings-panel button {
+.settings-offset button {
   justify-self: start;
 }
 .local-audio-banner {
@@ -2910,11 +2934,16 @@ fieldset {
 .public-stage {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "arrangement"
+    "formation"
+    "timeline";
   gap: 16px;
   padding: 16px clamp(18px, 4vw, 56px);
   align-items: stretch;
 }
 .public-arrangement {
+  grid-area: arrangement;
   padding: 0;
   min-width: 0;
 }
@@ -2925,6 +2954,27 @@ fieldset {
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 8px;
+}
+.public-stage > .formation-panel {
+  grid-area: formation;
+}
+.public-timeline-panel {
+  grid-area: timeline;
+  min-width: 0;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #d8e0ec;
+  border-radius: 8px;
+}
+.public-timeline-panel .player {
+  position: relative;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.block-compact-summary {
+  display: none;
 }
 .editor-card.readonly .edit-surface:disabled {
   opacity: 1;
@@ -3037,15 +3087,6 @@ fieldset {
 .public-share-page .formation-stage {
   width: 100%;
   max-height: 540px;
-}
-.public-share-page .player {
-  position: sticky;
-  bottom: 0;
-  z-index: 12;
-  margin: 0 clamp(18px, 4vw, 56px);
-  border: 1px solid #d8e0ec;
-  border-radius: 8px 8px 0 0;
-  box-shadow: 0 -8px 24px #21304b14;
 }
 .public-mobile-tabs {
   display: none;
@@ -3278,9 +3319,69 @@ button.danger,
   padding: 5px 7px;
 }
 
+@media (min-width: 1001px) {
+  .public-stage {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "arrangement formation"
+      "timeline timeline";
+  }
+  .public-arrangement {
+    display: flex;
+  }
+  .public-arrangement .editor-card {
+    flex: 1;
+    height: 100%;
+  }
+}
+
 @media (max-width: 1000px) {
   .admin-layout {
     grid-template-columns: 1fr;
+  }
+  .public-arrangement .editor-card {
+    height: auto;
+    overflow: hidden;
+    padding: 12px 14px;
+  }
+  .public-arrangement .editor-card-head,
+  .public-arrangement .editor-card-main {
+    display: none;
+  }
+  .block-compact-summary {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    overflow-x: auto;
+    gap: 7px;
+    color: #52617a;
+    font-size: 12px;
+    line-height: 1.35;
+    white-space: nowrap;
+    scrollbar-width: none;
+  }
+  .block-compact-summary::-webkit-scrollbar {
+    display: none;
+  }
+  .block-compact-summary > span,
+  .block-compact-summary > strong {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  .block-compact-summary > :not(:last-child)::after {
+    content: "|";
+    margin-left: 7px;
+    color: #c1c8d4;
+    font-weight: 400;
+  }
+  .compact-block-title {
+    color: #26364f;
+    font-size: 13px;
+  }
+  .compact-block-beat {
+    color: #35646b;
+    font-family: ui-monospace, monospace;
   }
   .public-share-page .formation-panel {
     min-height: 420px;
@@ -3329,27 +3430,10 @@ button.danger,
   .public-share-page .formation-stage {
     max-height: 56dvh;
   }
-  .public-share-page .player {
-    margin: 0 12px;
-    position: relative;
-    bottom: auto;
-  }
   .public-share-page .player-controls {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-  }
-  .public-share-page .song-badge {
-    flex: 1 1 100%;
-    min-width: 0;
-    max-width: none;
-  }
-  .public-share-page .file-button {
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-  .public-share-page .clock {
-    margin-left: auto;
   }
   .public-share-page .compact,
   .public-share-page .check,
