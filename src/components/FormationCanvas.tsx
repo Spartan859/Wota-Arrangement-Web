@@ -1,6 +1,13 @@
 import { Plus, Trash2 } from "lucide-react";
 import { usePointerDrag } from "./usePointerDrag";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import type { Project } from "../core/model";
 import {
   addDancer,
@@ -354,7 +361,12 @@ export function FormationCanvas({
       >
         <div
           className="stage-frame"
-          style={{ aspectRatio: `${stageWidth} / ${stageHeight}` }}
+          style={
+            {
+              aspectRatio: `${stageWidth} / ${stageHeight}`,
+              "--stage-ratio": stageWidth / stageHeight,
+            } as CSSProperties
+          }
         >
           <svg
             ref={svg}

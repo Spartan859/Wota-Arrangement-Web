@@ -250,7 +250,9 @@ test("只读分享页支持本地音乐、播放跟随、段落循环和移动�
   for (const viewport of [
     { width: 1000, height: 900 },
     { width: 554, height: 915 },
+    { width: 554, height: 700 },
     { width: 390, height: 844 },
+    { width: 320, height: 568 },
   ]) {
     await page.setViewportSize(viewport);
     await expect(page.getByLabel("舞台俯视图")).toBeVisible();
@@ -297,6 +299,24 @@ test("只读分享页支持本地音乐、播放跟随、段落循环和移动�
     const timelineBox = (await page
       .locator(".public-timeline-panel")
       .boundingBox())!;
+    const formationBox = (await page
+      .locator(".public-stage > .formation-panel")
+      .boundingBox())!;
+    const stageContainerBox = (await page
+      .locator(".stage-container")
+      .boundingBox())!;
+    const stageFrameBox = (await page.locator(".stage-frame").boundingBox())!;
+    expect(formationBox.y + formationBox.height).toBeLessThanOrEqual(
+      timelineBox.y,
+    );
+    expect(stageFrameBox.width / stageFrameBox.height).toBeCloseTo(
+      800 / 600,
+      2,
+    );
+    expect(stageFrameBox.y).toBeGreaterThanOrEqual(stageContainerBox.y);
+    expect(stageFrameBox.y + stageFrameBox.height).toBeLessThanOrEqual(
+      stageContainerBox.y + stageContainerBox.height,
+    );
     expect(timelineBox.y + timelineBox.height).toBeLessThanOrEqual(
       viewport.height,
     );

@@ -3425,12 +3425,10 @@ button.danger,
     overflow: hidden;
   }
   .public-stage {
+    display: flex;
+    flex-direction: column;
     flex: 1;
     min-height: 0;
-    grid-template-rows: minmax(0, 1fr) auto;
-    grid-template-areas:
-      "formation"
-      "timeline";
     overflow: hidden;
   }
   .public-arrangement {
@@ -3442,11 +3440,33 @@ button.danger,
     padding: 4px 14px;
   }
   .public-share-page .formation-panel {
+    flex: 1 1 auto;
+    height: auto;
     min-height: 0;
+    max-height: calc(100dvh - 340px);
+    overflow: hidden;
   }
   .public-share-page .formation-stage {
     min-height: 0;
     max-height: none;
+  }
+  .public-share-page .stage-container {
+    container-type: size;
+  }
+  .public-share-page .stage-frame {
+    width: 100%;
+    height: auto;
+    max-width: 100%;
+    max-height: 100%;
+  }
+  @supports (height: 100cqh) {
+    .public-share-page .stage-frame {
+      width: min(100%, calc(100cqh * var(--stage-ratio, 1.333333)));
+      aspect-ratio: var(--stage-ratio, 1.333333);
+    }
+  }
+  .public-share-page .public-timeline-panel {
+    flex: 0 0 auto;
   }
   .public-share-page .public-timeline-panel .timeline {
     height: 118px;
@@ -3493,10 +3513,11 @@ button.danger,
     padding: 0;
   }
   .public-share-page .formation-panel {
-    min-height: min(66dvh, 480px);
+    min-height: 0;
   }
   .public-share-page .formation-stage {
-    max-height: 56dvh;
+    min-height: 0;
+    max-height: none;
   }
   .public-share-page .player-controls {
     display: flex;
