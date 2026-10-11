@@ -24,7 +24,7 @@ export async function buildApp(config: AppConfig = loadConfig()) {
     logger: config.NODE_ENV !== "test",
     trustProxy: config.TRUST_PROXY,
     bodyLimit: Math.max(
-      config.MAX_AUDIO_BYTES + 2 * 1024 * 1024,
+      config.MAX_AUDIO_BYTES + config.MAX_VIDEO_BYTES + 4 * 1024 * 1024,
       4 * 1024 * 1024,
     ),
   });
@@ -37,10 +37,10 @@ export async function buildApp(config: AppConfig = loadConfig()) {
   await app.register(rateLimit, { max: 300, timeWindow: "1 minute" });
   await app.register(multipart, {
     limits: {
-      fileSize: config.MAX_AUDIO_BYTES,
-      files: 1,
+      fileSize: Math.max(config.MAX_AUDIO_BYTES, config.MAX_VIDEO_BYTES),
+      files: 65,
       fields: 10,
-      parts: 12,
+      parts: 76,
     },
   });
 

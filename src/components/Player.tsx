@@ -1,5 +1,6 @@
 import { usePointerDrag } from "./usePointerDrag";
 import { FormationTrack } from "./FormationTrack";
+import { VideoTimelineMarkers } from "./VideoTimelineMarkers";
 import {
   forwardRef,
   useEffect,
@@ -30,12 +31,16 @@ export type PlayerHandle = {
   seek: (time: number, play?: boolean) => void;
   getTime: () => number;
   pause: () => void;
+  isPlaying: () => boolean;
+  getPlaybackRate: () => number;
 };
 type SelectionGesture = { additive?: boolean; range?: boolean };
 type Props = {
   project: Project;
   edit: (fn: (p: Project) => void) => void;
   formationDancerId?: string | null;
+  formationVideoClipId?: string | null;
+  onFormationVideoClipSelect?: (id: string | null) => void;
   loopId: string | null;
   onLoop: (id: string | null) => void;
   onTime: (time: number, playing: boolean) => void;
@@ -74,6 +79,8 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     project: p,
     edit,
     formationDancerId,
+    formationVideoClipId,
+    onFormationVideoClipSelect,
     loopId,
     onLoop,
     onTime,
@@ -261,6 +268,8 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     getTime: () =>
       (audio.current?.currentTime ?? 0) + timelineOffsetRef.current,
     pause: () => audio.current?.pause(),
+    isPlaying: () => Boolean(audio.current && !audio.current.paused),
+    getPlaybackRate: () => audio.current?.playbackRate ?? 1,
   }));
   useEffect(() => {
     let frame = 0,
@@ -968,22 +977,40 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
             </div>
           )}
           {showFormationTrack && (
-            <FormationTrack
-              key={p.id}
-              project={p}
-              edit={edit}
-              selectedDancerId={formationDancerId}
-              readOnly={readOnly}
-              duration={duration}
-              loaded={loaded}
-              getTime={() =>
-                (audio.current?.currentTime ?? 0) + timelineOffsetRef.current
-              }
-              pause={() => audio.current?.pause()}
-              seek={(t) => seek(t)}
-              onError={onError}
-              onNotice={onNotice}
-            />
+            <>
+              <FormationTrack
+                key={p.id}
+                project={p}
+                edit={edit}
+                selectedDancerId={formationDancerId}
+                readOnly={readOnly}
+                duration={duration}
+                loaded={loaded}
+                getTime={() =>
+                  (audio.current?.currentTime ?? 0) + timelineOffsetRef.current
+                }
+                pause={() => audio.current?.pause()}
+                seek={(t) => seek(t)}
+                onError={onError}
+                onNotice={onNotice}
+              />
+              <VideoTimelineMarkers
+                project={p}
+                edit={edit}
+                selectedDancerId={formationDancerId}
+                selectedClipId={formationVideoClipId}
+                readOnly={readOnly}
+                duration={duration}
+                loaded={loaded}
+                getTime={() =>
+                  (audio.current?.currentTime ?? 0) + timelineOffsetRef.current
+                }
+                pause={() => audio.current?.pause()}
+                seek={(t) => seek(t)}
+                onSelectClip={onFormationVideoClipSelect ?? (() => undefined)}
+                onError={onError}
+              />
+            </>
           )}
           <span
             className="playhead"

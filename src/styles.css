@@ -2006,7 +2006,7 @@ fieldset {
     gap: 8px;
   }
   .arrangement-surface {
-    min-height: 60px;
+    min-height: 56px;
   }
   .edit-surface {
     padding: 8px 12px;
@@ -2020,7 +2020,7 @@ fieldset {
 @container (max-height: 350px) {
   .editor-card {
     gap: 6px;
-    padding-block: 6px;
+    padding-block: 4px;
   }
   .edit-surface {
     padding-block: 5px;
@@ -2064,16 +2064,270 @@ fieldset {
   padding: 5px 7px;
 }
 .stage-container {
+  position: relative;
   flex: 1;
   min-height: 0;
   padding: 8px 12px;
   display: flex;
   justify-content: center;
 }
+.stage-frame {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  margin: auto;
+  overflow: hidden;
+  background: #f5f8fc;
+  border-radius: 12px;
+}
 .formation-stage {
+  position: relative;
+  z-index: 2;
   width: 100%;
   height: 100%;
   touch-action: none;
+  pointer-events: none;
+}
+.formation-stage [data-dancer] {
+  pointer-events: auto;
+}
+.formation-stage [data-dancer] [data-hand] {
+  pointer-events: all;
+}
+.formation-stage path,
+.formation-stage > rect {
+  pointer-events: none;
+}
+.formation-video-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.formation-video-layer > dialog,
+.formation-video-layer > dialog * {
+  pointer-events: auto;
+}
+.formation-video {
+  position: absolute;
+  border: 1px solid transparent;
+  background: #dce4ef;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: grab;
+}
+.formation-video-crop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.formation-video.selected {
+  border-color: #4568d4;
+  box-shadow: 0 0 0 2px #4568d455;
+}
+.formation-video.minimized {
+  overflow: visible;
+  border-style: dashed;
+  background: transparent;
+}
+.formation-video.minimized video {
+  visibility: hidden;
+}
+.formation-video video {
+  position: absolute;
+  max-width: none;
+  object-fit: fill;
+  pointer-events: none;
+}
+.formation-video-missing {
+  display: grid;
+  place-content: center;
+  gap: 3px;
+  height: 100%;
+  padding: 6px;
+  color: #7b8698;
+  text-align: center;
+  font-size: 10px;
+}
+.formation-video-missing strong {
+  color: #4b5a70;
+  font-size: 11px;
+}
+.formation-video-actions {
+  position: absolute;
+  left: 50%;
+  top: 4px;
+  z-index: 60;
+  display: flex;
+  gap: 3px;
+  transform: translateX(-50%);
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: #ffffffdd;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.12s ease,
+    visibility 0.12s ease;
+}
+.formation-video:hover .formation-video-actions,
+.formation-video-actions:hover,
+.formation-video-actions:focus-within {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+@media (hover: none) {
+  .formation-video.selected .formation-video-actions,
+  .formation-video.minimized .formation-video-actions {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+}
+.formation-video-actions button {
+  padding: 3px 6px;
+  font-size: 10px;
+}
+.formation-crop-handle {
+  position: absolute;
+  z-index: 5;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 2px solid #fff;
+  border-radius: 2px;
+  background: #4568d4;
+  transform: translate(-50%, -50%);
+}
+.crop-nw {
+  left: 0;
+  top: 0;
+  cursor: nwse-resize;
+}
+.crop-n {
+  left: 50%;
+  top: 0;
+  cursor: ns-resize;
+}
+.crop-ne {
+  left: 100%;
+  top: 0;
+  cursor: nesw-resize;
+}
+.crop-e {
+  left: 100%;
+  top: 50%;
+  cursor: ew-resize;
+}
+.crop-se {
+  left: 100%;
+  top: 100%;
+  cursor: nwse-resize;
+}
+.crop-s {
+  left: 50%;
+  top: 100%;
+  cursor: ns-resize;
+}
+.crop-sw {
+  left: 0;
+  top: 100%;
+  cursor: nesw-resize;
+}
+.crop-w {
+  left: 0;
+  top: 50%;
+  cursor: ew-resize;
+}
+.formation-video-tray {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 7px;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 4px 6px;
+  border: 1px solid #cad5e5;
+  border-radius: 6px;
+  background: #ffffffdf;
+  backdrop-filter: blur(4px);
+  pointer-events: auto;
+}
+.formation-video-tray strong {
+  flex-shrink: 0;
+  color: #53657d;
+  font-size: 10px;
+}
+.formation-video-tray button {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  max-width: 150px;
+  padding: 3px 6px;
+  font-size: 10px;
+}
+.formation-video-tray button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.formation-video-tray button.minimized {
+  color: #7d8797;
+  background: #f3f5f8;
+}
+.video-inpoint-preview {
+  width: 100%;
+  max-height: 46vh;
+  background: #111827;
+}
+.video-inpoint-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(130px, 1fr);
+  align-items: start;
+  gap: 8px;
+}
+.video-inpoint-group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: end;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px;
+  border: 1px solid #d7dfeb;
+  border-radius: 8px;
+}
+.video-inpoint-group .field {
+  margin-bottom: 0;
+}
+.video-inpoint-group > button {
+  min-height: 34px;
+  margin-bottom: 0;
+  white-space: nowrap;
+}
+.video-inpoint-rate {
+  margin-bottom: 0;
+  padding-top: 7px;
+}
+.video-inpoint-save {
+  margin-top: 10px;
+}
+.visually-hidden {
+  position: fixed !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
 }
 .stage-help {
   padding: 6px 12px;
@@ -2099,11 +2353,16 @@ fieldset {
   display: none;
 }
 .timeline {
-  height: 167px;
+  height: 200px;
+}
+.timeline-gap-target {
+  top: 20px;
+  height: 96px;
 }
 .formation-track {
   position: absolute;
-  top: 94px;
+  top: auto;
+  bottom: 0;
   left: 0;
   right: 0;
   height: 70px;
@@ -2184,6 +2443,46 @@ fieldset {
 .formation-track {
   z-index: 11;
 }
+.formation-track:hover,
+.formation-track:focus-within {
+  z-index: 31;
+}
+.video-marker-lane {
+  position: absolute;
+  top: 72px;
+  left: 0;
+  right: 0;
+  z-index: 12;
+  height: 42px;
+  pointer-events: none;
+}
+.video-marker-range {
+  top: 15px;
+  height: 22px;
+  padding: 2px 8px;
+  display: flex;
+  align-items: center;
+  pointer-events: auto;
+}
+.video-marker-range .timeline-arrangement {
+  line-height: 16px;
+}
+.video-marker-handle {
+  z-index: 3;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  touch-action: none;
+}
+.video-marker-in {
+  left: 0;
+}
+.video-marker-out {
+  right: 0;
+}
+.video-marker-handle.open {
+  opacity: 0.65;
+}
 @container (max-height: 350px) {
   .editor-card-head .beat-grid {
     min-width: 96px;
@@ -2224,10 +2523,11 @@ fieldset {
     padding-block: 6px;
   }
   .timeline {
-    height: 150px;
+    height: 200px;
   }
   .formation-track {
-    top: 90px;
+    top: auto;
+    bottom: 0;
     height: 58px;
   }
   .formation-key-lane {
@@ -2238,7 +2538,7 @@ fieldset {
 @container (max-height: 350px) {
   .editor-card {
     padding-block: 4px;
-    gap: 4px;
+    gap: 0;
   }
 }
 .formation-track-tools {
@@ -3125,7 +3425,8 @@ button.danger,
 }
 /* Selected-dancer PR-style tracks. */
 .formation-track.has-dancer {
-  top: 94px;
+  top: auto;
+  bottom: 0;
   height: 76px;
 }
 .formation-track-header {

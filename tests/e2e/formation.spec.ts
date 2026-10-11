@@ -45,6 +45,47 @@ async function getX(page: Page, name: string) {
       Number(el.getAttribute("transform")!.match(/translate\(([^ ]+)/)![1]),
     );
 }
+
+async function syntheticWebm(page: Page) {
+  const base64 = await page.evaluate(async () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 160;
+    canvas.height = 120;
+    const ctx = canvas.getContext("2d")!;
+    const stream = canvas.captureStream(30);
+    const recorder = new MediaRecorder(stream, {
+      mimeType: "video/webm;codecs=vp8",
+    });
+    const chunks: BlobPart[] = [];
+    recorder.ondataavailable = (event) => {
+      if (event.data.size) chunks.push(event.data);
+    };
+    const done = new Promise<Blob>((resolve) => {
+      recorder.onstop = () => resolve(new Blob(chunks, { type: "video/webm" }));
+    });
+    recorder.start();
+    const started = performance.now();
+    await new Promise<void>((resolve) => {
+      const draw = () => {
+        const elapsed = performance.now() - started;
+        ctx.fillStyle = elapsed % 200 < 100 ? "#e85d75" : "#4778d6";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#fff";
+        ctx.fillRect((elapsed / 20) % 130, 50, 20, 20);
+        if (elapsed >= 900) resolve();
+        else requestAnimationFrame(draw);
+      };
+      draw();
+    });
+    recorder.stop();
+    const blob = await done;
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    let binary = "";
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return btoa(binary);
+  });
+  return Buffer.from(base64, "base64");
+}
 test("舞者双手颜色、拖动建帧、插值、登退场、撤销和刷新", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -103,6 +144,160 @@ test("舞者双手颜色、拖动建帧、插值、登退场、撤销和刷新",
     page.getByLabel("位置关键帧").locator(".formation-key"),
   ).toHaveCount(2);
   expect(errors).toEqual([]);
+});
+
+test("插入视频、时间轴入出点、逐帧入点和最小化", async ({ page }) => {
+  await boot(page);
+  await song(page);
+  await add(page, "视频舞者");
+  await page.getByLabel("插入视频文件").setInputFiles({
+    name: "synthetic.webm",
+    mimeType: "video/webm",
+    buffer: await syntheticWebm(page),
+  });
+  await expect(page.locator(".video-marker-lane")).toBeVisible();
+  await expect(page.locator(".video-marker-range")).toHaveClass(
+    /timeline-block.*tone-/,
+  );
+  await expect(page.locator(".video-marker-range .timeline-label")).toHaveCount(
+    0,
+  );
+  await expect(page.locator(".video-marker-in")).toBeVisible();
+  await expect(page.locator(".video-marker-out")).toBeVisible();
+  await expect(page.locator(".video-marker-in")).toHaveText("");
+  await expect(page.locator(".video-marker-out")).toHaveText("");
+  await expect(page.locator(".formation-video video")).toBeVisible();
+  const videoNode = page.locator(".formation-video");
+  await page.mouse.move(0, 0);
+  await expect(page.locator(".formation-video-actions")).toBeHidden();
+  await videoNode.hover();
+  await expect(page.locator(".formation-video-actions")).toBeVisible();
+  expect(
+    await videoNode.evaluate((node) => getComputedStyle(node).overflow),
+  ).toBe("visible");
+  expect(
+    await page.locator(".formation-video-actions").evaluate((node) => {
+      const box = node.getBoundingClientRect();
+      const target = document.elementFromPoint(
+        box.left + box.width / 2,
+        box.top + box.height / 2,
+      );
+      return Boolean(target?.closest(".formation-video-actions"));
+    }),
+  ).toBe(true);
+  await page.mouse.move(0, 0);
+  await expect(page.locator(".formation-video-actions")).toBeHidden();
+  await videoNode.hover();
+  const beforeCanvasChange = (await videoNode.boundingBox())!;
+  await page.getByRole("button", { name: "画布尺寸", exact: true }).click();
+  await page.getByLabel("画布宽度").fill("1600");
+  await page.getByRole("button", { name: "保存尺寸", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const box = (await videoNode.boundingBox())!;
+      return Math.abs(box.width - beforeCanvasChange.width);
+    })
+    .toBeLessThan(2);
+  await expect
+    .poll(async () => {
+      const box = (await videoNode.boundingBox())!;
+      return Math.abs(box.height - beforeCanvasChange.height);
+    })
+    .toBeLessThan(2);
+  const beforeMove = (await videoNode.boundingBox())!;
+  await page.mouse.move(
+    beforeMove.x + beforeMove.width / 2,
+    beforeMove.y + beforeMove.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    beforeMove.x + beforeMove.width / 2 + 30,
+    beforeMove.y + beforeMove.height / 2,
+    { steps: 4 },
+  );
+  await page.mouse.up();
+  await expect
+    .poll(async () => (await videoNode.boundingBox())!.x)
+    .toBeGreaterThan(beforeMove.x + 20);
+  const beforeCrop = (await videoNode.boundingBox())!;
+  const cropEast = page.getByLabel("裁切视频 e");
+  const cropBox = (await cropEast.boundingBox())!;
+  await page.mouse.move(cropBox.x, cropBox.y);
+  await page.mouse.down();
+  await page.mouse.move(cropBox.x - 20, cropBox.y, { steps: 4 });
+  await page.mouse.up();
+  await expect
+    .poll(async () => (await videoNode.boundingBox())!.width)
+    .toBeLessThan(beforeCrop.width - 10);
+  await page.getByLabel("视频入点后移一帧").click();
+  await page.getByLabel(/最小化视频/).click();
+  await expect(page.locator(".formation-video video")).toBeHidden();
+  await page.getByLabel(/最大化视频/).click();
+  await expect(page.locator(".formation-video video")).toBeVisible();
+  const lane = (await page.locator(".video-marker-lane").boundingBox())!;
+  const outMarker = (await page.locator(".video-marker-out").boundingBox())!;
+  await page.mouse.move(outMarker.x + outMarker.width / 2, outMarker.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(lane.x + lane.width * (0.25 / 12), outMarker.y + 5, {
+    steps: 6,
+  });
+  await page.mouse.up();
+  await at(page, 0.5);
+  await expect(page.locator(".formation-video")).toBeHidden();
+  await at(page, 0);
+  await expect(page.locator(".formation-video")).toBeVisible();
+  await videoNode.hover();
+  await page.getByLabel("粗略选择视频入点").click();
+  await expect(page.getByLabel("视频入点秒数")).toBeVisible();
+  const inPointSlider = page.getByLabel("视频入点秒数");
+  const sliderBox = (await inPointSlider.boundingBox())!;
+  await page.mouse.move(sliderBox.x + 4, sliderBox.y + sliderBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    sliderBox.x + sliderBox.width * 0.6,
+    sliderBox.y + sliderBox.height / 2,
+    { steps: 5 },
+  );
+  await page.mouse.up();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  const preciseInput = page.getByLabel("精确秒数");
+  const preciseBox = (await preciseInput.boundingBox())!;
+  const backButton = page.getByRole("button", { name: /−1 帧/ });
+  const forwardButton = page.getByRole("button", { name: /\+1 帧/ });
+  const backBox = (await backButton.boundingBox())!;
+  const forwardBox = (await forwardButton.boundingBox())!;
+  const rateBox = (await page.getByLabel("视频帧率").boundingBox())!;
+  expect(Math.abs(preciseBox.y - backBox.y)).toBeLessThan(2);
+  expect(Math.abs(backBox.y - forwardBox.y)).toBeLessThan(2);
+  expect(Math.abs(preciseBox.y - rateBox.y)).toBeLessThan(2);
+  const groupBox = (await page.locator(".video-inpoint-group").boundingBox())!;
+  const saveBox = (await page
+    .getByRole("button", { name: "保存入点" })
+    .boundingBox())!;
+  expect(saveBox.y - (groupBox.y + groupBox.height)).toBeGreaterThan(6);
+  await page.getByLabel("视频入点秒数").fill("0.2");
+  await page.getByRole("button", { name: "保存入点", exact: true }).click();
+  await expect(page.locator(".save-state")).toContainText("已保存");
+  await page.reload();
+  await page.getByLabel("选择舞者").selectOption({ label: "视频舞者" });
+  await expect(page.locator(".video-marker-lane")).toBeVisible();
+});
+
+test("舞台空白取消选择，并可直接插入未绑定舞者的视频", async ({ page }) => {
+  await boot(page);
+  await song(page);
+  await page.getByLabel("插入视频文件").setInputFiles({
+    name: "stage.webm",
+    mimeType: "video/webm",
+    buffer: await syntheticWebm(page),
+  });
+  await expect(page.locator(".video-marker-lane")).toBeVisible();
+  await expect(page.locator(".formation-video video")).toBeVisible();
+  await expect(page.locator(".formation-video.selected")).toHaveCount(1);
+  await page.locator(".stage-frame").click({ position: { x: 5, y: 5 } });
+  await expect(page.locator(".formation-video.selected")).toHaveCount(0);
+  await expect(page.locator(".video-marker-lane")).toHaveCount(0);
+  await expect(page.getByLabel("选择舞者")).toHaveValue("");
 });
 test("独立轨道改时冲突、越界保留、删除与窄屏切换", async ({ page }) => {
   await page.setViewportSize({ width: 922, height: 880 });
@@ -226,6 +421,7 @@ test("位置与颜色轨道的当前帧菱形独立添加和删除", async ({ pa
       .nth(1)
       .boundingBox())!,
     cleanupBox = (await page.locator(".formation-cleanup").boundingBox())!;
+  await expect(page.locator(".formation-track-row-tools")).toHaveCount(2);
   expect(headerBox.y + headerBox.height).toBeLessThanOrEqual(
     positionLaneBox.y + 1,
   );

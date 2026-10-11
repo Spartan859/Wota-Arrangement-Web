@@ -7,6 +7,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import type { AppConfig } from "../config";
 import type { Database } from "../db/client";
 import { shares } from "../db/schema";
+import { maxVideosPerShare } from "../../src/core/share";
 import { randomToken } from "../lib/crypto";
 import { AppError } from "../lib/errors";
 import type { SessionContext, SessionService } from "../services/session";
@@ -53,42 +54,114 @@ async function parsePublishUpload(
   });
   const fields: Record<string, string> = {};
   let audio: { tempPath: string; originalName: string } | undefined;
-  for await (const part of request.parts()) {
-    if (part.type === "field") {
-      fields[part.fieldname] = String(part.value);
-      continue;
-    }
-    if (part.fieldname !== "audio") {
-      part.file.resume();
-      continue;
-    }
-    if (audio) {
-      part.file.resume();
-      throw new AppError(422, "duplicate_audio", "一次只能上传一个音频文件。");
-    }
-    const tempPath = join(
-      config.AUDIO_STORAGE_DIR,
-      ".tmp",
-      `${randomToken(18)}.upload`,
-    );
-    try {
-      await pipeline(
-        part.file,
-        createWriteStream(tempPath, { flags: "wx", mode: 0o600 }),
+  const videos: {
+    assetKey: string;
+    tempPath: string;
+    originalName: string;
+  }[] = [];
+  const videoKeys = new Set<string>();
+  try {
+    for await (const part of request.parts()) {
+      if (part.type === "field") {
+        fields[part.fieldname] = String(part.value);
+        continue;
+      }
+      if (!part.fieldname.startsWith("video:")) {
+        if (part.fieldname !== "audio") {
+          part.file.resume();
+          continue;
+        }
+      }
+      if (part.fieldname !== "audio" && part.fieldname.startsWith("video:")) {
+        const assetKey = part.fieldname.slice("video:".length);
+        if (!/^[A-Za-z0-9_-]{1,128}$/.test(assetKey)) {
+          part.file.resume();
+          throw new AppError(422, "invalid_video_key", "视频资源 ID 无效。");
+        }
+        if (videoKeys.has(assetKey)) {
+          part.file.resume();
+          throw new AppError(422, "duplicate_video", "视频资源重复。");
+        }
+        if (videos.length >= maxVideosPerShare) {
+          part.file.resume();
+          throw new AppError(
+            422,
+            "too_many_videos",
+            "单次发布的视频数量过多。",
+          );
+        }
+        const tempPath = join(
+          config.AUDIO_STORAGE_DIR,
+          ".tmp",
+          `${randomToken(18)}.upload`,
+        );
+        try {
+          await pipeline(
+            part.file,
+            createWriteStream(tempPath, { flags: "wx", mode: 0o600 }),
+          );
+        } catch (error) {
+          await rm(tempPath, { force: true });
+          throw error;
+        }
+        if (part.file.truncated) {
+          await rm(tempPath, { force: true });
+          throw new AppError(
+            413,
+            "video_too_large",
+            "视频文件超过单文件上限。",
+          );
+        }
+        videoKeys.add(assetKey);
+        videos.push({
+          assetKey,
+          tempPath,
+          originalName: part.filename || "video.mp4",
+        });
+        continue;
+      }
+      if (part.fieldname !== "audio") {
+        part.file.resume();
+        continue;
+      }
+      if (audio) {
+        part.file.resume();
+        throw new AppError(
+          422,
+          "duplicate_audio",
+          "一次只能上传一个音频文件。",
+        );
+      }
+      const tempPath = join(
+        config.AUDIO_STORAGE_DIR,
+        ".tmp",
+        `${randomToken(18)}.upload`,
       );
-    } catch (error) {
-      await rm(tempPath, { force: true });
-      throw error;
+      try {
+        await pipeline(
+          part.file,
+          createWriteStream(tempPath, { flags: "wx", mode: 0o600 }),
+        );
+      } catch (error) {
+        await rm(tempPath, { force: true });
+        throw error;
+      }
+      if (part.file.truncated) {
+        await rm(tempPath, { force: true });
+        throw new AppError(413, "audio_too_large", "音频文件超过单文件上限。");
+      }
+      audio = { tempPath, originalName: part.filename || "song" };
     }
-    if (part.file.truncated) {
-      await rm(tempPath, { force: true });
-      throw new AppError(413, "audio_too_large", "音频文件超过单文件上限。");
-    }
-    audio = { tempPath, originalName: part.filename || "song" };
+  } catch (error) {
+    if (audio) await rm(audio.tempPath, { force: true });
+    await Promise.all(
+      videos.map((video) => rm(video.tempPath, { force: true })),
+    );
+    throw error;
   }
   if (!allowEmptyAudio && !audio && fields.preserveAudio !== "true")
-    return { fields, audio: undefined };
-  return { fields, audio };
+    return { fields, audio: undefined, videos: [] };
+  return { fields, audio, videos };
 }
 
 export async function registerShareRoutes(
@@ -113,10 +186,14 @@ export async function registerShareRoutes(
         shareId: upload.fields.shareId || undefined,
         snapshot,
         audio: upload.audio,
+        videos: upload.videos,
         preserveAudio: upload.fields.preserveAudio === "true",
       });
     } catch (error) {
       if (upload.audio) await rm(upload.audio.tempPath, { force: true });
+      await Promise.all(
+        upload.videos.map((video) => rm(video.tempPath, { force: true })),
+      );
       throw error;
     }
   });

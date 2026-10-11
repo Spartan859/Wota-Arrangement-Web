@@ -5,7 +5,11 @@ import type { AppConfig } from "../config";
 import type { Database } from "../db/client";
 import { AppError } from "../lib/errors";
 import { parseRange } from "../services/audio";
-import { getAudioAssetByToken, getPublicShare } from "../services/shares";
+import {
+  getAudioAssetByToken,
+  getPublicShare,
+  getVideoAssetByToken,
+} from "../services/shares";
 
 type Dependencies = { config: AppConfig; db: Database };
 
@@ -46,4 +50,37 @@ export async function registerPublicRoutes(
       return reply.send(createReadStream(asset.storagePath, range));
     },
   );
+
+  app.get<{
+    Params: { token: string; assetKey: string };
+    Headers: { range?: string };
+  }>("/api/public/shares/:token/videos/:assetKey", async (request, reply) => {
+    const { asset } = await getVideoAssetByToken(
+      db,
+      request.params.token,
+      request.params.assetKey,
+    );
+    const file = await stat(asset.storagePath).catch(() => null);
+    if (!file?.isFile())
+      throw new AppError(404, "video_not_found", "云端视频不存在。");
+    const range = parseRange(request.headers.range, file.size);
+    reply.header("Accept-Ranges", "bytes");
+    reply.header("Content-Type", asset.mimeType);
+    reply.header(
+      "Content-Disposition",
+      `inline; filename*=UTF-8''${encodeURIComponent(asset.originalName)}`,
+    );
+    reply.header("Cache-Control", "private, no-store");
+    if (!range) {
+      reply.header("Content-Length", String(file.size));
+      return reply.send(createReadStream(asset.storagePath));
+    }
+    reply.code(206);
+    reply.header("Content-Length", String(range.end - range.start + 1));
+    reply.header(
+      "Content-Range",
+      `bytes ${range.start}-${range.end}/${file.size}`,
+    );
+    return reply.send(createReadStream(asset.storagePath, range));
+  });
 }

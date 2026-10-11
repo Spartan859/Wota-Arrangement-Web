@@ -108,6 +108,11 @@ export function MySharesPage() {
                     ? `${share.audio.name} · ${formatBytes(share.audio.sizeBytes)}`
                     : "云端音乐已删除，分享页仍可使用本地音乐"}
                 </p>
+                <p className="audio-ok">
+                  {share.videos.length
+                    ? `${share.videos.length} 个视频 · ${formatBytes(share.videos.reduce((sum, video) => sum + video.sizeBytes, 0))}`
+                    : "没有云端视频"}
+                </p>
               </div>
               <div className="share-card-actions">
                 <a href={share.url} target="_blank" rel="noreferrer">

@@ -107,6 +107,17 @@ export function PublicSharePage() {
     }, 6000);
     return () => clearTimeout(timer);
   }, [error, notice]);
+  const externalVideoSources = useMemo(
+    () =>
+      share
+        ? Object.fromEntries(
+            share.videos
+              .filter((video) => video.available)
+              .map((video) => [video.id, video.url]),
+          )
+        : {},
+    [share],
+  );
   const project = useMemo(
     () => (share ? projectFromSnapshot(share.snapshot) : null),
     [share],
@@ -291,8 +302,12 @@ export function PublicSharePage() {
           edit={() => undefined}
           readOnly
           getTime={() => player.current?.getTime() ?? 0}
+          isPlaying={() => player.current?.isPlaying() ?? false}
+          getPlaybackRate={() => player.current?.getPlaybackRate() ?? 1}
           pause={() => player.current?.pause()}
           onError={setError}
+          externalVideoSources={externalVideoSources}
+          videoStorageKey={`wota-share-video-minimized:${share.token}`}
         />
       </main>
       <Player
