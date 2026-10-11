@@ -81,9 +81,17 @@ else
   echo "Image has no runtime bundle; using installed runtime files." >&2
 fi
 
-if ! "${compose[@]}" pull; then
-  echo "Some Compose images could not be pulled; using cached images." >&2
-fi
+for attempt in {1..3}; do
+  if "${compose[@]}" pull; then
+    break
+  fi
+  if [[ "$attempt" -eq 3 ]]; then
+    echo "Some Compose images could not be pulled; using cached images." >&2
+  else
+    echo "Compose pull failed; retrying (${attempt}/3)." >&2
+    sleep $((attempt * 5))
+  fi
+done
 "${compose[@]}" config -q
 "${compose[@]}" up -d --remove-orphans
 
