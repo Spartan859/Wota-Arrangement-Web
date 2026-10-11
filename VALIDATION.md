@@ -2,6 +2,16 @@
 
 日期：2026-09-19。所有测试仅使用合成歌词和音频。
 
+## 2026-10-11 Deploy 修复
+
+- 复现原 Deploy 失败：服务器仍执行旧 Keycloak runtime，且部署脚本使用错误的 API 镜像名与完整 SHA 标签；CI 实际发布的是 `wota-arrangement-web-api:sha-<短 SHA>`。
+- 部署 helper 现优先使用完整提交 SHA 镜像、回退到相同提交的短 SHA 标签，并从 API 镜像的 `/app/runtime` 更新 Compose、容器 Nginx、PostgreSQL 初始化与 Authentik blueprint；旧镜像没有 runtime bundle 时保留已安装文件。
+- Authentik 配置请求现在会重试启动期的 `503 authentik starting`，新增 2 项 mocked-fetch 单元测试覆盖重试与非重试错误。
+- `npm run check`：55 项测试通过、1 项按默认条件跳过；TypeScript、API 构建和前端生产构建通过。`npm run format:check`、`bash -n` 与 `git diff --check` 通过。
+- 生产服务器完成 `.env` 原子迁移、runtime 更新、auth 证书签发、Wota 反向代理切换和 Authentik 首次配置。Wota 使用 `127.0.0.1:18080`，避开服务器既有 Squid 的 `8080` 端口。
+- 原失败 Deploy run `38079275009` 重跑成功，耗时 1m6s。`https://wota.satintin.com/healthz` 返回 `ok`，`/api/health` 返回 `{"ok":true,"service":"wota-api"}`，Authentik discovery issuer 为 `https://auth.wota.satintin.com/application/o/wota/`。
+- 首次 Authentik 迁移曾使 2 GiB 生产实例高负载并完全失去 SSH/HTTPS 响应；通过阿里云 ECS 控制面重启恢复。服务器当前无法稳定访问 Docker Hub，但 PostgreSQL/Postfix 固定镜像已缓存，Deploy 在 pull 失败后使用缓存镜像成功收敛。
+
 ## 2026-10-11 Authentik 替换
 
 - 使用 Authentik `2026.8.3`，新增 `authentik-server`、`authentik-worker`、数据库初始化、受限服务账号初始化和自定义 blueprint；旧认证实现及其环境变量、脚本和数据库初始化已移除。

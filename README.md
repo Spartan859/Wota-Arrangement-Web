@@ -57,9 +57,9 @@ Authentik 首次启动前至少生成并替换以下值：`AUTHENTIK_SECRET_KEY`
 
 生产 `.env` 还需设置 `PUBLIC_ORIGIN=https://wota.satintin.com`、`AUTHENTIK_HOSTNAME=https://auth.wota.satintin.com` 和 `OIDC_ISSUER_URL=https://auth.wota.satintin.com/application/o/wota/`。Discovery 与内部请求分别设置为 `OIDC_DISCOVERY_URL=http://authentik-server:9000/application/o/wota/` 和 `OIDC_INTERNAL_BASE_URL=http://authentik-server:9000`；redirect URI 默认随 `PUBLIC_ORIGIN` 生成为 `/api/auth/callback`。
 
-GitHub Actions 的 CI 位于 `.github/workflows/ci.yml`：所有分支和 PR 执行单元测试、类型检查、构建、格式检查、Python XLSX 兼容测试和容器构建；推送到 `main` 或 `v*` 标签时，额外将镜像发布到 GitHub Container Registry。Chromium/WebKit Playwright 测试只在本地运行，不进入 CI。
+GitHub Actions 的 CI 位于 `.github/workflows/ci.yml`：所有分支和 PR 执行单元测试、类型检查、构建、格式检查、Python XLSX 兼容测试和容器构建；推送到 `main` 或 `v*` 标签时，额外将镜像发布到 GitHub Container Registry，并同时写入完整提交 SHA 与短 SHA 标签。Chromium/WebKit Playwright 测试只在本地运行，不进入 CI。
 
-生产发布位于 `.github/workflows/deploy.yml`。`main` 的 CI 全部通过后，Actions 构建 Web/API 固定提交镜像并发布到 GHCR，再通过受限 SSH 命令在 `/opt/wota-stack` 拉取 Compose 镜像。宿主 Nginx 将 `wota.satintin.com` 路由到 Web/API，将 `auth.wota.satintin.com` 路由到 Authentik。仓库的 `production` Environment 需要配置 `DEPLOY_SSH_KEY` 和 `DEPLOY_KNOWN_HOSTS`；一次性 root 安装可参考 `deploy/install-compose-runtime.sh`。
+生产发布位于 `.github/workflows/deploy.yml`。`main` 的 CI 全部通过后，Actions 构建 Web/API 固定提交镜像并发布到 GHCR，再通过受限 SSH 命令在 `/opt/wota-stack` 更新运行时并拉取固定镜像。API 镜像内携带 Compose、容器 Nginx、PostgreSQL 初始化和 Authentik blueprint，因此后续 runtime 变更不需要在服务器手工复制文件；旧镜像没有 runtime bundle 时，部署脚本会保留已安装版本以便升级。宿主 Nginx 将 `wota.satintin.com` 的 `18080` 端口路由到 Web、`8787` 端口路由到 API，将 `auth.wota.satintin.com` 路由到 Authentik。仓库的 `production` Environment 需要配置 `DEPLOY_SSH_KEY` 和 `DEPLOY_KNOWN_HOSTS`；一次性 root 安装可参考 `deploy/install-compose-runtime.sh`。
 
 ## 一次编排
 
