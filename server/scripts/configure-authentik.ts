@@ -1,4 +1,5 @@
 import { loadConfig } from "../config";
+import { createAuthentikRequest } from "../services/authentik-request";
 
 const config = loadConfig();
 const baseUrl = config.AUTHENTIK_ADMIN_BASE_URL?.replace(/\/$/, "");
@@ -51,28 +52,13 @@ const rolePermissions = [
   "authentik_core.reset_user_password",
   "authentik_stages_email.view_emailstage",
 ];
+const readinessDelayMs = 2_000;
 
-async function request<T>(
-  path: string,
-  token: string,
-  init: RequestInit = {},
-): Promise<T> {
-  const response = await fetch(`${baseUrl}/api/v3${path}`, {
-    ...init,
-    headers: {
-      authorization: `Bearer ${token}`,
-      "content-type": "application/json",
-      ...init.headers,
-    },
-  });
-  if (!response.ok)
-    throw new Error(
-      `${init.method ?? "GET"} ${path} failed: ${response.status} ${await response.text()}`,
-    );
-  if (response.status === 204) return undefined as T;
-  const text = await response.text();
-  return (text ? JSON.parse(text) : undefined) as T;
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+const request = createAuthentikRequest(baseUrl);
 
 async function waitForAuthentik(token: string) {
   for (let attempt = 0; attempt < 60; attempt += 1) {
@@ -81,7 +67,7 @@ async function waitForAuthentik(token: string) {
       return;
     } catch (error) {
       if (attempt === 59) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 2_000));
+      await sleep(readinessDelayMs);
     }
   }
 }
