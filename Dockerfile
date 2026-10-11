@@ -40,6 +40,10 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 COPY --from=api-build /app/server-dist ./server-dist
 COPY --from=api-build /app/server/db/migrations ./server/db/migrations
+COPY --from=api-build /app/compose.yaml /app/runtime/compose.yaml
+COPY --from=api-build /app/docker/nginx.compose.conf /app/runtime/nginx.compose.conf
+COPY --from=api-build /app/docker/postgres/init.sql /app/runtime/postgres-init.sql
+COPY --from=api-build /app/docker/authentik/blueprints/wota.yaml /app/runtime/wota.yaml
 RUN mkdir -p /data/audio && chown -R node:node /data
 USER node
 

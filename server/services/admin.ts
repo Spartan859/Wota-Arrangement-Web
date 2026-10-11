@@ -10,36 +10,34 @@ import {
 } from "../db/schema";
 import type { AdminUserPage, ShareSummary } from "../../src/core/share";
 import { AppError } from "../lib/errors";
-import { KeycloakAdminService } from "./keycloak-admin";
+import { AuthentikAdminService } from "./authentik-admin";
 import { toSummary } from "./shares";
 import { upsertProvisionedUser } from "./users";
 
 export async function listAdminUsers(
   db: Database,
   config: AppConfig,
-  keycloak: KeycloakAdminService,
+  authentik: AuthentikAdminService,
   page: number,
   pageSize: number,
   search = "",
 ): Promise<AdminUserPage> {
-  const keycloakPage = await keycloak.listUsersPage(
+  const authentikPage = await authentik.listUsersPage(
     search,
     (page - 1) * pageSize,
     pageSize,
   );
-  for (const user of keycloakPage.users) {
+  for (const user of authentikPage.users) {
     if (!user.email) continue;
     await upsertProvisionedUser(db, config, {
-      subject: user.id,
+      subject: user.uuid,
       email: user.email,
-      displayName:
-        [user.firstName, user.lastName].filter(Boolean).join(" ") ||
-        user.username,
-      emailVerified: user.emailVerified === true,
+      displayName: user.name || user.username,
+      emailVerified: user.attributes?.email_verified_address === user.email,
       isAdmin: false,
     });
   }
-  const subjects = keycloakPage.users.map((user) => user.id);
+  const subjects = authentikPage.users.map((user) => user.uuid);
   const localUsers = subjects.length
     ? await db.select().from(users).where(inArray(users.subject, subjects))
     : [];
@@ -65,8 +63,8 @@ export async function listAdminUsers(
     shareCounts.map((row) => [row.userId, Number(row.value)]),
   );
   return {
-    users: keycloakPage.users.flatMap((external) => {
-      const local = localBySubject.get(external.id);
+    users: authentikPage.users.flatMap((external) => {
+      const local = localBySubject.get(external.uuid);
       if (!local) return [];
       return [
         {
@@ -82,7 +80,7 @@ export async function listAdminUsers(
         },
       ];
     }),
-    total: keycloakPage.total,
+    total: authentikPage.total,
     page,
     pageSize,
   };
@@ -143,10 +141,10 @@ export async function setUserQuota(
 export async function promoteAdmin(
   db: Database,
   config: AppConfig,
-  keycloak: KeycloakAdminService,
+  authentik: AuthentikAdminService,
   input: { actorUserId: string; email: string; name: string },
 ) {
-  const provisioned = await keycloak.provisionUser({
+  const provisioned = await authentik.provisionUser({
     email: input.email,
     name: input.name || input.email,
     isAdmin: true,

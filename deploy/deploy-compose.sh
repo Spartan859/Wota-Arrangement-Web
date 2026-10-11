@@ -15,30 +15,88 @@ case "$release_id" in
 esac
 
 app_dir=${WOTA_STACK_DIR:-/opt/wota-stack}
-cd "$app_dir"
+runtime_container="wota-runtime-${release_id}"
+runtime_dir=$(mktemp -d /tmp/wota-runtime.XXXXXX)
+compose=(docker compose --profile production-mail)
 
+cleanup() {
+  docker rm --force "$runtime_container" >/dev/null 2>&1 || true
+  rm -rf "$runtime_dir"
+}
+trap cleanup EXIT
+
+resolve_image() {
+  local variable_name=$1
+  local repository=$2
+  local override=${3:-}
+  local image
+
+  if [[ -n "$override" ]]; then
+    docker pull "$override"
+    image=$override
+  elif docker pull "$repository:$release_id"; then
+    image="$repository:$release_id"
+  elif [[ "$release_id" =~ ^[0-9a-fA-F]{40}$ ]] && \
+    docker pull "$repository:sha-${release_id:0:7}"; then
+    image="$repository:sha-${release_id:0:7}"
+    echo "Using short SHA image tag for $release_id." >&2
+  else
+    echo "Unable to pull $repository for $release_id." >&2
+    return 1
+  fi
+
+  printf -v "$variable_name" '%s' "$image"
+}
+
+resolve_image WOTA_WEB_IMAGE \
+  ghcr.io/spartan859/wota-arrangement-web "${WOTA_WEB_IMAGE:-}"
+export WOTA_WEB_IMAGE
+resolve_image WOTA_API_IMAGE \
+  ghcr.io/spartan859/wota-arrangement-web-api "${WOTA_API_IMAGE:-}"
+export WOTA_API_IMAGE
+
+cd "$app_dir"
 if [[ ! -f .env ]]; then
   echo "Missing $app_dir/.env" >&2
   exit 2
 fi
 
-export WOTA_WEB_IMAGE="ghcr.io/spartan859/wota-arrangement-web:$release_id"
-export WOTA_API_IMAGE="ghcr.io/spartan859/wota-arrangement-api:$release_id"
+docker rm --force "$runtime_container" >/dev/null 2>&1 || true
+docker create --name "$runtime_container" "$WOTA_API_IMAGE" >/dev/null
+if docker cp "$runtime_container:/app/runtime/." "$runtime_dir/" 2>/dev/null; then
+  for file in compose.yaml nginx.compose.conf postgres-init.sql wota.yaml; do
+    if [[ ! -f "$runtime_dir/$file" ]]; then
+      echo "Runtime image is missing $file." >&2
+      exit 1
+    fi
+  done
+  install -d -m 755 docker docker/postgres docker/authentik/blueprints
+  install -m 644 "$runtime_dir/compose.yaml" compose.yaml
+  install -m 644 "$runtime_dir/nginx.compose.conf" docker/nginx.compose.conf
+  install -m 644 "$runtime_dir/postgres-init.sql" docker/postgres/init.sql
+  install -m 644 "$runtime_dir/wota.yaml" docker/authentik/blueprints/wota.yaml
+else
+  echo "Image has no runtime bundle; using installed runtime files." >&2
+fi
 
-docker compose --profile production-mail pull
-docker compose --profile production-mail up -d --remove-orphans
+if ! "${compose[@]}" pull; then
+  echo "Some Compose images could not be pulled; using cached images." >&2
+fi
+"${compose[@]}" config -q
+"${compose[@]}" up -d --remove-orphans
 
-for attempt in {1..30}; do
-  if curl --fail --silent --show-error \
+for attempt in {1..60}; do
+  if curl --fail --silent --show-error --max-time 10 \
       https://wota.satintin.com/healthz | grep -qx 'ok' && \
-    curl --fail --silent --show-error \
-      https://auth.wota.satintin.com/realms/wota/.well-known/openid-configuration \
+    curl --fail --silent --show-error --max-time 10 \
+      https://auth.wota.satintin.com/application/o/wota/.well-known/openid-configuration \
       >/dev/null; then
     echo "Deployed $release_id"
     exit 0
   fi
-  sleep 2
+  sleep 3
 done
 
-docker compose --profile production-mail ps
+"${compose[@]}" ps
+"${compose[@]}" logs --no-color --tail=200
 exit 1

@@ -11,7 +11,7 @@ import { registerAdminRoutes } from "./routes/admin";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerPublicRoutes } from "./routes/public";
 import { registerShareRoutes } from "./routes/shares";
-import { KeycloakAdminService } from "./services/keycloak-admin";
+import { AuthentikAdminService } from "./services/authentik-admin";
 import { OidcService } from "./services/oidc";
 import { SessionService } from "./services/session";
 
@@ -19,7 +19,7 @@ export async function buildApp(config: AppConfig = loadConfig()) {
   const { db, pool } = createDatabase(config);
   const oidc = new OidcService(config);
   const sessions = new SessionService(db, config, oidc);
-  const keycloak = new KeycloakAdminService(config);
+  const authentik = new AuthentikAdminService(config);
   const app = Fastify({
     logger: config.NODE_ENV !== "test",
     trustProxy: config.TRUST_PROXY,
@@ -49,7 +49,7 @@ export async function buildApp(config: AppConfig = loadConfig()) {
   await registerAuthRoutes(app, { config, db, oidc, sessions });
   await registerShareRoutes(app, { config, db, sessions });
   await registerPublicRoutes(app, { config, db });
-  await registerAdminRoutes(app, { config, db, sessions, keycloak });
+  await registerAdminRoutes(app, { config, db, sessions, authentik });
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ZodError) {

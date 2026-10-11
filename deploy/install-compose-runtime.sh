@@ -9,10 +9,17 @@ fi
 source_dir=${1:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)}
 stack_dir=/opt/wota-stack
 
-install -d -m 755 "$stack_dir" "$stack_dir/docker" "$stack_dir/docker/postgres"
+install -d -m 755 \
+  "$stack_dir" \
+  "$stack_dir/docker" \
+  "$stack_dir/docker/postgres" \
+  "$stack_dir/docker/authentik/blueprints"
 install -m 644 "$source_dir/compose.yaml" "$stack_dir/compose.yaml"
 install -m 644 "$source_dir/docker/nginx.compose.conf" "$stack_dir/docker/nginx.compose.conf"
 install -m 644 "$source_dir/docker/postgres/init.sql" "$stack_dir/docker/postgres/init.sql"
+install -m 644 \
+  "$source_dir/docker/authentik/blueprints/wota.yaml" \
+  "$stack_dir/docker/authentik/blueprints/wota.yaml"
 install -m 755 "$source_dir/deploy/deploy-compose.sh" /usr/local/sbin/wota-compose-deploy
 
 if [[ ! -f "$stack_dir/.env" ]]; then
