@@ -22,6 +22,17 @@ RUN npm ci
 COPY . .
 RUN npm run typecheck && npm run build:api
 
+FROM node:24-alpine AS dev
+
+WORKDIR /app
+ENV npm_config_update_notifier=false
+
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund && chown -R node:node /app
+
+USER node
+CMD ["npm", "run", "dev"]
+
 FROM nginx:1.29-alpine AS runtime
 
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf

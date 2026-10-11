@@ -29,6 +29,8 @@ npm audit
 
 - `npm run dev`：启动只监听 `127.0.0.1` 的 Vite 开发服务器。
 - `npm run dev:api`：启动 Fastify API；`npm run dev:all` 同时启动 Web 与 API。
+- `npm run dev:container`：用 `compose.dev.yaml` 启动调试容器，并把当前工作树挂载到 Web/API 容器中热更新。
+- `npm run dev:container:logs`：持续查看调试容器的 Web 与 API 日志。
 - `npm run typecheck`：只运行 TypeScript 检查。
 - `npm run test`：运行 `tests/**/*.test.ts` 中的 Vitest 测试。
 - `npm run build`：类型检查、构建 API 和迁移脚本，并生成 `dist/`。
@@ -40,6 +42,29 @@ npm audit
 - `node scripts/capture.mjs`：用合成歌词和音频生成桌面、短屏及手机截图；不要替换为个人媒体文件。
 
 开发服务器或测试服务启动后，优先使用本机地址访问。不要为了测试执行 `open`、修改系统浏览器配置或启动外部服务。
+
+### 调试容器实时开发
+
+需要让本地调试容器直接运行当前工作树代码时，使用：
+
+```sh
+COMPOSE_PROJECT_NAME=wota-local-share npm run dev:container
+```
+
+该命令组合加载 `compose.yaml` 与 `compose.dev.yaml`：
+
+- `web` 使用 Dockerfile 的 `dev` target，挂载当前工作树并运行 Vite，默认把宿主 `WOTA_WEB_PORT`（通常为 `18080`）映射到容器 `5173`。
+- `api` 同样挂载当前工作树并运行 `tsx watch`，源码变化会重启 Fastify；Vite 通过 `VITE_API_PROXY_TARGET=http://api:8787` 代理 `/api`。
+- Web 与 API 的 `node_modules` 分别保存在 Compose 项目作用域的命名卷中；容器启动时会运行 `npm ci --prefer-offline`，不要挂载宿主机 `node_modules`。
+
+修改 `src/`、`server/`、样式或测试等普通源码后不需要重建镜像，刷新浏览器或等待 HMR/进程重启即可。修改 `Dockerfile`、`compose.dev.yaml`、`package.json` 或 `package-lock.json` 后，重新执行 `npm run dev:container` 以重建或刷新依赖。
+
+```sh
+COMPOSE_PROJECT_NAME=wota-local-share npm run dev:container:logs
+docker compose -p wota-local-share -f compose.yaml -f compose.dev.yaml down
+```
+
+调试容器运行时不要再执行宿主机 `npm run dev:api` 或 `npm run dev:all`，避免 API 端口冲突。只有需要清空该项目作用域的 `node_modules` 命名卷时才在 `down` 命令中增加 `-v`。
 
 ## 代码结构
 
