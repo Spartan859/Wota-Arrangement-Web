@@ -261,6 +261,18 @@ test("只读分享页支持本地音乐、播放跟随、段落循环和移动�
     await expect(summary).toContainText(/位置/);
     await expect(summary).toContainText(/1-[1-8]/);
     await expect(summary).not.toContainText("（");
+    const detailRows = summary.locator(".compact-block-details > span");
+    await expect(detailRows).toHaveCount(2);
+    const firstDetail = (await detailRows.nth(0).boundingBox())!;
+    const secondDetail = (await detailRows.nth(1).boundingBox())!;
+    expect(secondDetail.y).toBeGreaterThan(firstDetail.y + firstDetail.height);
+    const detailColors = await detailRows.evaluateAll((elements) =>
+      elements.map((element) => getComputedStyle(element).backgroundColor),
+    );
+    expect(detailColors[0]).not.toBe("rgba(0, 0, 0, 0)");
+    expect(detailColors[1]).not.toBe("rgba(0, 0, 0, 0)");
+    expect(detailColors[0]).not.toBe(detailColors[1]);
+    expect(detailColors[0]).toBe("rgb(237, 249, 242)");
     const heading = await page
       .locator(".public-share-page .formation-panel > .panel-heading")
       .boundingBox();
@@ -282,6 +294,17 @@ test("只读分享页支持本地音乐、播放跟随、段落循环和移动�
         elements.map((element) => element.getBoundingClientRect().top),
       );
     expect(tops[0]).toBeLessThan(tops[1]);
+    const timelineBox = (await page
+      .locator(".public-timeline-panel")
+      .boundingBox())!;
+    expect(timelineBox.y + timelineBox.height).toBeLessThanOrEqual(
+      viewport.height,
+    );
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollHeight <= innerHeight,
+      ),
+    ).toBe(true);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,

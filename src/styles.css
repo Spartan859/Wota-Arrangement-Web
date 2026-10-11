@@ -3000,16 +3000,37 @@ fieldset {
   display: none;
 }
 .block-compact-summary > span,
-.block-compact-summary > strong {
+.block-compact-summary > strong,
+.block-compact-details {
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
 }
-.block-compact-summary > :not(:last-child)::after {
-  content: "|";
-  margin-left: 7px;
-  color: #c1c8d4;
-  font-weight: 400;
+.compact-block-details {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+.compact-block-details > span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  padding: 2px 7px;
+  border: 1px solid;
+  border-radius: 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.compact-block-details > span:first-child {
+  border-color: #cde7d8;
+  background: #edf9f2;
+  color: #2f734d;
+}
+.compact-block-details > span:last-child {
+  border-color: #efdec8;
+  background: #fff5e9;
+  color: #875a2f;
 }
 .block-compact-summary small {
   margin-right: 3px;
@@ -3395,20 +3416,43 @@ button.danger,
   .admin-layout {
     grid-template-columns: 1fr;
   }
+  .public-share-page {
+    height: 100dvh;
+    min-height: 0;
+    padding-bottom: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
   .public-stage {
+    flex: 1;
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr) auto;
     grid-template-areas:
       "formation"
       "timeline";
+    overflow: hidden;
   }
   .public-arrangement {
     display: none;
   }
   .public-share-page .formation-panel > .panel-heading {
+    height: 56px;
     min-height: 56px;
-    padding: 10px 14px;
+    padding: 4px 14px;
   }
   .public-share-page .formation-panel {
-    min-height: 420px;
+    min-height: 0;
+  }
+  .public-share-page .formation-stage {
+    min-height: 0;
+    max-height: none;
+  }
+  .public-share-page .public-timeline-panel .timeline {
+    height: 118px;
+  }
+  .public-share-footer {
+    display: none;
   }
 }
 

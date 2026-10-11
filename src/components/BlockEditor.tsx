@@ -69,20 +69,16 @@ export function BlockCompactSummary({
       <strong className="compact-block-title">
         {block.type || "未命名"} {block.beats} 拍
       </strong>
-      <span
-        className="compact-block-detail"
-        aria-label={`动作编排：${block.arrangement || "无"}`}
-      >
-        <small>动作</small>
-        {block.arrangement || "无"}
-      </span>
-      <span
-        className="compact-block-detail"
-        aria-label={`备注：${block.remarks || "无"}`}
-      >
-        <small>备注</small>
-        {block.remarks || "无"}
-      </span>
+      <div className="compact-block-details">
+        <span aria-label={`动作编排：${block.arrangement || "无"}`}>
+          <small>动作</small>
+          {block.arrangement || "无"}
+        </span>
+        <span aria-label={`备注：${block.remarks || "无"}`}>
+          <small>备注</small>
+          {block.remarks || "无"}
+        </span>
+      </div>
       <span
         className="compact-block-beat"
         aria-label={`当前位置：${position === "—" ? "当前不在已对时段落内" : position}`}
