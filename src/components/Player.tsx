@@ -346,6 +346,8 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     onLoop(null);
     setAbEnabled(false);
   };
+  const pointAText = pointA === null ? "A" : formatTime(pointA).slice(0, 5);
+  const pointBText = pointB === null ? "B" : formatTime(pointB).slice(0, 5);
   const selectedBlock = p.blocks.find((b) => b.id === primarySelectedId);
   const startAbLoop = () => {
     if (!loaded || pointA === null || pointB === null || pointB <= pointA)
@@ -630,6 +632,42 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
           />
           跟随播放
         </label>
+        <div className="ab-controls" aria-label="AB 点循环">
+          <button
+            aria-label={pointA === null ? "设置 A 点" : `A 点 ${pointAText}`}
+            aria-keyshortcuts="a"
+            title={
+              pointA === null
+                ? "按 A 选择当前时间作为 A 点"
+                : `A 点 ${pointAText}，点击重新选择`
+            }
+            disabled={!loaded}
+            onClick={() => choosePoint("a")}
+          >
+            {pointAText}
+          </button>
+          <button
+            aria-label={pointB === null ? "设置 B 点" : `B 点 ${pointBText}`}
+            aria-keyshortcuts="b"
+            title={
+              pointB === null
+                ? "按 B 选择当前时间作为 B 点"
+                : `B 点 ${pointBText}，点击重新选择`
+            }
+            disabled={!loaded || pointA === null}
+            onClick={() => choosePoint("b")}
+          >
+            {pointBText}
+          </button>
+          <button
+            disabled={!loaded || pointA === null || pointB === null}
+            aria-keyshortcuts="l"
+            aria-label={abEnabled ? "退出 A/B 循环" : "开始 A/B 循环"}
+            onClick={toggleAb}
+          >
+            {abEnabled ? "退出 A/B 循环" : "开始 A/B 循环"} <kbd>L</kbd>
+          </button>
+        </div>
       </div>
       <input
         className="seek"
@@ -642,64 +680,35 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
         disabled={!loaded}
         onChange={(e) => seek(Number(e.target.value))}
       />
-      <div className="ab-controls" aria-label="AB 点循环">
-        <button
-          aria-label="选 A"
-          aria-keyshortcuts="a"
-          disabled={!loaded}
-          onClick={() => choosePoint("a")}
-        >
-          选 A <kbd>A</kbd>
-        </button>
-        <button
-          aria-label="选 B"
-          aria-keyshortcuts="b"
-          disabled={!loaded || pointA === null}
-          onClick={() => choosePoint("b")}
-        >
-          选 B <kbd>B</kbd>
-        </button>
-        <span className="ab-status" role="status">
-          A {formatTime(pointA)} · B {formatTime(pointB)}
-        </span>
-        <button
-          disabled={!loaded || pointA === null || pointB === null}
-          aria-keyshortcuts="l"
-          aria-label={abEnabled ? "退出 A/B 循环" : "开始 A/B 循环"}
-          onClick={toggleAb}
-        >
-          {abEnabled ? "退出 A/B 循环" : "开始 A/B 循环"} <kbd>L</kbd>
-        </button>
-        {showEditingControls && (
-          <>
-            <button
-              className="primary"
-              aria-keyshortcuts="["
-              disabled={!loaded || readOnly || !selectedBlock}
-              onClick={() => markRange("start")}
-            >
-              当前作为入点 <kbd>[</kbd>
-            </button>
-            <button
-              className="primary"
-              aria-keyshortcuts="]"
-              disabled={!loaded || readOnly || !selectedBlock}
-              onClick={() => markRange("end")}
-            >
-              当前作为出点 <kbd>]</kbd>
-            </button>
-            <button
-              className="primary"
-              aria-keyshortcuts="e"
-              disabled={!canSuggest}
-              onClick={setSuggestedEnd}
-              title="出点 = 入点 + 拍数 × 60 / BPM"
-            >
-              按拍数设出点 <kbd>E</kbd>
-            </button>
-          </>
-        )}
-      </div>
+      {showEditingControls && (
+        <div className="ab-edit-controls" aria-label="段落入出点">
+          <button
+            className="primary"
+            aria-keyshortcuts="["
+            disabled={!loaded || readOnly || !selectedBlock}
+            onClick={() => markRange("start")}
+          >
+            当前作为入点 <kbd>[</kbd>
+          </button>
+          <button
+            className="primary"
+            aria-keyshortcuts="]"
+            disabled={!loaded || readOnly || !selectedBlock}
+            onClick={() => markRange("end")}
+          >
+            当前作为出点 <kbd>]</kbd>
+          </button>
+          <button
+            className="primary"
+            aria-keyshortcuts="e"
+            disabled={!canSuggest}
+            onClick={setSuggestedEnd}
+            title="出点 = 入点 + 拍数 × 60 / BPM"
+          >
+            按拍数设出点 <kbd>E</kbd>
+          </button>
+        </div>
+      )}
       <div className="timeline-top">
         <span className="timeline-heading">
           歌曲时间轴

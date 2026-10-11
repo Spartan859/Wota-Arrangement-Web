@@ -32,6 +32,68 @@ type Props = {
   showCompactSummary?: boolean;
   looping?: boolean;
 };
+
+function compactBeatText(block: Block, bpm: string, time: number) {
+  const beatCount = Math.max(1, Number.parseInt(block.beats || "0", 10) || 1);
+  const beatDuration = Number(bpm) > 0 ? 60 / Number(bpm) : 0;
+  const currentBeat =
+    block.start !== null &&
+    block.start !== undefined &&
+    beatDuration > 0 &&
+    time >= block.start &&
+    (block.end === null || time < block.end)
+      ? Math.floor((time - block.start) / beatDuration)
+      : -1;
+  if (currentBeat < 0 || currentBeat >= beatCount) return "—";
+  return `${Math.floor(currentBeat / 8) + 1}-${(currentBeat % 8) + 1}`;
+}
+
+export function BlockCompactSummary({
+  block,
+  bpm,
+  time,
+  className = "",
+}: {
+  block: Block;
+  bpm: string;
+  time: number;
+  className?: string;
+}) {
+  const position = compactBeatText(block, bpm, time);
+  return (
+    <div
+      className={`block-compact-summary ${className}`.trim()}
+      data-testid="compact-block-summary"
+      aria-label="当前段落摘要"
+    >
+      <strong className="compact-block-title">
+        {block.type || "未命名"} {block.beats} 拍
+      </strong>
+      <span
+        className="compact-block-detail"
+        aria-label={`动作编排：${block.arrangement || "无"}`}
+      >
+        <small>动作</small>
+        {block.arrangement || "无"}
+      </span>
+      <span
+        className="compact-block-detail"
+        aria-label={`备注：${block.remarks || "无"}`}
+      >
+        <small>备注</small>
+        {block.remarks || "无"}
+      </span>
+      <span
+        className="compact-block-beat"
+        aria-label={`当前位置：${position === "—" ? "当前不在已对时段落内" : position}`}
+      >
+        <small>位置</small>
+        {position}
+      </span>
+    </div>
+  );
+}
+
 export function BlockEditor({
   project: p,
   selected: b,
@@ -73,12 +135,6 @@ export function BlockEditor({
       : -1;
   const compactBeat =
     currentBeat >= 0 && currentBeat < beatCount ? currentBeat : null;
-  const compactBeatText =
-    compactBeat === null
-      ? "—"
-      : `${Math.floor(compactBeat / 8) + 1}-${(compactBeat % 8) + 1}（第${
-          Math.floor(compactBeat / 8) + 1
-        }八拍的第${(compactBeat % 8) + 1}拍）`;
   const rows = useMemo(
     () => b?.lyrics.filter((l) => l.jp || l.cn || l.time !== null) ?? [],
     [b],
@@ -96,27 +152,7 @@ export function BlockEditor({
       data-testid="editor-card"
     >
       {showCompactSummary && (
-        <div
-          className="block-compact-summary"
-          data-testid="compact-block-summary"
-          aria-label="当前段落摘要"
-        >
-          <strong className="compact-block-title">
-            {b.type || "未命名"} {b.beats} 拍
-          </strong>
-          <span aria-label={`动作编排：${b.arrangement || "无"}`}>
-            {b.arrangement || "无"}
-          </span>
-          <span aria-label={`备注：${b.remarks || "无"}`}>
-            {b.remarks || "无"}
-          </span>
-          <span
-            className="compact-block-beat"
-            aria-label={`当前位置：${compactBeat === null ? "当前不在已对时段落内" : compactBeatText}`}
-          >
-            {compactBeatText}
-          </span>
-        </div>
+        <BlockCompactSummary block={b} bpm={p.bpm} time={time} />
       )}
       <div className="editor-card-head">
         <div>

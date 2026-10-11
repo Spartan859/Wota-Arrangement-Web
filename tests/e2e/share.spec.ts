@@ -170,6 +170,9 @@ test("只读分享页支持本地音乐、播放跟随、段落循环和移动�
   await expect(page.getByRole("heading", { name: "合成分享" })).toBeVisible();
   await expect(page.getByText("Wota 在线编排")).toHaveCount(0);
   await expect(page.getByRole("link", { name: "返回工作台" })).toHaveText("");
+  await expect(page.getByRole("heading", { name: "队形画布" })).toHaveCount(0);
+  await expect(page.getByText("左半圆：左手")).toHaveCount(0);
+  await expect(page.getByTestId("compact-block-summary")).toBeVisible();
   await expect(page.locator(".public-arrangement .editor-card")).toBeVisible();
   await expect(page.getByTestId("playback-time")).toHaveCount(0);
   await expect(page.locator(".public-timeline-panel .song-badge")).toHaveCount(
@@ -214,6 +217,16 @@ test("只读分享页支持本地音乐、播放跟随、段落循环和移动�
     page.getByRole("button", { name: "播放", exact: true }),
   ).toBeEnabled();
   await page.getByRole("button", { name: "播放", exact: true }).click();
+  await page.getByLabel("播放进度").fill("1");
+  await page.getByRole("button", { name: "设置 A 点", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "A 点 00:01", exact: true }),
+  ).toHaveText("00:01");
+  await page.getByLabel("播放进度").fill("2");
+  await page.getByRole("button", { name: "设置 B 点", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "B 点 00:02", exact: true }),
+  ).toHaveText("00:02");
   await expect(
     page
       .getByRole("region", { name: "当前编排" })
@@ -236,30 +249,39 @@ test("只读分享页支持本地音乐、播放跟随、段落循环和移动�
   if (await pause.count()) await pause.click();
   for (const viewport of [
     { width: 1000, height: 900 },
+    { width: 554, height: 915 },
     { width: 390, height: 844 },
   ]) {
     await page.setViewportSize(viewport);
     await expect(page.getByLabel("舞台俯视图")).toBeVisible();
-    await expect(
-      page.locator(".public-arrangement .editor-card"),
-    ).toBeVisible();
+    await expect(page.locator(".public-arrangement")).toBeHidden();
     await expect(page.getByTestId("compact-block-summary")).toBeVisible();
-    await expect(page.locator(".editor-card-head")).toBeHidden();
-    await expect(page.getByText("双语歌词")).toBeHidden();
-    await expect(page.getByText("技 / 动作编排")).toBeHidden();
     await page.getByLabel("播放进度").fill("1.2");
-    await expect(page.getByTestId("compact-block-summary")).toContainText(
-      /1-[1-8]（第1八拍的第[1-8]拍）/,
-    );
+    const summary = page.getByTestId("compact-block-summary");
+    await expect(summary).toContainText(/位置/);
+    await expect(summary).toContainText(/1-[1-8]/);
+    await expect(summary).not.toContainText("（");
+    const heading = await page
+      .locator(".public-share-page .formation-panel > .panel-heading")
+      .boundingBox();
+    expect(heading?.height).toBeLessThanOrEqual(60);
+    if (viewport.width === 554) {
+      const follow = (await page
+        .locator(".public-share-page .player-controls > .check")
+        .boundingBox())!;
+      const ab = (await page
+        .locator(".public-share-page .player-controls .ab-controls")
+        .boundingBox())!;
+      const followCenter = follow.y + follow.height / 2;
+      const abCenter = ab.y + ab.height / 2;
+      expect(Math.abs(followCenter - abCenter)).toBeLessThanOrEqual(4);
+    }
     const tops = await page
-      .locator(
-        ".public-arrangement, .public-stage > .formation-panel, .public-timeline-panel",
-      )
+      .locator(".public-stage > .formation-panel, .public-timeline-panel")
       .evaluateAll((elements) =>
         elements.map((element) => element.getBoundingClientRect().top),
       );
     expect(tops[0]).toBeLessThan(tops[1]);
-    expect(tops[1]).toBeLessThan(tops[2]);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,

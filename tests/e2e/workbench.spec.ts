@@ -337,19 +337,28 @@ test("多选时边缘只调整当前段落，Delete 批量删除，触屏多选�
 test("直接记录 AB，拒绝反向区间，循环和替换音频清除", async ({ page }) => {
   await boot(page);
   await expect(
-    page.getByRole("button", { name: "选 A", exact: true }),
+    page.getByRole("button", { name: "设置 A 点", exact: true }),
   ).toBeDisabled();
   await audio(page);
   await position(page, 2);
-  await page.getByRole("button", { name: "选 A", exact: true }).click();
+  await page.getByRole("button", { name: "设置 A 点", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "A 点 00:02", exact: true }),
+  ).toHaveText("00:02");
   await position(page, 1);
-  await page.getByRole("button", { name: "选 B", exact: true }).click();
+  await page.getByRole("button", { name: "设置 B 点", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("B 出点必须晚于 A 入点");
+  await expect(
+    page.getByRole("button", { name: "设置 B 点", exact: true }),
+  ).toHaveText("B");
   await expect(
     page.getByRole("button", { name: "开始 A/B 循环" }),
   ).toBeDisabled();
   await position(page, 4);
-  await page.getByRole("button", { name: "选 B", exact: true }).click();
+  await page.getByRole("button", { name: "设置 B 点", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "B 点 00:04", exact: true }),
+  ).toHaveText("00:04");
   await page.getByRole("button", { name: "开始 A/B 循环" }).click();
   await position(page, 3.95);
   await expect
@@ -390,7 +399,7 @@ test("快捷键打点、输入保护和相邻边界拖动", async ({ page }) => 
   await timedProject(page);
   await page.locator(".timeline-block").nth(1).click();
   await expect(page.getByLabel("入点（秒）")).toHaveCount(0);
-  await expect(page.locator(".ab-controls .primary")).toHaveCount(3);
+  await expect(page.locator(".ab-edit-controls .primary")).toHaveCount(3);
   await position(page, 6);
   await page.locator(".timeline-block").nth(1).focus();
   await page.keyboard.press("[");
@@ -413,13 +422,18 @@ test("快捷键打点、输入保护和相邻边界拖动", async ({ page }) => 
   await position(page, 4);
   await page.locator(".timeline-block").nth(1).focus();
   await page.keyboard.press("b");
-  await expect(page.locator(".ab-status")).toContainText(
-    "A 00:02.00 · B 00:04.00",
-  );
+  await expect(
+    page.getByRole("button", { name: "A 点 00:02", exact: true }),
+  ).toHaveText("00:02");
+  await expect(
+    page.getByRole("button", { name: "B 点 00:04", exact: true }),
+  ).toHaveText("00:04");
   await page.getByLabel("歌曲名称").focus();
   await page.keyboard.press("a");
   await page.keyboard.press("[");
-  await expect(page.locator(".ab-status")).toContainText("A 00:02.00");
+  await expect(
+    page.getByRole("button", { name: "A 点 00:02", exact: true }),
+  ).toHaveText("00:02");
   await expect(page.locator(".timeline-block").nth(1)).toHaveAttribute(
     "title",
     /00:05.00/,
@@ -464,9 +478,9 @@ test("仅轨道空白可新建，刻度、片段和循环标记不触发", async
   await page.locator(".timeline-block").first().click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await position(page, 4);
-  await page.getByRole("button", { name: "选 A", exact: true }).click();
+  await page.getByRole("button", { name: "设置 A 点", exact: true }).click();
   await position(page, 6);
-  await page.getByRole("button", { name: "选 B", exact: true }).click();
+  await page.getByRole("button", { name: "设置 B 点", exact: true }).click();
   await page.locator(".timeline-block").nth(1).click();
   await expect(page.locator(".ab-marker").nth(1)).toHaveCSS("z-index", "7");
   await expect(page.locator(".ab-region")).toHaveCSS("z-index", "6");
@@ -535,9 +549,9 @@ test("浮动提示不挤占工作区，按拍数设出点及循环快捷键", as
     /00:03.00/,
   );
   await position(page, 1);
-  await page.getByRole("button", { name: "选 A", exact: true }).click();
+  await page.getByRole("button", { name: "设置 A 点", exact: true }).click();
   await position(page, 2);
-  await page.getByRole("button", { name: "选 B", exact: true }).click();
+  await page.getByRole("button", { name: "设置 B 点", exact: true }).click();
   await page.keyboard.press("l");
   await expect(
     page.getByRole("button", { name: "退出 A/B 循环", exact: true }),

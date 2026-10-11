@@ -1,6 +1,6 @@
 import { Plus, Trash2 } from "lucide-react";
 import { usePointerDrag } from "./usePointerDrag";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Project } from "../core/model";
 import {
   addDancer,
@@ -54,6 +54,7 @@ type Props = {
   videoStorageKey?: string;
   onRequestInsertVideo?: (time: number) => void;
   onRelinkVideo?: (assetId: string) => void;
+  heading?: ReactNode;
 };
 export function FormationCanvas({
   project,
@@ -71,6 +72,7 @@ export function FormationCanvas({
   videoStorageKey,
   onRequestInsertVideo,
   onRelinkVideo,
+  heading,
 }: Props) {
   const c = useMemo(
     () => project.choreography ?? emptyChoreography(),
@@ -235,7 +237,7 @@ export function FormationCanvas({
   return (
     <section className="formation-panel" aria-label="队形画布">
       <div className="panel-heading">
-        <h2>队形画布</h2>
+        {heading ?? <h2>队形画布</h2>}
         <div className="formation-tools" role="group" aria-label="舞者操作">
           <select
             aria-label="选择舞者"
@@ -614,9 +616,11 @@ export function FormationCanvas({
           selectionResetKey={videoSelectionReset}
         />
       </div>
-      <small className="stage-help">
-        左半圆：左手 · 右半圆：右手 · 登退场从当前时刻起
-      </small>
+      {!readOnly && (
+        <small className="stage-help">
+          左半圆：左手 · 右半圆：右手 · 登退场从当前时刻起
+        </small>
+      )}
       {(modal === "add" || modal === "rename") && (
         <Modal
           title={modal === "add" ? "添加舞者" : "重命名舞者"}

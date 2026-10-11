@@ -524,9 +524,9 @@ test("多人同步播放、变速与AB回跳，拖动关键帧和边界限制", 
   await expect.poll(() => getX(page, "甲")).toBeGreaterThan(410);
   await page.getByRole("button", { name: "暂停", exact: true }).click();
   await at(page, 1);
-  await page.getByRole("button", { name: "选 A", exact: true }).click();
+  await page.getByRole("button", { name: "设置 A 点", exact: true }).click();
   await at(page, 2);
-  await page.getByRole("button", { name: "选 B", exact: true }).click();
+  await page.getByRole("button", { name: "设置 B 点", exact: true }).click();
   await page
     .getByRole("button", { name: "开始 A/B 循环", exact: true })
     .click();

@@ -17,7 +17,7 @@ import {
 } from "../core/share";
 import { activeBlock, activeLyric } from "../core/timing";
 import type { Project } from "../core/model";
-import { BlockEditor } from "./BlockEditor";
+import { BlockCompactSummary, BlockEditor } from "./BlockEditor";
 import { Modal } from "./Fields";
 import { FormationCanvas } from "./FormationCanvas";
 import { Player, type PlayerHandle } from "./Player";
@@ -329,7 +329,6 @@ export function PublicSharePage() {
             activeLyricId={currentLyric?.id}
             audioReady={audioReady}
             time={time}
-            showCompactSummary
           />
         </section>
         <FormationCanvas
@@ -344,6 +343,18 @@ export function PublicSharePage() {
           onError={setError}
           externalVideoSources={externalVideoSources}
           videoStorageKey={`wota-share-video-minimized:${share.token}`}
+          heading={
+            currentBlock ? (
+              <BlockCompactSummary
+                block={currentBlock}
+                bpm={project.bpm}
+                time={time}
+                className="formation-block-summary"
+              />
+            ) : (
+              <h2>暂无当前段落</h2>
+            )
+          }
         />
         <section className="public-timeline-panel" aria-label="歌曲时间轴">
           <Player
