@@ -349,6 +349,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
   const pointAText = pointA === null ? "A" : formatTime(pointA).slice(0, 5);
   const pointBText = pointB === null ? "B" : formatTime(pointB).slice(0, 5);
   const selectedBlock = p.blocks.find((b) => b.id === primarySelectedId);
+  const blockLoopActive = Boolean(segmentLoop);
   const startAbLoop = () => {
     if (!loaded || pointA === null || pointB === null || pointB <= pointA)
       return;
@@ -395,6 +396,21 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
         Math.min(a.duration, currentLoop.start! - timelineOffsetRef.current),
       );
     void a.play().catch(() => onError("无法播放，请重新点击或选择其他歌曲。"));
+  };
+  const enforceLoopBoundary = (element: HTMLAudioElement) => {
+    const currentLoop = loopRef.current;
+    if (!currentLoop || element.paused) return;
+    const arrangementTime = element.currentTime + timelineOffsetRef.current;
+    if (arrangementTime < currentLoop.end! - 0.05) return;
+    element.currentTime = Math.max(
+      0,
+      Math.min(
+        element.duration,
+        currentLoop.start! - timelineOffsetRef.current,
+      ),
+    );
+    drawPlayhead(currentLoop.start!, element.duration);
+    callbacks.current.onTime(currentLoop.start!, !element.paused);
   };
   const toggleAb = () => {
     if (abEnabled) setAbEnabled(false);
@@ -497,6 +513,8 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
           onReady(true);
         }}
         onPlay={() => setPlaying(true)}
+        onTimeUpdate={(event) => enforceLoopBoundary(event.currentTarget)}
+        onSeeked={(event) => enforceLoopBoundary(event.currentTarget)}
         onPause={() => {
           setPlaying(false);
           if (readyRef.current)
@@ -614,15 +632,22 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
           />
         </label>
         <button
-          className={loop ? "active" : ""}
-          disabled={!loop}
+          className={blockLoopActive ? "active" : ""}
+          aria-label={blockLoopActive ? "退出此块循环" : "循环此块"}
+          aria-pressed={blockLoopActive}
+          disabled={
+            !loaded ||
+            (!blockLoopActive &&
+              (!selectedBlock ||
+                !playable(selectedBlock, p.blocks, p.audio?.duration)))
+          }
           onClick={() => {
-            onLoop(null);
-            setAbEnabled(false);
+            if (blockLoopActive) onLoop(null);
+            else if (selectedBlock) onLoop(selectedBlock.id);
           }}
         >
           <Repeat2 size={15} />
-          {loop ? "退出循环" : "未循环"}
+          {blockLoopActive ? "退出此块循环" : "循环此块"}
         </button>
         <label className="check">
           <input
@@ -663,6 +688,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
             disabled={!loaded || pointA === null || pointB === null}
             aria-keyshortcuts="l"
             aria-label={abEnabled ? "退出 A/B 循环" : "开始 A/B 循环"}
+            aria-pressed={abEnabled}
             onClick={toggleAb}
           >
             {abEnabled ? "退出 A/B 循环" : "开始 A/B 循环"} <kbd>L</kbd>

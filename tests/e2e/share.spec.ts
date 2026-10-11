@@ -241,16 +241,40 @@ test("只读分享页支持本地音乐、播放跟随、段落循环和移动�
   await settings.getByRole("slider", { name: "同步偏移" }).fill("0.25");
   await expect(page.getByText("+0.25 秒")).toBeVisible();
   await page.getByRole("button", { name: "关闭对话框" }).click();
-  await page.getByRole("button", { name: "循环", exact: true }).click();
+  const playerControls = page.locator(
+    ".public-timeline-panel .player-controls",
+  );
+  await playerControls
+    .getByRole("button", { name: "循环此块", exact: true })
+    .click();
   await expect(
-    page.getByRole("button", { name: "退出循环", exact: true }).first(),
-  ).toBeEnabled();
+    playerControls.getByRole("button", {
+      name: "退出此块循环",
+      exact: true,
+    }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await playerControls
+    .getByRole("button", { name: "开始 A/B 循环", exact: true })
+    .click();
+  await expect(
+    playerControls.getByRole("button", {
+      name: "退出 A/B 循环",
+      exact: true,
+    }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    playerControls.getByRole("button", {
+      name: "循环此块",
+      exact: true,
+    }),
+  ).toHaveAttribute("aria-pressed", "false");
   const pause = page.getByRole("button", { name: "暂停", exact: true });
   if (await pause.count()) await pause.click();
   for (const viewport of [
     { width: 1000, height: 900 },
     { width: 554, height: 915 },
     { width: 554, height: 700 },
+    { width: 412, height: 915 },
     { width: 390, height: 844 },
     { width: 320, height: 568 },
   ]) {
@@ -279,16 +303,18 @@ test("只读分享页支持本地音乐、播放跟随、段落循环和移动�
       .locator(".public-share-page .formation-panel > .panel-heading")
       .boundingBox();
     expect(heading?.height).toBeLessThanOrEqual(60);
-    if (viewport.width === 554) {
-      const follow = (await page
-        .locator(".public-share-page .player-controls > .check")
-        .boundingBox())!;
-      const ab = (await page
-        .locator(".public-share-page .player-controls .ab-controls")
-        .boundingBox())!;
-      const followCenter = follow.y + follow.height / 2;
-      const abCenter = ab.y + ab.height / 2;
-      expect(Math.abs(followCenter - abCenter)).toBeLessThanOrEqual(4);
+    if (viewport.width === 412) {
+      const controlRowCount = await page
+        .locator(".public-share-page .player-controls > *")
+        .evaluateAll(
+          (elements) =>
+            new Set(
+              elements.map((element) =>
+                Math.round(element.getBoundingClientRect().top),
+              ),
+            ).size,
+        );
+      expect(controlRowCount).toBeGreaterThan(1);
     }
     const tops = await page
       .locator(".public-stage > .formation-panel, .public-timeline-panel")

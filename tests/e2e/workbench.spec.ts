@@ -374,6 +374,35 @@ test("直接记录 AB，拒绝反向区间，循环和替换音频清除", async
   await audio(page, 10);
   await expect(page.locator(".ab-marker")).toHaveCount(0);
 });
+test("循环此块与 A/B 循环互斥", async ({ page }) => {
+  await timedProject(page);
+  await page.locator(".timeline-block").nth(1).click();
+  await position(page, 5);
+  await page.getByRole("button", { name: "设置 A 点", exact: true }).click();
+  await position(page, 6);
+  await page.getByRole("button", { name: "设置 B 点", exact: true }).click();
+  const controls = page.locator(".timeline-panel .player-controls");
+  await controls.getByRole("button", { name: "循环此块", exact: true }).click();
+  await expect(
+    controls.getByRole("button", { name: "退出此块循环", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await controls
+    .getByRole("button", { name: "开始 A/B 循环", exact: true })
+    .click();
+  await expect(
+    controls.getByRole("button", { name: "退出 A/B 循环", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    controls.getByRole("button", { name: "循环此块", exact: true }),
+  ).toHaveAttribute("aria-pressed", "false");
+  await controls.getByRole("button", { name: "循环此块", exact: true }).click();
+  await expect(
+    controls.getByRole("button", { name: "退出此块循环", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    controls.getByRole("button", { name: "开始 A/B 循环", exact: true }),
+  ).toHaveAttribute("aria-pressed", "false");
+});
 test("播放覆盖手动选择，关闭跟随后保持选中段落", async ({ page }) => {
   await timedProject(page);
   await page.locator(".timeline-block").nth(1).click();

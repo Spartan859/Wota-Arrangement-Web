@@ -233,10 +233,11 @@ export function BlockEditor({
           </button>
           <button
             className={looping ? "active" : ""}
+            aria-pressed={looping}
             disabled={!audioReady || !playable(b, p.blocks, p.audio?.duration)}
             onClick={() => onLoop(b.id)}
           >
-            {looping ? "退出循环" : "循环"}
+            {looping ? "退出此块循环" : "循环此块"}
           </button>
           {rangeError && <span className="error">{rangeError}</span>}
         </div>

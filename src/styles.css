@@ -3500,11 +3500,19 @@ button.danger,
   }
   .local-audio-banner {
     margin: 10px 12px 0;
-    align-items: flex-start;
-    flex-wrap: wrap;
+    padding: 7px 10px;
+    align-items: center;
+    flex-wrap: nowrap;
+  }
+  .local-audio-banner > div span {
+    display: none;
+  }
+  .local-audio-banner > div strong {
+    white-space: nowrap;
   }
   .local-audio-banner .file-button {
-    margin-left: 30px;
+    margin-left: auto;
+    flex-shrink: 0;
   }
   .public-stage {
     padding: 10px 12px;
@@ -3521,8 +3529,9 @@ button.danger,
   }
   .public-share-page .player-controls {
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     gap: 8px;
+    row-gap: 8px;
   }
   .public-share-page .compact,
   .public-share-page .check,
@@ -3538,10 +3547,10 @@ button.danger,
     flex: 0 0 auto;
   }
   .public-share-page .player-controls > button:not(.play-button) {
-    flex: 1 1 auto;
+    flex: 0 1 auto;
   }
   .public-share-page .ab-controls {
-    margin-left: auto;
+    margin-left: 0;
     flex: 0 0 auto;
   }
   .audio-gate {
@@ -3567,6 +3576,15 @@ button.danger,
   }
   .admin-share-list article > div {
     grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 400px) {
+  .public-share-page .public-timeline-panel .timeline {
+    height: 80px;
+  }
+  .public-share-page .public-timeline-panel .timeline-gap-target {
+    height: 56px;
   }
 }
 
