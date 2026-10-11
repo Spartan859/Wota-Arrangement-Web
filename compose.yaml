@@ -71,7 +71,7 @@ services:
     networks: [wota]
 
   postgres:
-    image: postgres:17-alpine
+    image: ${WOTA_POSTGRES_IMAGE:-docker.m.daocloud.io/library/postgres:17-alpine}
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-wota}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
@@ -88,7 +88,7 @@ services:
     networks: [wota]
 
   authentik-db-init:
-    image: postgres:17-alpine
+    image: ${WOTA_POSTGRES_IMAGE:-docker.m.daocloud.io/library/postgres:17-alpine}
     environment:
       PGHOST: postgres
       PGUSER: ${POSTGRES_USER:-wota}
@@ -111,7 +111,7 @@ services:
     networks: [wota]
 
   authentik-server:
-    image: ghcr.io/goauthentik/server:2026.8.3
+    image: ${WOTA_AUTHENTIK_IMAGE:-ghcr.nju.edu.cn/goauthentik/server:2026.8.3}
     command: ["server"]
     env_file: .env
     environment:
@@ -142,7 +142,7 @@ services:
     networks: [wota]
 
   authentik-worker:
-    image: ghcr.io/goauthentik/server:2026.8.3
+    image: ${WOTA_AUTHENTIK_IMAGE:-ghcr.nju.edu.cn/goauthentik/server:2026.8.3}
     command: ["worker"]
     env_file: .env
     environment:
@@ -191,7 +191,7 @@ services:
     networks: [wota]
 
   postfix:
-    image: boky/postfix:v5.0.0
+    image: ${WOTA_POSTFIX_IMAGE:-docker.m.daocloud.io/boky/postfix:v5.0.0}
     profiles: ["production-mail"]
     environment:
       RELAYHOST: ${SMTP_RELAY_HOST:?set SMTP_RELAY_HOST in .env}
@@ -203,7 +203,7 @@ services:
     networks: [wota]
 
   mailpit:
-    image: axllent/mailpit:v1.27
+    image: ${WOTA_MAILPIT_IMAGE:-axllent/mailpit:v1.27}
     profiles: ["local-mail"]
     ports:
       - "127.0.0.1:${WOTA_MAILPIT_PORT:-8025}:8025"

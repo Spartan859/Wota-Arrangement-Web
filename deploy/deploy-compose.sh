@@ -18,6 +18,8 @@ app_dir=${WOTA_STACK_DIR:-/opt/wota-stack}
 runtime_container="wota-runtime-${release_id}"
 runtime_dir=$(mktemp -d /tmp/wota-runtime.XXXXXX)
 compose=(docker compose --profile production-mail)
+ghcr_registry=${WOTA_GHCR_REGISTRY:-ghcr.nju.edu.cn}
+dockerhub_registry=${WOTA_DOCKERHUB_REGISTRY:-docker.m.daocloud.io}
 
 cleanup() {
   docker rm --force "$runtime_container" >/dev/null 2>&1 || true
@@ -49,10 +51,10 @@ resolve_image() {
 }
 
 resolve_image WOTA_WEB_IMAGE \
-  ghcr.io/spartan859/wota-arrangement-web "${WOTA_WEB_IMAGE:-}"
+  "$ghcr_registry/spartan859/wota-arrangement-web" "${WOTA_WEB_IMAGE:-}"
 export WOTA_WEB_IMAGE
 resolve_image WOTA_API_IMAGE \
-  ghcr.io/spartan859/wota-arrangement-web-api "${WOTA_API_IMAGE:-}"
+  "$ghcr_registry/spartan859/wota-arrangement-web-api" "${WOTA_API_IMAGE:-}"
 export WOTA_API_IMAGE
 
 cd "$app_dir"
