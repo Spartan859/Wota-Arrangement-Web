@@ -266,7 +266,7 @@ test("只读分享页支持本地音乐、播放跟随、段落循环和移动�
     .click();
   await expect(
     playerControls.getByRole("button", {
-      name: "退出此块循环",
+      name: "退出循环",
       exact: true,
     }),
   ).toHaveAttribute("aria-pressed", "true");

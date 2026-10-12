@@ -241,14 +241,23 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
       if (url) URL.revokeObjectURL(url);
     };
   }, [p.id, p.audio?.id, externalSource?.url]);
-  const seek = (t: number, play = false, persist = true) => {
+  const seek = (
+    t: number,
+    play = false,
+    persist = true,
+    enforceLoop = true,
+  ) => {
     const a = audio.current;
     const offset = timelineOffsetRef.current;
     if (!a || !readyRef.current || !Number.isFinite(t) || t < 0) return;
     const mediaTime = Math.max(0, Math.min(a.duration, t - offset));
     const arrangementTime = mediaTime + offset;
     const l = loopRef.current;
-    if (l && (arrangementTime < l.start! || arrangementTime >= l.end!)) {
+    if (
+      enforceLoop &&
+      l &&
+      (arrangementTime < l.start! || arrangementTime >= l.end!)
+    ) {
       onLoop(null);
       setAbEnabled(false);
     }
@@ -633,7 +642,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
         </label>
         <button
           className={blockLoopActive ? "active" : ""}
-          aria-label={blockLoopActive ? "退出此块循环" : "循环此块"}
+          aria-label={blockLoopActive ? "退出循环" : "循环此块"}
           aria-pressed={blockLoopActive}
           disabled={
             !loaded ||
@@ -643,11 +652,15 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
           }
           onClick={() => {
             if (blockLoopActive) onLoop(null);
-            else if (selectedBlock) onLoop(selectedBlock.id);
+            else if (selectedBlock && selectedBlock.start !== null) {
+              setAbEnabled(false);
+              onLoop(selectedBlock.id);
+              seek(selectedBlock.start, true, true, false);
+            }
           }}
         >
           <Repeat2 size={15} />
-          {blockLoopActive ? "退出此块循环" : "循环此块"}
+          {blockLoopActive ? "退出循环" : "循环此块"}
         </button>
         <label className="check">
           <input
@@ -685,6 +698,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
             {pointBText}
           </button>
           <button
+            className={abEnabled ? "active" : ""}
             disabled={!loaded || pointA === null || pointB === null}
             aria-keyshortcuts="l"
             aria-label={abEnabled ? "退出 A/B 循环" : "开始 A/B 循环"}

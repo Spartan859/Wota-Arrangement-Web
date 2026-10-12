@@ -1077,6 +1077,19 @@ fieldset {
   font-size: 10px;
   color: #94a0b1;
 }
+.project-import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-start !important;
+}
 .table-scroll {
   overflow: auto;
 }

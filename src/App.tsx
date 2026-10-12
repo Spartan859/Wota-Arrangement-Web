@@ -8,6 +8,7 @@ import {
   FolderOpen,
   Plus,
   Redo2,
+  Settings,
   Undo2,
   Upload,
   Waves,
@@ -81,7 +82,14 @@ export default function App() {
   const [audioReady, setAudioReady] = useState(false),
     [loop, setLoop] = useState<string | null>(null);
   const [modal, setModal] = useState<
-    "lyrics" | "preview" | "export" | "projects" | "source" | "create" | null
+    | "lyrics"
+    | "preview"
+    | "export"
+    | "projects"
+    | "settings"
+    | "source"
+    | "create"
+    | null
   >(null);
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
@@ -381,8 +389,10 @@ export default function App() {
       player.current?.pause();
       await store.create(next);
       if (next.audio) setNotice("项目已导入，请重新选择歌曲。");
+      return true;
     } catch (e) {
       fail("导入失败：" + (e as Error).message);
+      return false;
     } finally {
       setBusy(false);
     }
@@ -572,14 +582,6 @@ export default function App() {
             </button>
           </div>
         </div>
-        <div className="source-status">
-          <button disabled={readOnly} onClick={() => setModal("source")}>
-            {p.lyricSource ? "编辑歌词" : "载入歌词"}
-          </button>
-          <button disabled={readOnly} onClick={() => setModal("lyrics")}>
-            偏移 {p.lyricSource?.offset ?? 0}s
-          </button>
-        </div>
         <div className="header-actions">
           <button onClick={() => setModal("projects")}>
             <FolderOpen size={16} />
@@ -589,21 +591,6 @@ export default function App() {
             <Plus size={16} />
             新建
           </button>
-          <label className="file-button">
-            {" "}
-            <Upload size={16} />
-            打开
-            <input
-              aria-label="打开项目文件"
-              type="file"
-              accept=".xlsx,.json"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) void importProject(f);
-                e.target.value = "";
-              }}
-            />
-          </label>
           <button
             onClick={() => setModal("preview")}
             disabled={!p.blocks.length}
@@ -614,6 +601,10 @@ export default function App() {
           <button className="primary" onClick={() => setModal("export")}>
             <Download size={16} />
             导出
+          </button>
+          <button onClick={() => setModal("settings")}>
+            <Settings size={16} />
+            设置
           </button>
           {!sessionLoading && session.authenticated ? (
             <div className="account-actions">
@@ -939,6 +930,66 @@ export default function App() {
                 <span>{item.document.blocks.length} 段</span>
               </button>
             ))}
+          </div>
+          <div className="project-import-actions">
+            <label className="file-button">
+              <Upload size={16} />
+              打开项目文件
+              <input
+                aria-label="打开项目文件"
+                type="file"
+                accept=".xlsx,.json"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file)
+                    void importProject(file).then((imported) => {
+                      if (imported) setModal(null);
+                    });
+                  event.target.value = "";
+                }}
+              />
+            </label>
+            <label className="file-button">
+              <Upload size={16} />
+              从 JSON 备份导入
+              <input
+                aria-label="从 JSON 备份导入"
+                type="file"
+                accept=".json,application/json"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file)
+                    void importProject(file).then((imported) => {
+                      if (imported) setModal(null);
+                    });
+                  event.target.value = "";
+                }}
+              />
+            </label>
+          </div>
+        </Modal>
+      )}
+      {modal === "settings" && (
+        <Modal title="设置" onClose={() => setModal(null)}>
+          <div className="settings-panel">
+            <section className="settings-meta" aria-label="歌词设置">
+              <div>
+                <strong>歌词</strong>
+                <span>
+                  {p.lyricSource
+                    ? `整体偏移 ${p.lyricSource.offset}s`
+                    : "尚未载入歌词来源"}
+                </span>
+              </div>
+              <div className="settings-actions">
+                <button disabled={readOnly} onClick={() => setModal("source")}>
+                  {p.lyricSource ? "编辑歌词" : "载入歌词"}
+                </button>
+                <button disabled={readOnly} onClick={() => setModal("lyrics")}>
+                  歌词偏移 {p.lyricSource?.offset ?? 0}s
+                </button>
+              </div>
+            </section>
           </div>
         </Modal>
       )}

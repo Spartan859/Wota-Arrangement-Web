@@ -55,6 +55,39 @@ test("时间轴新建、卡片编辑、拍子流水灯和删除", async ({ page 
   await page.getByRole("button", { name: "删除副歌", exact: true }).click();
   await expect(page.locator(".timeline-block")).toHaveCount(0);
 });
+test("项目弹窗提供项目打开与 JSON 备份导入", async ({ page }) => {
+  await boot(page);
+  await expect(
+    page.getByRole("button", { name: "打开", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "载入歌词", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("载入歌词");
+  await page.getByRole("button", { name: "关闭对话框" }).click();
+  await page.getByRole("button", { name: "项目", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("从 JSON 备份导入")).toBeVisible();
+  await dialog.getByLabel("从 JSON 备份导入").setInputFiles({
+    name: "backup.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(
+      JSON.stringify({
+        schemaVersion: 2,
+        id: "json-backup",
+        songName: "JSON 备份",
+        bpm: "120",
+        blocks: [],
+        audio: null,
+        position: 0,
+        updatedAt: 1,
+      }),
+    ),
+  });
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByLabel("歌曲名称")).toHaveValue("JSON 备份");
+});
 test("类型与拍数同弹窗，LRC 同刻选择生成中文", async ({ page }) => {
   await boot(page);
   await clickTimeline(page, 0.1);
@@ -93,6 +126,7 @@ test("时间轴拖动冲突被拒绝且手机无横向溢出", async ({ page }) 
 
 async function timedProject(page: Page) {
   await boot(page);
+  await page.getByRole("button", { name: "项目", exact: true }).click();
   await page.getByLabel("打开项目文件").setInputFiles({
     name: "synthetic.json",
     mimeType: "application/json",
@@ -123,6 +157,7 @@ async function timedProject(page: Page) {
 }
 async function multiTimedProject(page: Page) {
   await boot(page);
+  await page.getByRole("button", { name: "项目", exact: true }).click();
   await page.getByLabel("打开项目文件").setInputFiles({
     name: "multi-synthetic.json",
     mimeType: "application/json",
@@ -158,6 +193,7 @@ async function multiTimedProject(page: Page) {
 }
 async function untimedProject(page: Page) {
   await boot(page);
+  await page.getByRole("button", { name: "项目", exact: true }).click();
   await page.getByLabel("打开项目文件").setInputFiles({
     name: "untimed-synthetic.json",
     mimeType: "application/json",
@@ -384,20 +420,33 @@ test("循环此块与 A/B 循环互斥", async ({ page }) => {
   const controls = page.locator(".timeline-panel .player-controls");
   await controls.getByRole("button", { name: "循环此块", exact: true }).click();
   await expect(
-    controls.getByRole("button", { name: "退出此块循环", exact: true }),
+    controls.getByRole("button", { name: "退出循环", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
+  await expect
+    .poll(() =>
+      page.locator("audio").evaluate((audio: HTMLAudioElement) => audio.paused),
+    )
+    .toBe(false);
+  expect(
+    await page
+      .locator("audio")
+      .evaluate((audio: HTMLAudioElement) => audio.currentTime),
+  ).toBeGreaterThan(4.9);
   await controls
     .getByRole("button", { name: "开始 A/B 循环", exact: true })
     .click();
-  await expect(
-    controls.getByRole("button", { name: "退出 A/B 循环", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
+  const exitAb = controls.getByRole("button", {
+    name: "退出 A/B 循环",
+    exact: true,
+  });
+  await expect(exitAb).toHaveAttribute("aria-pressed", "true");
+  await expect(exitAb).toHaveClass(/active/);
   await expect(
     controls.getByRole("button", { name: "循环此块", exact: true }),
   ).toHaveAttribute("aria-pressed", "false");
   await controls.getByRole("button", { name: "循环此块", exact: true }).click();
   await expect(
-    controls.getByRole("button", { name: "退出此块循环", exact: true }),
+    controls.getByRole("button", { name: "退出循环", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   await expect(
     controls.getByRole("button", { name: "开始 A/B 循环", exact: true }),
@@ -613,8 +662,10 @@ test("LRC 原文与偏移保存、再次选词及左右多行编辑", async ({ p
   await page.getByLabel("歌词偏移秒数").fill("1.5");
   await page.getByLabel("歌词偏移秒数").press("Tab");
   await page.getByRole("button", { name: "关闭对话框" }).click();
-  await expect(page.locator(".topbar")).toContainText("编辑歌词");
-  await expect(page.locator(".topbar")).toContainText("偏移 1.5s");
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("编辑歌词");
+  await expect(page.getByRole("dialog")).toContainText("歌词偏移 1.5s");
+  await page.getByRole("button", { name: "关闭对话框" }).click();
   await page.getByRole("button", { name: /双语歌词/ }).click();
   await expect(page.getByLabel("日文歌词", { exact: true })).toHaveValue(
     "第一句\n第二句",
@@ -629,10 +680,11 @@ test("LRC 原文与偏移保存、再次选词及左右多行编辑", async ({ p
   await page.getByRole("button", { name: "加入当前段落" }).click();
   await expect(page.locator(".save-state")).toContainText("已保存");
   await page.reload();
-  await expect(page.locator(".topbar")).toContainText("编辑歌词");
-  await expect(page.locator(".topbar")).toContainText("偏移 1.5s");
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("编辑歌词");
+  await expect(page.getByRole("dialog")).toContainText("歌词偏移 1.5s");
   await page
-    .locator(".topbar")
+    .getByRole("dialog")
     .getByRole("button", { name: "编辑歌词" })
     .click();
   await expect(page.getByLabel("歌词文本")).toHaveValue(
@@ -647,7 +699,9 @@ test("LRC 原文与偏移保存、再次选词及左右多行编辑", async ({ p
     "没有找到歌词",
   );
   await page.getByRole("button", { name: "关闭对话框" }).click();
-  await expect(page.locator(".topbar")).toContainText("编辑歌词");
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("编辑歌词");
+  await page.getByRole("button", { name: "关闭对话框" }).click();
 });
 
 test("播放头逐帧跟随音频且暂停定位不漂移", async ({ page }) => {

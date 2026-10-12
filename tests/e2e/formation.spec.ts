@@ -493,6 +493,7 @@ async function formationFixture(page: Page) {
       visible: true,
     })),
   }));
+  await page.getByRole("button", { name: "项目", exact: true }).click();
   await page.getByLabel("打开项目文件").setInputFiles({
     name: "formation.json",
     mimeType: "application/json",
@@ -977,6 +978,7 @@ test("旧本地草稿导出文件后立即导入保留队形", async ({ page }) 
   expect(parsed.choreography.dancers).toHaveLength(2);
   expect(parsed.audio.id).toBeNull();
   await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
+  await page.getByRole("button", { name: "项目", exact: true }).click();
   await page.getByLabel("打开项目文件").setInputFiles((await file.path())!);
   await expect(page.getByRole("alert")).toHaveCount(0);
   await page.getByLabel("选择舞者").selectOption("alice");
@@ -1022,6 +1024,7 @@ test("一次性光棒统计与Excel同表尾部一致，换棒顺序保留", asy
   expect(wb.worksheets[0].getImages()).toHaveLength(2);
   expect(wb.worksheets[0].getCell("A2").value).toBe("段落");
   const { readFile } = await import("node:fs/promises");
+  await page.getByRole("button", { name: "项目", exact: true }).click();
   await page.getByLabel("打开项目文件").setInputFiles({
     name: file.suggestedFilename(),
     mimeType:
