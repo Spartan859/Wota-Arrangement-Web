@@ -74,6 +74,7 @@ export function PublicSharePage() {
   const [localAudio, setLocalAudio] = useState<LocalAudio | null>(null);
   const [syncOffset, setSyncOffset] = useState(() => readOffset(token));
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [showFormation, setShowFormation] = useState(true);
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -207,16 +208,14 @@ export function PublicSharePage() {
           aria-label="返回工作台"
           title="返回工作台"
         >
-          <ArrowLeft size={17} />
+          <ArrowLeft size={24} />
         </Link>
         <div>
           <h1>{project.songName}</h1>
-          <p>
-            BPM {project.bpm} · 更新于{" "}
-            {new Date(share.updatedAt).toLocaleString()}
-          </p>
+          <p>BPM {project.bpm}</p>
         </div>
         <div className="public-header-actions">
+          <span className="readonly-badge">只读分享</span>
           <button
             className="public-settings-button"
             aria-label="播放设置"
@@ -225,12 +224,26 @@ export function PublicSharePage() {
           >
             <Settings size={16} /> 设置
           </button>
-          <span className="readonly-badge">只读分享</span>
         </div>
       </header>
       {settingsOpen && (
         <Modal title="播放设置" onClose={() => setSettingsOpen(false)}>
           <div className="settings-panel">
+            <section className="settings-meta" aria-label="分享设置">
+              <div>
+                <strong>更新时间</strong>
+                <span>{new Date(share.updatedAt).toLocaleString()}</span>
+              </div>
+              <label className="check">
+                <input
+                  aria-label="显示队形画布"
+                  type="checkbox"
+                  checked={showFormation}
+                  onChange={(event) => setShowFormation(event.target.checked)}
+                />
+                显示队形画布
+              </label>
+            </section>
             <section className="settings-audio" aria-label="歌曲设置">
               <div className="settings-audio-source">
                 <Music2 size={20} />
@@ -305,7 +318,12 @@ export function PublicSharePage() {
           </label>
         </div>
       )}
-      <main className="public-stage">
+      <main
+        className={
+          "public-stage " +
+          (showFormation ? "show-formation" : "hide-formation")
+        }
+      >
         <section className="public-arrangement" aria-label="当前编排">
           <BlockEditor
             project={project}

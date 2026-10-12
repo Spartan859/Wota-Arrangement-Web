@@ -170,6 +170,17 @@ test("只读分享页支持本地音乐、播放跟随、段落循环和移动�
   await expect(page.getByRole("heading", { name: "合成分享" })).toBeVisible();
   await expect(page.getByText("Wota 在线编排")).toHaveCount(0);
   await expect(page.getByRole("link", { name: "返回工作台" })).toHaveText("");
+  await expect(page.locator(".public-share-header p")).toHaveText("BPM 120");
+  const backIcon = await page
+    .getByRole("link", { name: "返回工作台" })
+    .locator("svg")
+    .boundingBox();
+  expect(backIcon?.width).toBeGreaterThanOrEqual(24);
+  const badgeBox = (await page.locator(".readonly-badge").boundingBox())!;
+  const settingsButtonBox = (await page
+    .locator(".public-settings-button")
+    .boundingBox())!;
+  expect(settingsButtonBox.x).toBeGreaterThan(badgeBox.x);
   await expect(page.getByRole("heading", { name: "队形画布" })).toHaveCount(0);
   await expect(page.getByText("左半圆：左手")).toHaveCount(0);
   await expect(
@@ -237,6 +248,10 @@ test("只读分享页支持本地音乐、播放跟随、段落循环和移动�
   ).toBeVisible();
   await page.getByRole("button", { name: "播放设置" }).click();
   const settings = page.getByRole("dialog");
+  await expect(settings.getByText("更新时间")).toBeVisible();
+  await expect(
+    settings.getByRole("checkbox", { name: "显示队形画布" }),
+  ).toBeChecked();
   await expect(settings.getByText("synthetic.wav")).toBeVisible();
   await expect(settings.getByText("更换歌曲")).toBeVisible();
   await expect(settings.getByLabel("音频文件")).toBeAttached();
@@ -286,11 +301,16 @@ test("只读分享页支持本地音乐、播放跟随、段落循环和移动�
     await expect(page.getByTestId("compact-block-summary")).toBeVisible();
     await page.getByLabel("播放进度").fill("1.2");
     const summary = page.getByTestId("compact-block-summary");
-    await expect(summary).toContainText(/位置/);
     await expect(summary).toContainText(/1-[1-8]/);
     await expect(summary).not.toContainText("（");
     const detailRows = summary.locator(".compact-block-details > span");
     await expect(detailRows).toHaveCount(2);
+    await expect(summary.locator("small")).toHaveCount(0);
+    expect(
+      await summary
+        .locator(".compact-block-title")
+        .evaluate((element) => parseFloat(getComputedStyle(element).fontSize)),
+    ).toBeGreaterThan(14);
     const firstDetail = (await detailRows.nth(0).boundingBox())!;
     const secondDetail = (await detailRows.nth(1).boundingBox())!;
     expect(secondDetail.y).toBeGreaterThan(firstDetail.y + firstDetail.height);
@@ -360,6 +380,35 @@ test("只读分享页支持本地音乐、播放跟随、段落循环和移动�
     ).toBe(true);
   }
   expect(errors).toEqual([]);
+});
+
+test("只读分享设置可隐藏队形画布并恢复编排卡片", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName === "webkit",
+    "Local synthetic audio is not reliable in CI WebKit.",
+  );
+  await mockShare(page);
+  await page.setViewportSize({ width: 412, height: 915 });
+  await page.goto("/s/demo-token");
+  await expect(page.getByLabel("舞台俯视图")).toBeVisible();
+  await expect(page.locator(".public-arrangement")).toBeHidden();
+  await page.getByRole("button", { name: "播放设置" }).click();
+  const settings = page.getByRole("dialog");
+  const toggle = settings.getByRole("checkbox", { name: "显示队形画布" });
+  await expect(toggle).toBeChecked();
+  await toggle.uncheck();
+  await page.getByRole("button", { name: "关闭对话框" }).click();
+  await expect(page.locator(".public-stage > .formation-panel")).toBeHidden();
+  await expect(page.locator(".public-arrangement")).toBeVisible();
+  await expect(page.locator(".public-arrangement .editor-card")).toBeVisible();
+  await page.getByRole("button", { name: "播放设置" }).click();
+  await settings.getByRole("checkbox", { name: "显示队形画布" }).check();
+  await page.getByRole("button", { name: "关闭对话框" }).click();
+  await expect(page.getByLabel("舞台俯视图")).toBeVisible();
+  await expect(page.locator(".public-arrangement")).toBeHidden();
 });
 
 test("只读分享页播放云端视频并支持每片段最小化和恢复", async ({ page }) => {

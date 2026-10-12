@@ -2840,6 +2840,10 @@ fieldset {
   font-size: 12px;
   flex-shrink: 0;
 }
+.public-back svg {
+  width: 24px;
+  height: 24px;
+}
 .readonly-badge {
   border: 1px solid #bddbd5;
   background: #effaf7;
@@ -2863,6 +2867,28 @@ fieldset {
 .settings-panel {
   display: grid;
   gap: 18px;
+}
+.settings-meta {
+  display: grid;
+  gap: 14px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.settings-meta > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.settings-meta strong {
+  font-size: 12px;
+}
+.settings-meta > div span {
+  color: var(--muted);
+  font-size: 11px;
+}
+.settings-meta .check {
+  font-size: 13px;
 }
 .settings-audio {
   display: grid;
@@ -2970,6 +2996,22 @@ fieldset {
 .public-stage > .formation-panel {
   grid-area: formation;
 }
+.public-stage.hide-formation > .formation-panel {
+  display: none;
+}
+.public-stage.hide-formation .public-arrangement {
+  display: flex;
+  flex: 1 1 auto;
+  align-self: center;
+  width: 100%;
+  max-width: 980px;
+  min-height: 0;
+  overflow: auto;
+}
+.public-stage.hide-formation .public-arrangement .editor-card {
+  flex: 1;
+  height: auto;
+}
 .public-timeline-panel {
   grid-area: timeline;
   min-width: 0;
@@ -3036,15 +3078,9 @@ fieldset {
   background: #fff5e9;
   color: #875a2f;
 }
-.block-compact-summary small {
-  margin-right: 3px;
-  color: #8b98ab;
-  font-size: 9px;
-  font-weight: 500;
-}
 .compact-block-title {
   color: #26364f;
-  font-size: 13px;
+  font-size: 15px;
 }
 .compact-block-beat {
   padding: 3px 7px;
@@ -3052,10 +3088,16 @@ fieldset {
   background: #eef3ff;
   color: #3564c4;
   font-family: ui-monospace, monospace;
+  font-size: 13px;
   font-weight: 650;
 }
 .formation-block-summary {
   flex: 1;
+  gap: 9px;
+  font-size: 14px;
+}
+.formation-block-summary .compact-block-details > span {
+  font-size: 13px;
 }
 .editor-card.readonly .edit-surface:disabled {
   opacity: 1;
@@ -3409,6 +3451,12 @@ button.danger,
     grid-template-areas:
       "arrangement formation"
       "timeline timeline";
+  }
+  .public-stage.hide-formation {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "arrangement"
+      "timeline";
   }
   .public-arrangement {
     display: flex;
