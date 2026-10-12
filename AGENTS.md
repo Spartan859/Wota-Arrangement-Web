@@ -145,13 +145,14 @@ npm test -- tests/python-compat.test.ts
 
 1. 开始任何开发前，先运行 `git status --short --branch` 确认工作区状态，再运行 `git fetch --all --prune` 拉取所有远端更新；工作区干净时执行 `git switch main`，并运行 `git pull --ff-only origin main` 完成快进同步。随后分别运行 `git rev-parse main` 和 `git rev-parse origin/main`，确认两个提交 SHA 完全一致；任一同步命令失败或 SHA 不一致时先停止并处理原因。确认本地 `main` 与 `origin/main` 一致后，从最新 `main` 新建任务分支，不直接在 `main` 上开发或提交。
 2. 分支名使用 `<类型>/<简短说明>`，功能使用 `feat/xxx`，缺陷修复使用 `fix/xxx`；文档和维护任务分别使用 `docs/xxx`、`chore/xxx`。分支名使用小写英文和连字符，且一个分支只处理一个独立任务。
-3. 先读取相关源码、测试和 README，确认数据流与现有行为。
-4. 先修改纯逻辑和测试，再连接 UI；不要用测试专用分支绕开生产代码的校验。
-5. 运行最小相关测试，再运行 `npm run check`、`npm run format:check` 和必要的端到端测试。
-6. 检查 `git diff --check`、`git status --short`，确认没有 `dist/`、`node_modules/`、个人媒体或测试结果被加入。
-7. 通过相关检查后，自动提交并 push 当前任务分支，不需要逐次请求授权；创建 Pull Request 前必须获得用户明确授权。PR 创建后，合并前必须确认分支 CI 通过、Copilot review 已明确完成，逐条评估和处理审查意见，回复并解决所有可执行线程，同时处理与 `main` 的冲突。任何 review 驱动的修订 push 后，默认允许立即重新请求 Copilot review，无需再次向用户确认；重新请求后必须等待新审查明确完成且无未处理意见。若 Copilot review 因配额耗尽无法执行，且没有产生实际审查意见或未处理线程，则 Copilot review 门禁视为满足，可在 CI 通过且无冲突时合并。合并操作前再次刷新 review 和 CI 状态；Copilot review 仍在运行，或存在实际审查意见、未处理线程时不得合并。满足全部合并门禁后仍须获得用户明确的合并授权，不得把 PR 创建授权视为合并授权。不要绕过失败检查直接合并，也不要直接 push 到 `main`。
-8. Pull Request 合并后，记录当前任务分支名，切换回 `main`，运行 `git pull --ff-only origin main` 同步合并结果。随后确认 GitHub 上的 PR 状态为 `MERGED`，并确认对应的 squash 合并提交已进入最新 `main`；完成这两项验证后，使用 `git branch -D <任务分支>` 删除本地任务分支，因为 squash 合并不会让任务分支提交成为 `main` 的祖先。若 PR 未合并但已明确永久关闭，只有确认其中提交不再需要时才能使用 `git branch -D <任务分支>`；仍需保留提交的分支不得删除。若远端任务分支未被 GitHub 自动删除，确认 PR 已完成且分支不再需要后使用 `git push origin --delete <任务分支>` 删除远端分支，最后运行 `git fetch --prune` 清理远端跟踪引用。
-9. 报告实际通过的命令和未能执行的浏览器/环境检查；不要把“启动成功”写成“部署成功”。
+3. 同一个 Codex 会话（任务线程）内，首次创建任务分支后，后续所有补充需求、界面迭代、审查修订和测试修正都必须继续使用同一个分支；不得因后续轮次再切回 `main`、创建堆叠分支或其他新分支。该会话的连续修改视为同一个任务范围。仅当用户明确要求更换分支，或当前分支已经合并/关闭且用户开始新的独立任务时，才创建新分支。
+4. 先读取相关源码、测试和 README，确认数据流与现有行为。
+5. 先修改纯逻辑和测试，再连接 UI；不要用测试专用分支绕开生产代码的校验。
+6. 运行最小相关测试，再运行 `npm run check`、`npm run format:check` 和必要的端到端测试。
+7. 检查 `git diff --check`、`git status --short`，确认没有 `dist/`、`node_modules/`、个人媒体或测试结果被加入。
+8. 通过相关检查后，自动提交并 push 当前任务分支，不需要逐次请求授权；创建 Pull Request 前必须获得用户明确授权。PR 创建后，合并前必须确认分支 CI 通过、Copilot review 已明确完成，逐条评估和处理审查意见，回复并解决所有可执行线程，同时处理与 `main` 的冲突。任何 review 驱动的修订 push 后，默认允许立即重新请求 Copilot review，无需再次向用户确认；重新请求后必须等待新审查明确完成且无未处理意见。若 Copilot review 因配额耗尽无法执行，且没有产生实际审查意见或未处理线程，则 Copilot review 门禁视为满足，可在 CI 通过且无冲突时合并。合并操作前再次刷新 review 和 CI 状态；Copilot review 仍在运行，或存在实际审查意见、未处理线程时不得合并。满足全部合并门禁后仍须获得用户明确的合并授权，不得把 PR 创建授权视为合并授权。不要绕过失败检查直接合并，也不要直接 push 到 `main`。
+9. Pull Request 合并后，记录当前任务分支名，切换回 `main`，运行 `git pull --ff-only origin main` 同步合并结果。随后确认 GitHub 上的 PR 状态为 `MERGED`，并确认对应的 squash 合并提交已进入最新 `main`；完成这两项验证后，使用 `git branch -D <任务分支>` 删除本地任务分支，因为 squash 合并不会让任务分支提交成为 `main` 的祖先。若 PR 未合并但已明确永久关闭，只有确认其中提交不再需要时才能使用 `git branch -D <任务分支>`；仍需保留提交的分支不得删除。若远端任务分支未被 GitHub 自动删除，确认 PR 已完成且分支不再需要后使用 `git push origin --delete <任务分支>` 删除远端分支，最后运行 `git fetch --prune` 清理远端跟踪引用。
+10. 报告实际通过的命令和未能执行的浏览器/环境检查；不要把“启动成功”写成“部署成功”。
 
 除非用户明确要求，不要创建远程仓库、创建 Pull Request、合并 Pull Request、部署或修改原 Python 仓库。允许在任务检查通过后自动 push 当前任务分支，但不得直接 push 到 `main`；创建 PR 与合并 PR 是两项独立操作，均须分别获得用户明确授权。
 
