@@ -708,7 +708,7 @@ test("空隙新建生成完整区间且刷新后仍位于原位置", async ({ pa
   );
 });
 
-test("编辑卡片随可用高度压缩，无需滚动查看对时按钮", async ({ page }) => {
+test("编辑卡片随可用高度压缩，核心编辑区无需滚动", async ({ page }) => {
   await page.setViewportSize({ width: 922, height: 880 });
   await timedProject(page);
   await page.locator(".timeline-block").first().click();
@@ -735,7 +735,8 @@ test("编辑卡片随可用高度压缩，无需滚动查看对时按钮", async
     }));
     expect(overflow.x).toBeLessThanOrEqual(1);
     expect(overflow.y).toBeLessThanOrEqual(1);
-    await expect(page.locator(".editor-time-row")).toBeInViewport();
+    await expect(page.locator(".arrangement-surface")).toBeInViewport();
+    await expect(page.locator(".editor-summary-grid")).toBeInViewport();
   }
 });
 

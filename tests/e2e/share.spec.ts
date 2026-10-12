@@ -172,7 +172,9 @@ test("只读分享页支持本地音乐、播放跟随、段落循环和移动�
   await expect(page.getByRole("link", { name: "返回工作台" })).toHaveText("");
   await expect(page.getByRole("heading", { name: "队形画布" })).toHaveCount(0);
   await expect(page.getByText("左半圆：左手")).toHaveCount(0);
-  await expect(page.getByTestId("compact-block-summary")).toBeVisible();
+  await expect(
+    page.locator(".public-share-page .formation-panel > .panel-heading"),
+  ).toBeHidden();
   await expect(page.locator(".public-arrangement .editor-card")).toBeVisible();
   await expect(page.getByTestId("playback-time")).toHaveCount(0);
   await expect(page.locator(".public-timeline-panel .song-badge")).toHaveCount(

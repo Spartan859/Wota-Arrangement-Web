@@ -950,6 +950,10 @@ fieldset {
   padding: 8px;
   border-radius: 4px;
 }
+.block-range-error {
+  display: block;
+  margin-top: 10px;
+}
 .block-warning {
   margin: 0 !important;
 }
@@ -3397,6 +3401,9 @@ button.danger,
 }
 
 @media (min-width: 1001px) {
+  .public-share-page .formation-panel > .panel-heading {
+    display: none;
+  }
   .public-stage {
     grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
     grid-template-areas:

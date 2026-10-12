@@ -8,29 +8,20 @@ import {
   type Lyric,
   type Project,
 } from "../core/model";
-import {
-  formatTime,
-  intervalError,
-  playable,
-  suggestedDuration,
-} from "../core/timing";
+import { intervalError, suggestedDuration } from "../core/timing";
 import { Field, Modal } from "./Fields";
 
 type Props = {
   project: Project;
   selected?: Block;
   edit: (fn: (p: Project) => void) => void;
-  onSeek: (t: number) => void;
-  onLoop: (id: string) => void;
   onError: (s: string) => void;
   onLyricsImport: (rows: Lyric[]) => void;
   onOpenLyricsImport?: () => void;
   activeLyricId?: string;
-  audioReady: boolean;
   time: number;
   readOnly?: boolean;
   showCompactSummary?: boolean;
-  looping?: boolean;
 };
 
 function compactBeatText(block: Block, bpm: string, time: number) {
@@ -94,17 +85,13 @@ export function BlockEditor({
   project: p,
   selected: b,
   edit,
-  onSeek,
-  onLoop,
   onError,
   onLyricsImport,
   onOpenLyricsImport,
   activeLyricId,
-  audioReady,
   time,
   readOnly = false,
   showCompactSummary = false,
-  looping = false,
 }: Props) {
   const [modal, setModal] = useState<
     "type" | "lyrics" | "arrangement" | "remarks" | null
@@ -222,25 +209,9 @@ export function BlockEditor({
             <strong>{b.remarks || (readOnly ? "无" : "点击添加备注")}</strong>
           </button>
         </div>
-        <div className="editor-time-row">
-          <button
-            onClick={() => b.start !== null && onSeek(b.start)}
-            disabled={!audioReady || !playable(b, p.blocks, p.audio?.duration)}
-          >
-            {b.start === null
-              ? "未排时"
-              : `${formatTime(b.start)} — ${formatTime(b.end)}`}
-          </button>
-          <button
-            className={looping ? "active" : ""}
-            aria-pressed={looping}
-            disabled={!audioReady || !playable(b, p.blocks, p.audio?.duration)}
-            onClick={() => onLoop(b.id)}
-          >
-            {looping ? "退出此块循环" : "循环此块"}
-          </button>
-          {rangeError && <span className="error">{rangeError}</span>}
-        </div>
+        {rangeError && (
+          <span className="error block-range-error">{rangeError}</span>
+        )}
       </div>
       {!readOnly && modal === "type" && (
         <Modal title="段落类型与拍数" onClose={() => setModal(null)}>

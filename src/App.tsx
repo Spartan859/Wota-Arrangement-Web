@@ -692,15 +692,7 @@ export default function App() {
                 project={p}
                 selected={currentBlock}
                 edit={store.edit}
-                onSeek={(t) => player.current?.seek(t, true)}
-                onLoop={(id) => {
-                  const b = p.blocks.find((x) => x.id === id);
-                  if (b && b.start !== null)
-                    player.current?.seek(b.start, true);
-                  setLoop(id);
-                }}
                 onError={fail}
-                looping={loop === currentBlock?.id}
                 onLyricsImport={(rows) => {
                   if (rows.length)
                     store.edit((d) => {
@@ -718,7 +710,6 @@ export default function App() {
                 }}
                 onOpenLyricsImport={() => setModal("lyrics")}
                 activeLyricId={currentLyric?.id}
-                audioReady={audioReady}
                 time={time}
               />
             </fieldset>

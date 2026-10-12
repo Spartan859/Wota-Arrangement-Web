@@ -312,22 +312,9 @@ export function PublicSharePage() {
             selected={currentBlock}
             edit={() => undefined}
             readOnly
-            looping={loopId === currentBlock?.id}
-            onSeek={(value) => player.current?.seek(value, true)}
-            onLoop={(id) => {
-              if (loopId === id) {
-                setLoopId(null);
-                return;
-              }
-              setLoopId(id);
-              const block = project.blocks.find((item) => item.id === id);
-              if (block?.start !== null && block?.start !== undefined)
-                player.current?.seek(block.start, true);
-            }}
             onError={setError}
             onLyricsImport={() => undefined}
             activeLyricId={currentLyric?.id}
-            audioReady={audioReady}
             time={time}
           />
         </section>
