@@ -9,14 +9,7 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
-import {
-  ListChecks,
-  Music2,
-  Pause,
-  Play,
-  Repeat2,
-  Volume2,
-} from "lucide-react";
+import { ListChecks, Pause, Play, Repeat2, Volume2 } from "lucide-react";
 import type { Project } from "../core/model";
 import { db } from "../core/storage";
 import {
@@ -47,13 +40,10 @@ type Props = {
   onPersist: (time: number) => void;
   onError: (message: string) => void;
   onNotice: (message: string) => void;
-  onUpload: (file: File) => void;
   externalSource?: { url: string; name: string; duration: number } | null;
   timelineOffset?: number;
-  audioReplaceable?: boolean;
   showEditingControls?: boolean;
   showFormationTrack?: boolean;
-  showSourceControls?: boolean;
   follow: boolean;
   onFollow: (follow: boolean) => void;
   readOnly: boolean;
@@ -88,13 +78,10 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     onPersist,
     onError,
     onNotice,
-    onUpload,
     externalSource,
     timelineOffset = 0,
-    audioReplaceable = false,
     showEditingControls = true,
     showFormationTrack = true,
-    showSourceControls = true,
     follow,
     onFollow,
     readOnly,
@@ -389,6 +376,10 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
   };
   const togglePlayback = () => {
     const a = audio.current;
+    if (!source) {
+      onNotice("请打开设置，导入歌曲文件后再播放。");
+      return;
+    }
     if (!a || !readyRef.current) return;
     if (!a.paused) {
       a.pause();
@@ -558,48 +549,10 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
         }}
       />
       <div className="player-controls">
-        {showSourceControls && (
-          <>
-            <div className="song-badge">
-              <Music2 size={20} />
-              <div>
-                <strong>
-                  {externalSource?.name || p.audio?.name || "把歌曲带进编排"}
-                </strong>
-                <small>
-                  {loaded
-                    ? "音频已在此浏览器就绪"
-                    : p.audio
-                      ? "重新关联歌曲即可恢复播放"
-                      : "导入本地歌曲，边听边打点"}
-                </small>
-              </div>
-            </div>
-            <label
-              className={
-                "file-button " +
-                (readOnly && !audioReplaceable ? "disabled" : "")
-              }
-            >
-              {p.audio ? "更换歌曲" : "导入歌曲"}
-              <input
-                aria-label="音频文件"
-                disabled={readOnly && !audioReplaceable}
-                type="file"
-                accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) onUpload(f);
-                  e.target.value = "";
-                }}
-              />
-            </label>
-          </>
-        )}
         <button
           className="play-button"
           aria-label={playing ? "暂停" : "播放"}
-          disabled={!loaded}
+          disabled={Boolean(source) && !loaded}
           title="播放 / 暂停（空格）"
           aria-keyshortcuts="Space"
           onClick={togglePlayback}

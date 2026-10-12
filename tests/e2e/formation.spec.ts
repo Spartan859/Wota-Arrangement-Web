@@ -17,6 +17,7 @@ function wav(seconds = 12) {
   return b;
 }
 async function song(page: Page, seconds = 12) {
+  await page.getByRole("button", { name: "设置", exact: true }).click();
   await page.getByLabel("音频文件").setInputFiles({
     name: "synthetic.wav",
     mimeType: "audio/wav",
@@ -25,6 +26,7 @@ async function song(page: Page, seconds = 12) {
   await expect(
     page.getByRole("button", { name: "播放", exact: true }),
   ).toBeEnabled();
+  await page.getByRole("button", { name: "关闭对话框" }).click();
 }
 async function at(page: Page, time: number) {
   await page.getByLabel("播放进度", { exact: true }).fill(String(time));

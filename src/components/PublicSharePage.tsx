@@ -382,16 +382,13 @@ export function PublicSharePage() {
             onPersist={() => undefined}
             onError={setError}
             onNotice={setNotice}
-            onUpload={(file) => void chooseLocalAudio(file)}
             externalSource={externalSource}
             timelineOffset={syncOffset}
-            audioReplaceable
             follow={follow}
             onFollow={setFollow}
             readOnly
             showEditingControls={false}
             showFormationTrack={false}
-            showSourceControls={false}
             onReady={setAudioReady}
             selectedIds={selectedId ? [selectedId] : []}
             primarySelectedId={selectedId}

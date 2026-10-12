@@ -5,6 +5,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Download,
   Eye,
+  FileAudio,
   FolderOpen,
   Plus,
   Redo2,
@@ -56,6 +57,34 @@ import { BlockEditor } from "./components/BlockEditor";
 import { Player, type PlayerHandle } from "./components/Player";
 import { useSession } from "./session";
 
+async function readAudioDuration(file: File) {
+  const url = URL.createObjectURL(file);
+  const probe = new Audio();
+  try {
+    return await new Promise<number>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error("读取歌曲超时。")),
+        15000,
+      );
+      probe.onloadedmetadata = () => {
+        clearTimeout(timer);
+        probe.duration > 0
+          ? resolve(probe.duration)
+          : reject(new Error("歌曲时长无效。"));
+      };
+      probe.onerror = () => {
+        clearTimeout(timer);
+        reject(new Error("无法读取歌曲。"));
+      };
+      probe.src = url;
+    });
+  } finally {
+    probe.removeAttribute("src");
+    probe.load();
+    URL.revokeObjectURL(url);
+  }
+}
+
 export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -87,6 +116,7 @@ export default function App() {
     | "export"
     | "projects"
     | "settings"
+    | "new"
     | "source"
     | "create"
     | null
@@ -259,26 +289,8 @@ export default function App() {
     const request = ++audioRequest.current,
       projectId = p.id;
     setBusy(true);
-    const url = URL.createObjectURL(file),
-      probe = new Audio();
     try {
-      const duration = await new Promise<number>((resolve, reject) => {
-        const timer = setTimeout(
-          () => reject(new Error("读取歌曲超时。")),
-          15000,
-        );
-        probe.onloadedmetadata = () => {
-          clearTimeout(timer);
-          probe.duration > 0
-            ? resolve(probe.duration)
-            : reject(new Error("歌曲时长无效。"));
-        };
-        probe.onerror = () => {
-          clearTimeout(timer);
-          reject(new Error("无法读取歌曲。"));
-        };
-        probe.src = url;
-      });
+      const duration = await readAudioDuration(file);
       if (
         request !== audioRequest.current ||
         store.latest.current.id !== projectId
@@ -295,9 +307,26 @@ export default function App() {
     } catch (e) {
       fail((e as Error).message);
     } finally {
-      probe.removeAttribute("src");
-      probe.load();
-      URL.revokeObjectURL(url);
+      setBusy(false);
+    }
+  }
+  async function createNewProject(file: File) {
+    setBusy(true);
+    try {
+      const duration = await readAudioDuration(file);
+      const id = uid();
+      await db.audio.put({ id, blob: file });
+      const next = project();
+      next.songName = file.name.replace(/\.[^.]+$/, "").trim() || "未命名歌曲";
+      next.audio = { id, name: file.name, duration };
+      player.current?.pause();
+      setLoop(null);
+      await store.create(next);
+      return true;
+    } catch (e) {
+      fail((e as Error).message);
+      return false;
+    } finally {
       setBusy(false);
     }
   }
@@ -581,7 +610,7 @@ export default function App() {
             <FolderOpen size={16} />
             项目
           </button>
-          <button onClick={() => void attempt(() => store.create(project()))}>
+          <button onClick={() => setModal("new")}>
             <Plus size={16} />
             新建
           </button>
@@ -755,7 +784,6 @@ export default function App() {
             }}
             onError={fail}
             onNotice={setNotice}
-            onUpload={(file) => void uploadAudio(file)}
             follow={follow}
             onFollow={setFollow}
             readOnly={readOnly}
@@ -949,6 +977,31 @@ export default function App() {
       {modal === "settings" && (
         <Modal title="设置" onClose={() => setModal(null)}>
           <div className="settings-panel">
+            <section className="settings-meta" aria-label="歌曲设置">
+              <div>
+                <strong>歌曲</strong>
+                <span>{p.audio?.name || "尚未选择歌曲文件"}</span>
+              </div>
+              <div className="settings-actions">
+                <label
+                  className={"file-button " + (readOnly ? "disabled" : "")}
+                >
+                  <FileAudio size={16} />
+                  {p.audio ? "更换歌曲" : "导入歌曲"}
+                  <input
+                    aria-label="音频文件"
+                    disabled={readOnly}
+                    type="file"
+                    accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void uploadAudio(file);
+                      event.target.value = "";
+                    }}
+                  />
+                </label>
+              </div>
+            </section>
             <section className="settings-meta" aria-label="歌词设置">
               <div>
                 <strong>歌词</strong>
@@ -984,7 +1037,52 @@ export default function App() {
           }}
         />
       )}
+      {modal === "new" && (
+        <NewProjectModal
+          onClose={() => setModal(null)}
+          onCreate={createNewProject}
+        />
+      )}
     </div>
+  );
+}
+function NewProjectModal({
+  onClose,
+  onCreate,
+}: {
+  onClose: () => void;
+  onCreate: (file: File) => Promise<boolean>;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [creating, setCreating] = useState(false);
+  return (
+    <Modal title="新建项目" onClose={onClose}>
+      <label className="field">
+        <span>歌曲文件</span>
+        <input
+          aria-label="新项目歌曲文件"
+          type="file"
+          accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac"
+          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+        />
+      </label>
+      <p className="muted">必须选择歌曲文件后才能创建项目。</p>
+      <button
+        className="primary"
+        disabled={!file || creating}
+        onClick={() => {
+          if (!file) return;
+          setCreating(true);
+          void onCreate(file)
+            .then((created) => {
+              if (created) onClose();
+            })
+            .finally(() => setCreating(false));
+        }}
+      >
+        {creating ? "正在创建…" : "创建项目"}
+      </button>
+    </Modal>
   );
 }
 function CreateBlockModal({

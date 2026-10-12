@@ -26,6 +26,7 @@ async function boot(page: Page) {
   await expect(page.getByText("暂存区")).toHaveCount(0);
 }
 async function audio(page: Page, seconds = 12) {
+  await page.getByRole("button", { name: "设置", exact: true }).click();
   await page.getByLabel("音频文件").setInputFiles({
     name: "synthetic.wav",
     mimeType: "audio/wav",
@@ -34,6 +35,7 @@ async function audio(page: Page, seconds = 12) {
   await expect(
     page.getByRole("button", { name: "播放", exact: true }),
   ).toBeEnabled();
+  await page.getByRole("button", { name: "关闭对话框" }).click();
 }
 async function clickTimeline(page: Page, fraction: number) {
   const timeline = page.locator(".timeline");
@@ -93,6 +95,25 @@ test("项目弹窗提供 JSON 备份导入", async ({ page }) => {
   });
   await expect(dialog).toHaveCount(0);
   await expect(page.getByLabel("歌曲名称")).toHaveValue("JSON 备份");
+});
+test("新建项目必须选择歌曲文件", async ({ page }) => {
+  await boot(page);
+  await page.getByRole("button", { name: "新建", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  const create = dialog.getByRole("button", { name: "创建项目", exact: true });
+  await expect(create).toBeDisabled();
+  await dialog.getByLabel("新项目歌曲文件").setInputFiles({
+    name: "new-song.wav",
+    mimeType: "audio/wav",
+    buffer: wav(8),
+  });
+  await expect(create).toBeEnabled();
+  await create.click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByLabel("歌曲名称")).toHaveValue("new-song");
+  await expect(
+    page.getByRole("button", { name: "播放", exact: true }),
+  ).toBeEnabled();
 });
 test("类型与拍数同弹窗，LRC 同刻选择生成中文", async ({ page }) => {
   await boot(page);
@@ -1057,11 +1078,17 @@ test("拖动播放头暂停、限制歌曲边界、不产生撤销；失焦后�
 
 test("空格播放暂停，不重复触发按钮且输入弹窗不响应", async ({ page }) => {
   await boot(page);
+  const play = page.getByRole("button", { name: "播放", exact: true });
+  await play.click();
+  await expect(page.locator(".message.toast")).toContainText(
+    "请打开设置，导入歌曲文件",
+  );
   await page.locator("body").click({ position: { x: 5, y: 5 } });
   await page.keyboard.press("Space");
-  await expect(
-    page.getByRole("button", { name: "播放", exact: true }),
-  ).toBeDisabled();
+  await expect(play).toBeEnabled();
+  await expect(page.locator(".message.toast")).toContainText(
+    "请打开设置，导入歌曲文件",
+  );
   await audio(page);
   const paused = () =>
     page.locator("audio").evaluate((a: HTMLAudioElement) => a.paused);
