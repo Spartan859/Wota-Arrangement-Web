@@ -210,12 +210,14 @@ export function PublicSharePage() {
         >
           <ArrowLeft size={24} />
         </Link>
-        <div>
-          <h1>{project.songName}</h1>
+        <div className="public-title-block">
+          <div className="public-title-row">
+            <h1>{project.songName}</h1>
+            <span className="readonly-badge">只读分享</span>
+          </div>
           <p>BPM {project.bpm}</p>
         </div>
         <div className="public-header-actions">
-          <span className="readonly-badge">只读分享</span>
           <button
             className="public-settings-button"
             aria-label="播放设置"

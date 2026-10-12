@@ -2859,7 +2859,20 @@ fieldset {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+  flex: 0 0 auto !important;
+  margin-left: auto;
   flex-shrink: 0;
+}
+.public-title-block {
+  min-width: 0;
+  flex: 1;
+}
+.public-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 .public-settings-button {
   flex-shrink: 0;
@@ -2941,8 +2954,13 @@ fieldset {
     11px ui-monospace,
     monospace;
 }
-.settings-panel input {
+.settings-panel input:not([type="checkbox"]):not([type="radio"]) {
   width: 100%;
+}
+.settings-panel input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
 }
 .settings-offset button {
   justify-self: start;
@@ -3548,7 +3566,7 @@ button.danger,
     font-size: 24px;
   }
   .readonly-badge {
-    margin-left: auto;
+    margin-left: 0;
   }
   .public-header-actions {
     margin-left: auto;
