@@ -29,6 +29,8 @@ npm audit
 
 - `npm run dev`：启动只监听 `127.0.0.1` 的 Vite 开发服务器。
 - `npm run dev:api`：启动 Fastify API；`npm run dev:all` 同时启动 Web 与 API。
+- `npm run dev:container`：用 `compose.dev.yaml` 启动调试容器，并把当前工作树挂载到 Web/API 容器中热更新。
+- `npm run dev:container:logs`：持续查看调试容器的 Web 与 API 日志。
 - `npm run typecheck`：只运行 TypeScript 检查。
 - `npm run test`：运行 `tests/**/*.test.ts` 中的 Vitest 测试。
 - `npm run build`：类型检查、构建 API 和迁移脚本，并生成 `dist/`。
@@ -41,12 +43,35 @@ npm audit
 
 开发服务器或测试服务启动后，优先使用本机地址访问。不要为了测试执行 `open`、修改系统浏览器配置或启动外部服务。
 
+### 调试容器实时开发
+
+需要让本地调试容器直接运行当前工作树代码时，使用：
+
+```sh
+COMPOSE_PROJECT_NAME=wota-local-share npm run dev:container
+```
+
+该命令组合加载 `compose.yaml` 与 `compose.dev.yaml`：
+
+- `web` 使用 Dockerfile 的 `dev` target，挂载当前工作树并运行 Vite，默认把宿主 `WOTA_WEB_PORT`（通常为 `18080`）映射到容器 `5173`。
+- `api` 同样挂载当前工作树并运行 `tsx watch`，源码变化会重启 Fastify；Vite 通过 `VITE_API_PROXY_TARGET=http://api:8787` 代理 `/api`。
+- Web 与 API 的 `node_modules` 分别保存在 Compose 项目作用域的命名卷中；容器启动时会运行 `npm ci --prefer-offline`，不要挂载宿主机 `node_modules`。
+
+修改 `src/`、`server/`、样式或测试等普通源码后不需要重建镜像，刷新浏览器或等待 HMR/进程重启即可。修改 `Dockerfile`、`compose.dev.yaml`、`package.json` 或 `package-lock.json` 后，重新执行 `npm run dev:container` 以重建或刷新依赖。
+
+```sh
+COMPOSE_PROJECT_NAME=wota-local-share npm run dev:container:logs
+docker compose -p wota-local-share -f compose.yaml -f compose.dev.yaml down
+```
+
+调试容器运行时不要再执行宿主机 `npm run dev:api` 或 `npm run dev:all`，避免 API 端口冲突。只有需要清空该项目作用域的 `node_modules` 命名卷时才在 `down` 命令中增加 `-v`。
+
 ## 代码结构
 
 - `src/core/model.ts`：`Project`、`Block`、`Lyric`、类型预设、项目校验、时间轴插入/删除/排序和历史快照的纯逻辑。
 - `src/core/lyrics.ts`：TXT/LRC 解析、时间戳、多时间戳、`offset` 和整体时间偏移。
 - `src/core/timing.ts`：时间格式化、BPM 八拍时长建议、段落区间校验、播放高亮和顺序冲突检查。
-- `src/core/xlsx.ts`：ExcelJS 浏览器读写。读取合并单元格时只把主单元格作为字段值；必须保留连续块、空歌词行和纯动作块的语义。
+- `src/core/xlsx.ts`：ExcelJS 浏览器导出。必须保留连续块、空歌词行和纯动作块的导出语义；Web 不提供 XLSX 导入。
 - `src/core/storage.ts`：Dexie/IndexedDB。项目记录和音频 Blob 分开保存；版本号用于阻止多标签页静默覆盖。
 - `src/core/share.ts`：在线分享快照、公开 API、账号会话和配额的共享类型与 Zod 校验。
 - `src/useProject.ts`：当前项目、自动保存、撤销/重做、项目切换、冲突恢复。编排修改统一通过 `store.edit`。
@@ -88,11 +113,11 @@ XLSX 导出必须保持原工具的六列表头：
 段落 | 拍数 | 日文歌词 | 中文歌词 | 技 / 动作编排 | 备注
 ```
 
-同时保持标题中的 `歌曲名 (BPM: bpm)`、相邻同类型段落的名称合并、块内拍数/动作/备注合并和交替底色。主编排区不写入同步时间和歌曲 Blob；其尾部附光棒累计用量与简化换棒列表（含时间戳和双色圆点）。附录仅在 A 列写入文本，其余信息使用图片/批注，避免原 Python 读取器误识别为歌词或段落；修改后必须验证双向兼容。
+同时保持标题中的 `歌曲名 (BPM: bpm)`、相邻同类型段落的名称合并、块内拍数/动作/备注合并和交替底色。主编排区不写入同步时间和歌曲 Blob；其尾部附光棒累计用量与简化换棒列表（含时间戳和双色圆点）。附录仅在 A 列写入文本，其余信息使用图片/批注，避免原 Python 读取器误识别为歌词或段落；修改后必须验证原 Python 可以正确读取。
 
 - 空歌词块与纯动作块在 Web 模型中要区分；原 Python 读取标准表格时可能将没有歌词行的块解释为纯动作，这是兼容层的既有行为。
 - 导出文本时不能把用户输入的 `=...` 等内容误写成 Excel 公式；相关行为由 `tests/xlsx.test.ts` 覆盖。
-- 修改 Excel 结构或合并策略后，运行真实 Python 双向兼容测试：
+- 修改 Excel 导出结构或合并策略后，运行真实 Python 读取兼容测试：
 
 ```sh
 WOTA_CLI_PATH=/Users/dijkstra0x3/Github/Wota-Arrangement-Tool \
@@ -111,7 +136,7 @@ npm test -- tests/python-compat.test.ts
 - 段落起止时间的重叠、反向、越界和上一段结束时间快捷设置。
 - 音频加载失败、歌曲替换后越界标记、播放暂停、变速、段落循环和 A/B 循环。
 - IndexedDB 保存失败、同版本并发写入、多标签页冲突、刷新恢复和项目切换。
-- 标准 XLSX 导入导出、合并单元格、空歌词块、纯动作块以及原 Python CLI 往返。
+- 标准 XLSX 导出、合并单元格、空歌词块、纯动作块以及原 Python CLI 读取。
 - 桌面、短屏和手机布局；页面不应出现横向溢出或控制台异常。
 
 测试只使用合成歌词和合成 WAV。浏览器测试若因本机缺少 WebKit 或网络无法下载而不能执行，要在 `VALIDATION.md` 记录实际限制，不要声称 Safari 已验证。
@@ -120,13 +145,14 @@ npm test -- tests/python-compat.test.ts
 
 1. 开始任何开发前，先运行 `git status --short --branch` 确认工作区状态，再运行 `git fetch --all --prune` 拉取所有远端更新；工作区干净时执行 `git switch main`，并运行 `git pull --ff-only origin main` 完成快进同步。随后分别运行 `git rev-parse main` 和 `git rev-parse origin/main`，确认两个提交 SHA 完全一致；任一同步命令失败或 SHA 不一致时先停止并处理原因。确认本地 `main` 与 `origin/main` 一致后，从最新 `main` 新建任务分支，不直接在 `main` 上开发或提交。
 2. 分支名使用 `<类型>/<简短说明>`，功能使用 `feat/xxx`，缺陷修复使用 `fix/xxx`；文档和维护任务分别使用 `docs/xxx`、`chore/xxx`。分支名使用小写英文和连字符，且一个分支只处理一个独立任务。
-3. 先读取相关源码、测试和 README，确认数据流与现有行为。
-4. 先修改纯逻辑和测试，再连接 UI；不要用测试专用分支绕开生产代码的校验。
-5. 运行最小相关测试，再运行 `npm run check`、`npm run format:check` 和必要的端到端测试。
-6. 检查 `git diff --check`、`git status --short`，确认没有 `dist/`、`node_modules/`、个人媒体或测试结果被加入。
-7. 通过相关检查后，自动提交并 push 当前任务分支，不需要逐次请求授权；创建 Pull Request 前必须获得用户明确授权。PR 创建后，合并前必须确认分支 CI 通过、Copilot review 已明确完成，逐条评估和处理审查意见，回复并解决所有可执行线程，同时处理与 `main` 的冲突。任何 review 驱动的修订 push 后，默认允许立即重新请求 Copilot review，无需再次向用户确认；重新请求后必须等待新审查明确完成且无未处理意见。若 Copilot review 因配额耗尽无法执行，且没有产生实际审查意见或未处理线程，则 Copilot review 门禁视为满足，可在 CI 通过且无冲突时合并。合并操作前再次刷新 review 和 CI 状态；Copilot review 仍在运行，或存在实际审查意见、未处理线程时不得合并。满足全部合并门禁后仍须获得用户明确的合并授权，不得把 PR 创建授权视为合并授权。不要绕过失败检查直接合并，也不要直接 push 到 `main`。
-8. Pull Request 合并后，记录当前任务分支名，切换回 `main`，运行 `git pull --ff-only origin main` 同步合并结果。随后确认 GitHub 上的 PR 状态为 `MERGED`，并确认对应的 squash 合并提交已进入最新 `main`；完成这两项验证后，使用 `git branch -D <任务分支>` 删除本地任务分支，因为 squash 合并不会让任务分支提交成为 `main` 的祖先。若 PR 未合并但已明确永久关闭，只有确认其中提交不再需要时才能使用 `git branch -D <任务分支>`；仍需保留提交的分支不得删除。若远端任务分支未被 GitHub 自动删除，确认 PR 已完成且分支不再需要后使用 `git push origin --delete <任务分支>` 删除远端分支，最后运行 `git fetch --prune` 清理远端跟踪引用。
-9. 报告实际通过的命令和未能执行的浏览器/环境检查；不要把“启动成功”写成“部署成功”。
+3. 同一个 Codex 会话（任务线程）内，首次创建任务分支后，后续所有补充需求、界面迭代、审查修订和测试修正都必须继续使用同一个分支；不得因后续轮次再切回 `main`、创建堆叠分支或其他新分支。该会话的连续修改视为同一个任务范围。仅当用户明确要求更换分支，或当前分支已经合并/关闭且用户开始新的独立任务时，才创建新分支。
+4. 先读取相关源码、测试和 README，确认数据流与现有行为。
+5. 先修改纯逻辑和测试，再连接 UI；不要用测试专用分支绕开生产代码的校验。
+6. 运行最小相关测试，再运行 `npm run check`、`npm run format:check` 和必要的端到端测试。
+7. 检查 `git diff --check`、`git status --short`，确认没有 `dist/`、`node_modules/`、个人媒体或测试结果被加入。
+8. 通过相关检查后，自动提交并 push 当前任务分支，不需要逐次请求授权；创建 Pull Request 前必须获得用户明确授权。PR 创建后，合并前必须确认分支 CI 通过、Copilot review 已明确完成，逐条评估和处理审查意见，回复并解决所有可执行线程，同时处理与 `main` 的冲突。任何 review 驱动的修订 push 后，默认允许立即重新请求 Copilot review，无需再次向用户确认；重新请求后必须等待新审查明确完成且无未处理意见。若 Copilot review 因配额耗尽无法执行，且没有产生实际审查意见或未处理线程，则 Copilot review 门禁视为满足，可在 CI 通过且无冲突时合并。合并操作前再次刷新 review 和 CI 状态；Copilot review 仍在运行，或存在实际审查意见、未处理线程时不得合并。满足全部合并门禁后仍须获得用户明确的合并授权，不得把 PR 创建授权视为合并授权。不要绕过失败检查直接合并，也不要直接 push 到 `main`。
+9. Pull Request 合并后，记录当前任务分支名，切换回 `main`，运行 `git pull --ff-only origin main` 同步合并结果。随后确认 GitHub 上的 PR 状态为 `MERGED`，并确认对应的 squash 合并提交已进入最新 `main`；完成这两项验证后，使用 `git branch -D <任务分支>` 删除本地任务分支，因为 squash 合并不会让任务分支提交成为 `main` 的祖先。若 PR 未合并但已明确永久关闭，只有确认其中提交不再需要时才能使用 `git branch -D <任务分支>`；仍需保留提交的分支不得删除。若远端任务分支未被 GitHub 自动删除，确认 PR 已完成且分支不再需要后使用 `git push origin --delete <任务分支>` 删除远端分支，最后运行 `git fetch --prune` 清理远端跟踪引用。
+10. 报告实际通过的命令和未能执行的浏览器/环境检查；不要把“启动成功”写成“部署成功”。
 
 除非用户明确要求，不要创建远程仓库、创建 Pull Request、合并 Pull Request、部署或修改原 Python 仓库。允许在任务检查通过后自动 push 当前任务分支，但不得直接 push 到 `main`；创建 PR 与合并 PR 是两项独立操作，均须分别获得用户明确授权。
 

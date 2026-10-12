@@ -1,0 +1,71 @@
+services:
+  web:
+    image: ${WOTA_DEV_IMAGE:-wota-arrangement-dev:local}
+    build:
+      context: .
+      target: dev
+    command:
+      - sh
+      - -c
+      - >-
+        npm ci --prefer-offline --no-audit --no-fund &&
+        exec npm run dev -- --host 0.0.0.0 --port 5173
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+      VITE_API_PROXY_TARGET: http://api:8787
+    ports: !override
+      - "127.0.0.1:${WOTA_WEB_PORT:-8080}:5173"
+    volumes: !override
+      - .:/app
+      - wota-web-node-modules:/app/node_modules
+    read_only: false
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:5173/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+
+  api:
+    image: ${WOTA_DEV_IMAGE:-wota-arrangement-dev:local}
+    build:
+      context: .
+      target: dev
+    command:
+      - sh
+      - -c
+      - >-
+        npm ci --prefer-offline --no-audit --no-fund &&
+        exec npm run dev:api
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+      HOST: 0.0.0.0
+      PORT: 8787
+      AUDIO_STORAGE_DIR: /data/audio
+    volumes: !override
+      - .:/app
+      - wota-api-node-modules:/app/node_modules
+      - wota-audio:/data/audio
+    read_only: false
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8787/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+
+volumes:
+  wota-web-node-modules:
+  wota-api-node-modules:

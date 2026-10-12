@@ -170,6 +170,22 @@ test("只读分享页支持本地音乐、播放跟随、段落循环和移动�
   await expect(page.getByRole("heading", { name: "合成分享" })).toBeVisible();
   await expect(page.getByText("Wota 在线编排")).toHaveCount(0);
   await expect(page.getByRole("link", { name: "返回工作台" })).toHaveText("");
+  await expect(page.locator(".public-share-header p")).toHaveText("BPM 120");
+  const backIcon = await page
+    .getByRole("link", { name: "返回工作台" })
+    .locator("svg")
+    .boundingBox();
+  expect(backIcon?.width).toBeGreaterThanOrEqual(24);
+  const badgeBox = (await page.locator(".readonly-badge").boundingBox())!;
+  const settingsButtonBox = (await page
+    .locator(".public-settings-button")
+    .boundingBox())!;
+  expect(settingsButtonBox.x).toBeGreaterThan(badgeBox.x);
+  await expect(page.getByRole("heading", { name: "队形画布" })).toHaveCount(0);
+  await expect(page.getByText("左半圆：左手")).toHaveCount(0);
+  await expect(
+    page.locator(".public-share-page .formation-panel > .panel-heading"),
+  ).toBeHidden();
   await expect(page.locator(".public-arrangement .editor-card")).toBeVisible();
   await expect(page.getByTestId("playback-time")).toHaveCount(0);
   await expect(page.locator(".public-timeline-panel .song-badge")).toHaveCount(
@@ -214,6 +230,16 @@ test("只读分享页支持本地音乐、播放跟随、段落循环和移动�
     page.getByRole("button", { name: "播放", exact: true }),
   ).toBeEnabled();
   await page.getByRole("button", { name: "播放", exact: true }).click();
+  await page.getByLabel("播放进度").fill("1");
+  await page.getByRole("button", { name: "设置 A 点", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "A 点 00:01", exact: true }),
+  ).toHaveText("00:01");
+  await page.getByLabel("播放进度").fill("2");
+  await page.getByRole("button", { name: "设置 B 点", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "B 点 00:02", exact: true }),
+  ).toHaveText("00:02");
   await expect(
     page
       .getByRole("region", { name: "当前编排" })
@@ -222,44 +248,131 @@ test("只读分享页支持本地音乐、播放跟随、段落循环和移动�
   ).toBeVisible();
   await page.getByRole("button", { name: "播放设置" }).click();
   const settings = page.getByRole("dialog");
+  await expect(settings.getByText("更新时间")).toBeVisible();
+  await expect(
+    settings.getByRole("checkbox", { name: "显示队形画布" }),
+  ).toBeChecked();
   await expect(settings.getByText("synthetic.wav")).toBeVisible();
   await expect(settings.getByText("更换歌曲")).toBeVisible();
   await expect(settings.getByLabel("音频文件")).toBeAttached();
   await settings.getByRole("slider", { name: "同步偏移" }).fill("0.25");
   await expect(page.getByText("+0.25 秒")).toBeVisible();
   await page.getByRole("button", { name: "关闭对话框" }).click();
-  await page.getByRole("button", { name: "循环", exact: true }).click();
+  const playerControls = page.locator(
+    ".public-timeline-panel .player-controls",
+  );
+  await playerControls
+    .getByRole("button", { name: "循环此块", exact: true })
+    .click();
   await expect(
-    page.getByRole("button", { name: "退出循环", exact: true }).first(),
-  ).toBeEnabled();
+    playerControls.getByRole("button", {
+      name: "退出循环",
+      exact: true,
+    }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await playerControls
+    .getByRole("button", { name: "开始 A/B 循环", exact: true })
+    .click();
+  await expect(
+    playerControls.getByRole("button", {
+      name: "退出 A/B 循环",
+      exact: true,
+    }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    playerControls.getByRole("button", {
+      name: "循环此块",
+      exact: true,
+    }),
+  ).toHaveAttribute("aria-pressed", "false");
   const pause = page.getByRole("button", { name: "暂停", exact: true });
   if (await pause.count()) await pause.click();
   for (const viewport of [
     { width: 1000, height: 900 },
+    { width: 554, height: 915 },
+    { width: 554, height: 700 },
+    { width: 412, height: 915 },
     { width: 390, height: 844 },
+    { width: 320, height: 568 },
   ]) {
     await page.setViewportSize(viewport);
     await expect(page.getByLabel("舞台俯视图")).toBeVisible();
-    await expect(
-      page.locator(".public-arrangement .editor-card"),
-    ).toBeVisible();
+    await expect(page.locator(".public-arrangement")).toBeHidden();
     await expect(page.getByTestId("compact-block-summary")).toBeVisible();
-    await expect(page.locator(".editor-card-head")).toBeHidden();
-    await expect(page.getByText("双语歌词")).toBeHidden();
-    await expect(page.getByText("技 / 动作编排")).toBeHidden();
     await page.getByLabel("播放进度").fill("1.2");
-    await expect(page.getByTestId("compact-block-summary")).toContainText(
-      /1-[1-8]（第1八拍的第[1-8]拍）/,
+    const summary = page.getByTestId("compact-block-summary");
+    await expect(summary).toContainText(/1-[1-8]/);
+    await expect(summary).not.toContainText("（");
+    const detailRows = summary.locator(".compact-block-details > span");
+    await expect(detailRows).toHaveCount(2);
+    await expect(summary.locator("small")).toHaveCount(0);
+    expect(
+      await summary
+        .locator(".compact-block-title")
+        .evaluate((element) => parseFloat(getComputedStyle(element).fontSize)),
+    ).toBeGreaterThan(14);
+    const firstDetail = (await detailRows.nth(0).boundingBox())!;
+    const secondDetail = (await detailRows.nth(1).boundingBox())!;
+    expect(secondDetail.y).toBeGreaterThan(firstDetail.y + firstDetail.height);
+    const detailColors = await detailRows.evaluateAll((elements) =>
+      elements.map((element) => getComputedStyle(element).backgroundColor),
     );
+    expect(detailColors[0]).not.toBe("rgba(0, 0, 0, 0)");
+    expect(detailColors[1]).not.toBe("rgba(0, 0, 0, 0)");
+    expect(detailColors[0]).not.toBe(detailColors[1]);
+    expect(detailColors[0]).toBe("rgb(237, 249, 242)");
+    const heading = await page
+      .locator(".public-share-page .formation-panel > .panel-heading")
+      .boundingBox();
+    expect(heading?.height).toBeLessThanOrEqual(60);
+    if (viewport.width === 412) {
+      const controlRowCount = await page
+        .locator(".public-share-page .player-controls > *")
+        .evaluateAll(
+          (elements) =>
+            new Set(
+              elements.map((element) =>
+                Math.round(element.getBoundingClientRect().top),
+              ),
+            ).size,
+        );
+      expect(controlRowCount).toBeGreaterThan(1);
+    }
     const tops = await page
-      .locator(
-        ".public-arrangement, .public-stage > .formation-panel, .public-timeline-panel",
-      )
+      .locator(".public-stage > .formation-panel, .public-timeline-panel")
       .evaluateAll((elements) =>
         elements.map((element) => element.getBoundingClientRect().top),
       );
     expect(tops[0]).toBeLessThan(tops[1]);
-    expect(tops[1]).toBeLessThan(tops[2]);
+    const timelineBox = (await page
+      .locator(".public-timeline-panel")
+      .boundingBox())!;
+    const formationBox = (await page
+      .locator(".public-stage > .formation-panel")
+      .boundingBox())!;
+    const stageContainerBox = (await page
+      .locator(".stage-container")
+      .boundingBox())!;
+    const stageFrameBox = (await page.locator(".stage-frame").boundingBox())!;
+    expect(formationBox.y + formationBox.height).toBeLessThanOrEqual(
+      timelineBox.y,
+    );
+    expect(stageFrameBox.width / stageFrameBox.height).toBeCloseTo(
+      800 / 600,
+      2,
+    );
+    expect(stageFrameBox.y).toBeGreaterThanOrEqual(stageContainerBox.y);
+    expect(stageFrameBox.y + stageFrameBox.height).toBeLessThanOrEqual(
+      stageContainerBox.y + stageContainerBox.height,
+    );
+    expect(timelineBox.y + timelineBox.height).toBeLessThanOrEqual(
+      viewport.height,
+    );
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollHeight <= innerHeight,
+      ),
+    ).toBe(true);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,
@@ -267,6 +380,35 @@ test("只读分享页支持本地音乐、播放跟随、段落循环和移动�
     ).toBe(true);
   }
   expect(errors).toEqual([]);
+});
+
+test("只读分享设置可隐藏队形画布并恢复编排卡片", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName === "webkit",
+    "Local synthetic audio is not reliable in CI WebKit.",
+  );
+  await mockShare(page);
+  await page.setViewportSize({ width: 412, height: 915 });
+  await page.goto("/s/demo-token");
+  await expect(page.getByLabel("舞台俯视图")).toBeVisible();
+  await expect(page.locator(".public-arrangement")).toBeHidden();
+  await page.getByRole("button", { name: "播放设置" }).click();
+  const settings = page.getByRole("dialog");
+  const toggle = settings.getByRole("checkbox", { name: "显示队形画布" });
+  await expect(toggle).toBeChecked();
+  await toggle.uncheck();
+  await page.getByRole("button", { name: "关闭对话框" }).click();
+  await expect(page.locator(".public-stage > .formation-panel")).toBeHidden();
+  await expect(page.locator(".public-arrangement")).toBeVisible();
+  await expect(page.locator(".public-arrangement .editor-card")).toBeVisible();
+  await page.getByRole("button", { name: "播放设置" }).click();
+  await settings.getByRole("checkbox", { name: "显示队形画布" }).check();
+  await page.getByRole("button", { name: "关闭对话框" }).click();
+  await expect(page.getByLabel("舞台俯视图")).toBeVisible();
+  await expect(page.locator(".public-arrangement")).toBeHidden();
 });
 
 test("只读分享页播放云端视频并支持每片段最小化和恢复", async ({ page }) => {

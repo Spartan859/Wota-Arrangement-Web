@@ -17,6 +17,7 @@ function wav(seconds = 12) {
   return b;
 }
 async function song(page: Page, seconds = 12) {
+  await page.getByRole("button", { name: "设置", exact: true }).click();
   await page.getByLabel("音频文件").setInputFiles({
     name: "synthetic.wav",
     mimeType: "audio/wav",
@@ -25,6 +26,7 @@ async function song(page: Page, seconds = 12) {
   await expect(
     page.getByRole("button", { name: "播放", exact: true }),
   ).toBeEnabled();
+  await page.getByRole("button", { name: "关闭对话框" }).click();
 }
 async function at(page: Page, time: number) {
   await page.getByLabel("播放进度", { exact: true }).fill(String(time));
@@ -493,7 +495,8 @@ async function formationFixture(page: Page) {
       visible: true,
     })),
   }));
-  await page.getByLabel("打开项目文件").setInputFiles({
+  await page.getByRole("button", { name: "项目", exact: true }).click();
+  await page.getByLabel("从 JSON 备份导入").setInputFiles({
     name: "formation.json",
     mimeType: "application/json",
     buffer: Buffer.from(
@@ -524,9 +527,9 @@ test("多人同步播放、变速与AB回跳，拖动关键帧和边界限制", 
   await expect.poll(() => getX(page, "甲")).toBeGreaterThan(410);
   await page.getByRole("button", { name: "暂停", exact: true }).click();
   await at(page, 1);
-  await page.getByRole("button", { name: "选 A", exact: true }).click();
+  await page.getByRole("button", { name: "设置 A 点", exact: true }).click();
   await at(page, 2);
-  await page.getByRole("button", { name: "选 B", exact: true }).click();
+  await page.getByRole("button", { name: "设置 B 点", exact: true }).click();
   await page
     .getByRole("button", { name: "开始 A/B 循环", exact: true })
     .click();
@@ -977,7 +980,8 @@ test("旧本地草稿导出文件后立即导入保留队形", async ({ page }) 
   expect(parsed.choreography.dancers).toHaveLength(2);
   expect(parsed.audio.id).toBeNull();
   await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
-  await page.getByLabel("打开项目文件").setInputFiles((await file.path())!);
+  await page.getByRole("button", { name: "项目", exact: true }).click();
+  await page.getByLabel("从 JSON 备份导入").setInputFiles((await file.path())!);
   await expect(page.getByRole("alert")).toHaveCount(0);
   await page.getByLabel("选择舞者").selectOption("alice");
   await expect(
@@ -1021,19 +1025,6 @@ test("一次性光棒统计与Excel同表尾部一致，换棒顺序保留", asy
   expect(wb.worksheets[0].getCell("A6").value).toBe("换棒列表");
   expect(wb.worksheets[0].getImages()).toHaveLength(2);
   expect(wb.worksheets[0].getCell("A2").value).toBe("段落");
-  const { readFile } = await import("node:fs/promises");
-  await page.getByLabel("打开项目文件").setInputFiles({
-    name: file.suggestedFilename(),
-    mimeType:
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    buffer: await readFile((await file.path())!),
-  });
-  await expect(page.getByRole("alert")).toHaveCount(0);
-  await expect(
-    page
-      .locator(".untimed-strip")
-      .getByRole("button", { name: "副歌", exact: true }),
-  ).toBeVisible();
 });
 
 test("颜色弹窗标题行重命名后返回色板，取消保留姓名和手部模式", async ({

@@ -17,7 +17,7 @@ import {
 } from "../core/share";
 import { activeBlock, activeLyric } from "../core/timing";
 import type { Project } from "../core/model";
-import { BlockEditor } from "./BlockEditor";
+import { BlockCompactSummary, BlockEditor } from "./BlockEditor";
 import { Modal } from "./Fields";
 import { FormationCanvas } from "./FormationCanvas";
 import { Player, type PlayerHandle } from "./Player";
@@ -74,6 +74,7 @@ export function PublicSharePage() {
   const [localAudio, setLocalAudio] = useState<LocalAudio | null>(null);
   const [syncOffset, setSyncOffset] = useState(() => readOffset(token));
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [showFormation, setShowFormation] = useState(true);
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -207,14 +208,14 @@ export function PublicSharePage() {
           aria-label="返回工作台"
           title="返回工作台"
         >
-          <ArrowLeft size={17} />
+          <ArrowLeft size={24} />
         </Link>
-        <div>
-          <h1>{project.songName}</h1>
-          <p>
-            BPM {project.bpm} · 更新于{" "}
-            {new Date(share.updatedAt).toLocaleString()}
-          </p>
+        <div className="public-title-block">
+          <div className="public-title-row">
+            <h1>{project.songName}</h1>
+            <span className="readonly-badge">只读分享</span>
+          </div>
+          <p>BPM {project.bpm}</p>
         </div>
         <div className="public-header-actions">
           <button
@@ -225,12 +226,26 @@ export function PublicSharePage() {
           >
             <Settings size={16} /> 设置
           </button>
-          <span className="readonly-badge">只读分享</span>
         </div>
       </header>
       {settingsOpen && (
         <Modal title="播放设置" onClose={() => setSettingsOpen(false)}>
           <div className="settings-panel">
+            <section className="settings-meta" aria-label="分享设置">
+              <div>
+                <strong>更新时间</strong>
+                <span>{new Date(share.updatedAt).toLocaleString()}</span>
+              </div>
+              <label className="check">
+                <input
+                  aria-label="显示队形画布"
+                  type="checkbox"
+                  checked={showFormation}
+                  onChange={(event) => setShowFormation(event.target.checked)}
+                />
+                显示队形画布
+              </label>
+            </section>
             <section className="settings-audio" aria-label="歌曲设置">
               <div className="settings-audio-source">
                 <Music2 size={20} />
@@ -305,31 +320,22 @@ export function PublicSharePage() {
           </label>
         </div>
       )}
-      <main className="public-stage">
+      <main
+        className={
+          "public-stage " +
+          (showFormation ? "show-formation" : "hide-formation")
+        }
+      >
         <section className="public-arrangement" aria-label="当前编排">
           <BlockEditor
             project={project}
             selected={currentBlock}
             edit={() => undefined}
             readOnly
-            looping={loopId === currentBlock?.id}
-            onSeek={(value) => player.current?.seek(value, true)}
-            onLoop={(id) => {
-              if (loopId === id) {
-                setLoopId(null);
-                return;
-              }
-              setLoopId(id);
-              const block = project.blocks.find((item) => item.id === id);
-              if (block?.start !== null && block?.start !== undefined)
-                player.current?.seek(block.start, true);
-            }}
             onError={setError}
             onLyricsImport={() => undefined}
             activeLyricId={currentLyric?.id}
-            audioReady={audioReady}
             time={time}
-            showCompactSummary
           />
         </section>
         <FormationCanvas
@@ -344,6 +350,18 @@ export function PublicSharePage() {
           onError={setError}
           externalVideoSources={externalVideoSources}
           videoStorageKey={`wota-share-video-minimized:${share.token}`}
+          heading={
+            currentBlock ? (
+              <BlockCompactSummary
+                block={currentBlock}
+                bpm={project.bpm}
+                time={time}
+                className="formation-block-summary"
+              />
+            ) : (
+              <h2>暂无当前段落</h2>
+            )
+          }
         />
         <section className="public-timeline-panel" aria-label="歌曲时间轴">
           <Player
@@ -364,16 +382,13 @@ export function PublicSharePage() {
             onPersist={() => undefined}
             onError={setError}
             onNotice={setNotice}
-            onUpload={(file) => void chooseLocalAudio(file)}
             externalSource={externalSource}
             timelineOffset={syncOffset}
-            audioReplaceable
             follow={follow}
             onFollow={setFollow}
             readOnly
             showEditingControls={false}
             showFormationTrack={false}
-            showSourceControls={false}
             onReady={setAudioReady}
             selectedIds={selectedId ? [selectedId] : []}
             primarySelectedId={selectedId}

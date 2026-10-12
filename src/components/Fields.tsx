@@ -62,15 +62,40 @@ export function Modal({
   headerActions?: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const ignoreCancel = useRef(false);
+  const cancelTimer = useRef<number | null>(null);
   useEffect(() => {
     ref.current?.showModal();
+    return () => {
+      if (cancelTimer.current !== null)
+        window.clearTimeout(cancelTimer.current);
+    };
   }, []);
+  const armCancelGuard = () => {
+    ignoreCancel.current = true;
+    if (cancelTimer.current !== null) window.clearTimeout(cancelTimer.current);
+    cancelTimer.current = window.setTimeout(() => {
+      ignoreCancel.current = false;
+      cancelTimer.current = null;
+    }, 1500);
+  };
   return (
     <dialog
       ref={ref}
       className={wide ? "modal wide" : "modal"}
+      onClickCapture={(event) => {
+        if (
+          event.target instanceof HTMLInputElement &&
+          event.target.type === "file"
+        )
+          armCancelGuard();
+      }}
       onCancel={(e) => {
         e.preventDefault();
+        if (ignoreCancel.current) {
+          ignoreCancel.current = false;
+          return;
+        }
         onClose();
       }}
     >

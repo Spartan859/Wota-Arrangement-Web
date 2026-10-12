@@ -9,14 +9,7 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
-import {
-  ListChecks,
-  Music2,
-  Pause,
-  Play,
-  Repeat2,
-  Volume2,
-} from "lucide-react";
+import { ListChecks, Pause, Play, Repeat2, Volume2 } from "lucide-react";
 import type { Project } from "../core/model";
 import { db } from "../core/storage";
 import {
@@ -47,13 +40,10 @@ type Props = {
   onPersist: (time: number) => void;
   onError: (message: string) => void;
   onNotice: (message: string) => void;
-  onUpload: (file: File) => void;
   externalSource?: { url: string; name: string; duration: number } | null;
   timelineOffset?: number;
-  audioReplaceable?: boolean;
   showEditingControls?: boolean;
   showFormationTrack?: boolean;
-  showSourceControls?: boolean;
   follow: boolean;
   onFollow: (follow: boolean) => void;
   readOnly: boolean;
@@ -88,13 +78,10 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     onPersist,
     onError,
     onNotice,
-    onUpload,
     externalSource,
     timelineOffset = 0,
-    audioReplaceable = false,
     showEditingControls = true,
     showFormationTrack = true,
-    showSourceControls = true,
     follow,
     onFollow,
     readOnly,
@@ -241,14 +228,23 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
       if (url) URL.revokeObjectURL(url);
     };
   }, [p.id, p.audio?.id, externalSource?.url]);
-  const seek = (t: number, play = false, persist = true) => {
+  const seek = (
+    t: number,
+    play = false,
+    persist = true,
+    enforceLoop = true,
+  ) => {
     const a = audio.current;
     const offset = timelineOffsetRef.current;
     if (!a || !readyRef.current || !Number.isFinite(t) || t < 0) return;
     const mediaTime = Math.max(0, Math.min(a.duration, t - offset));
     const arrangementTime = mediaTime + offset;
     const l = loopRef.current;
-    if (l && (arrangementTime < l.start! || arrangementTime >= l.end!)) {
+    if (
+      enforceLoop &&
+      l &&
+      (arrangementTime < l.start! || arrangementTime >= l.end!)
+    ) {
       onLoop(null);
       setAbEnabled(false);
     }
@@ -346,7 +342,10 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
     onLoop(null);
     setAbEnabled(false);
   };
+  const pointAText = pointA === null ? "A" : formatTime(pointA).slice(0, 5);
+  const pointBText = pointB === null ? "B" : formatTime(pointB).slice(0, 5);
   const selectedBlock = p.blocks.find((b) => b.id === primarySelectedId);
+  const blockLoopActive = Boolean(segmentLoop);
   const startAbLoop = () => {
     if (!loaded || pointA === null || pointB === null || pointB <= pointA)
       return;
@@ -377,6 +376,10 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
   };
   const togglePlayback = () => {
     const a = audio.current;
+    if (!source) {
+      onNotice("请打开设置，导入歌曲文件后再播放。");
+      return;
+    }
     if (!a || !readyRef.current) return;
     if (!a.paused) {
       a.pause();
@@ -393,6 +396,21 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
         Math.min(a.duration, currentLoop.start! - timelineOffsetRef.current),
       );
     void a.play().catch(() => onError("无法播放，请重新点击或选择其他歌曲。"));
+  };
+  const enforceLoopBoundary = (element: HTMLAudioElement) => {
+    const currentLoop = loopRef.current;
+    if (!currentLoop || element.paused) return;
+    const arrangementTime = element.currentTime + timelineOffsetRef.current;
+    if (arrangementTime < currentLoop.end! - 0.05) return;
+    element.currentTime = Math.max(
+      0,
+      Math.min(
+        element.duration,
+        currentLoop.start! - timelineOffsetRef.current,
+      ),
+    );
+    drawPlayhead(currentLoop.start!, element.duration);
+    callbacks.current.onTime(currentLoop.start!, !element.paused);
   };
   const toggleAb = () => {
     if (abEnabled) setAbEnabled(false);
@@ -495,6 +513,8 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
           onReady(true);
         }}
         onPlay={() => setPlaying(true)}
+        onTimeUpdate={(event) => enforceLoopBoundary(event.currentTarget)}
+        onSeeked={(event) => enforceLoopBoundary(event.currentTarget)}
         onPause={() => {
           setPlaying(false);
           if (readyRef.current)
@@ -529,48 +549,10 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
         }}
       />
       <div className="player-controls">
-        {showSourceControls && (
-          <>
-            <div className="song-badge">
-              <Music2 size={20} />
-              <div>
-                <strong>
-                  {externalSource?.name || p.audio?.name || "把歌曲带进编排"}
-                </strong>
-                <small>
-                  {loaded
-                    ? "音频已在此浏览器就绪"
-                    : p.audio
-                      ? "重新关联歌曲即可恢复播放"
-                      : "导入本地歌曲，边听边打点"}
-                </small>
-              </div>
-            </div>
-            <label
-              className={
-                "file-button " +
-                (readOnly && !audioReplaceable ? "disabled" : "")
-              }
-            >
-              {p.audio ? "更换歌曲" : "导入歌曲"}
-              <input
-                aria-label="音频文件"
-                disabled={readOnly && !audioReplaceable}
-                type="file"
-                accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) onUpload(f);
-                  e.target.value = "";
-                }}
-              />
-            </label>
-          </>
-        )}
         <button
           className="play-button"
           aria-label={playing ? "暂停" : "播放"}
-          disabled={!loaded}
+          disabled={Boolean(source) && !loaded}
           title="播放 / 暂停（空格）"
           aria-keyshortcuts="Space"
           onClick={togglePlayback}
@@ -612,15 +594,26 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
           />
         </label>
         <button
-          className={loop ? "active" : ""}
-          disabled={!loop}
+          className={blockLoopActive ? "active" : ""}
+          aria-label={blockLoopActive ? "退出循环" : "循环此块"}
+          aria-pressed={blockLoopActive}
+          disabled={
+            !loaded ||
+            (!blockLoopActive &&
+              (!selectedBlock ||
+                !playable(selectedBlock, p.blocks, p.audio?.duration)))
+          }
           onClick={() => {
-            onLoop(null);
-            setAbEnabled(false);
+            if (blockLoopActive) onLoop(null);
+            else if (selectedBlock && selectedBlock.start !== null) {
+              setAbEnabled(false);
+              onLoop(selectedBlock.id);
+              seek(selectedBlock.start, true, true, false);
+            }
           }}
         >
           <Repeat2 size={15} />
-          {loop ? "退出循环" : "未循环"}
+          {blockLoopActive ? "退出循环" : "循环此块"}
         </button>
         <label className="check">
           <input
@@ -630,6 +623,44 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
           />
           跟随播放
         </label>
+        <div className="ab-controls" aria-label="AB 点循环">
+          <button
+            aria-label={pointA === null ? "设置 A 点" : `A 点 ${pointAText}`}
+            aria-keyshortcuts="a"
+            title={
+              pointA === null
+                ? "按 A 选择当前时间作为 A 点"
+                : `A 点 ${pointAText}，点击重新选择`
+            }
+            disabled={!loaded}
+            onClick={() => choosePoint("a")}
+          >
+            {pointAText}
+          </button>
+          <button
+            aria-label={pointB === null ? "设置 B 点" : `B 点 ${pointBText}`}
+            aria-keyshortcuts="b"
+            title={
+              pointB === null
+                ? "按 B 选择当前时间作为 B 点"
+                : `B 点 ${pointBText}，点击重新选择`
+            }
+            disabled={!loaded || pointA === null}
+            onClick={() => choosePoint("b")}
+          >
+            {pointBText}
+          </button>
+          <button
+            className={abEnabled ? "active" : ""}
+            disabled={!loaded || pointA === null || pointB === null}
+            aria-keyshortcuts="l"
+            aria-label={abEnabled ? "退出 A/B 循环" : "开始 A/B 循环"}
+            aria-pressed={abEnabled}
+            onClick={toggleAb}
+          >
+            {abEnabled ? "退出 A/B 循环" : "开始 A/B 循环"} <kbd>L</kbd>
+          </button>
+        </div>
       </div>
       <input
         className="seek"
@@ -642,64 +673,35 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player(
         disabled={!loaded}
         onChange={(e) => seek(Number(e.target.value))}
       />
-      <div className="ab-controls" aria-label="AB 点循环">
-        <button
-          aria-label="选 A"
-          aria-keyshortcuts="a"
-          disabled={!loaded}
-          onClick={() => choosePoint("a")}
-        >
-          选 A <kbd>A</kbd>
-        </button>
-        <button
-          aria-label="选 B"
-          aria-keyshortcuts="b"
-          disabled={!loaded || pointA === null}
-          onClick={() => choosePoint("b")}
-        >
-          选 B <kbd>B</kbd>
-        </button>
-        <span className="ab-status" role="status">
-          A {formatTime(pointA)} · B {formatTime(pointB)}
-        </span>
-        <button
-          disabled={!loaded || pointA === null || pointB === null}
-          aria-keyshortcuts="l"
-          aria-label={abEnabled ? "退出 A/B 循环" : "开始 A/B 循环"}
-          onClick={toggleAb}
-        >
-          {abEnabled ? "退出 A/B 循环" : "开始 A/B 循环"} <kbd>L</kbd>
-        </button>
-        {showEditingControls && (
-          <>
-            <button
-              className="primary"
-              aria-keyshortcuts="["
-              disabled={!loaded || readOnly || !selectedBlock}
-              onClick={() => markRange("start")}
-            >
-              当前作为入点 <kbd>[</kbd>
-            </button>
-            <button
-              className="primary"
-              aria-keyshortcuts="]"
-              disabled={!loaded || readOnly || !selectedBlock}
-              onClick={() => markRange("end")}
-            >
-              当前作为出点 <kbd>]</kbd>
-            </button>
-            <button
-              className="primary"
-              aria-keyshortcuts="e"
-              disabled={!canSuggest}
-              onClick={setSuggestedEnd}
-              title="出点 = 入点 + 拍数 × 60 / BPM"
-            >
-              按拍数设出点 <kbd>E</kbd>
-            </button>
-          </>
-        )}
-      </div>
+      {showEditingControls && (
+        <div className="ab-edit-controls" aria-label="段落入出点">
+          <button
+            className="primary"
+            aria-keyshortcuts="["
+            disabled={!loaded || readOnly || !selectedBlock}
+            onClick={() => markRange("start")}
+          >
+            当前作为入点 <kbd>[</kbd>
+          </button>
+          <button
+            className="primary"
+            aria-keyshortcuts="]"
+            disabled={!loaded || readOnly || !selectedBlock}
+            onClick={() => markRange("end")}
+          >
+            当前作为出点 <kbd>]</kbd>
+          </button>
+          <button
+            className="primary"
+            aria-keyshortcuts="e"
+            disabled={!canSuggest}
+            onClick={setSuggestedEnd}
+            title="出点 = 入点 + 拍数 × 60 / BPM"
+          >
+            按拍数设出点 <kbd>E</kbd>
+          </button>
+        </div>
+      )}
       <div className="timeline-top">
         <span className="timeline-heading">
           歌曲时间轴
