@@ -69,6 +69,12 @@ test("项目弹窗提供项目打开与 JSON 备份导入", async ({ page }) => 
   await page.getByRole("button", { name: "项目", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByText("从 JSON 备份导入")).toBeVisible();
+  const chooserPromise = page.waitForEvent("filechooser");
+  await dialog.getByText("从 JSON 备份导入").click();
+  const chooser = await chooserPromise;
+  await chooser.setFiles([]);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeVisible();
   await dialog.getByLabel("从 JSON 备份导入").setInputFiles({
     name: "backup.json",
     mimeType: "application/json",
