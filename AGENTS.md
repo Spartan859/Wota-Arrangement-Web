@@ -71,7 +71,7 @@ docker compose -p wota-local-share -f compose.yaml -f compose.dev.yaml down
 - `src/core/model.ts`：`Project`、`Block`、`Lyric`、类型预设、项目校验、时间轴插入/删除/排序和历史快照的纯逻辑。
 - `src/core/lyrics.ts`：TXT/LRC 解析、时间戳、多时间戳、`offset` 和整体时间偏移。
 - `src/core/timing.ts`：时间格式化、BPM 八拍时长建议、段落区间校验、播放高亮和顺序冲突检查。
-- `src/core/xlsx.ts`：ExcelJS 浏览器读写。读取合并单元格时只把主单元格作为字段值；必须保留连续块、空歌词行和纯动作块的语义。
+- `src/core/xlsx.ts`：ExcelJS 浏览器导出。必须保留连续块、空歌词行和纯动作块的导出语义；Web 不提供 XLSX 导入。
 - `src/core/storage.ts`：Dexie/IndexedDB。项目记录和音频 Blob 分开保存；版本号用于阻止多标签页静默覆盖。
 - `src/core/share.ts`：在线分享快照、公开 API、账号会话和配额的共享类型与 Zod 校验。
 - `src/useProject.ts`：当前项目、自动保存、撤销/重做、项目切换、冲突恢复。编排修改统一通过 `store.edit`。
@@ -113,11 +113,11 @@ XLSX 导出必须保持原工具的六列表头：
 段落 | 拍数 | 日文歌词 | 中文歌词 | 技 / 动作编排 | 备注
 ```
 
-同时保持标题中的 `歌曲名 (BPM: bpm)`、相邻同类型段落的名称合并、块内拍数/动作/备注合并和交替底色。主编排区不写入同步时间和歌曲 Blob；其尾部附光棒累计用量与简化换棒列表（含时间戳和双色圆点）。附录仅在 A 列写入文本，其余信息使用图片/批注，避免原 Python 读取器误识别为歌词或段落；修改后必须验证双向兼容。
+同时保持标题中的 `歌曲名 (BPM: bpm)`、相邻同类型段落的名称合并、块内拍数/动作/备注合并和交替底色。主编排区不写入同步时间和歌曲 Blob；其尾部附光棒累计用量与简化换棒列表（含时间戳和双色圆点）。附录仅在 A 列写入文本，其余信息使用图片/批注，避免原 Python 读取器误识别为歌词或段落；修改后必须验证原 Python 可以正确读取。
 
 - 空歌词块与纯动作块在 Web 模型中要区分；原 Python 读取标准表格时可能将没有歌词行的块解释为纯动作，这是兼容层的既有行为。
 - 导出文本时不能把用户输入的 `=...` 等内容误写成 Excel 公式；相关行为由 `tests/xlsx.test.ts` 覆盖。
-- 修改 Excel 结构或合并策略后，运行真实 Python 双向兼容测试：
+- 修改 Excel 导出结构或合并策略后，运行真实 Python 读取兼容测试：
 
 ```sh
 WOTA_CLI_PATH=/Users/dijkstra0x3/Github/Wota-Arrangement-Tool \
@@ -136,7 +136,7 @@ npm test -- tests/python-compat.test.ts
 - 段落起止时间的重叠、反向、越界和上一段结束时间快捷设置。
 - 音频加载失败、歌曲替换后越界标记、播放暂停、变速、段落循环和 A/B 循环。
 - IndexedDB 保存失败、同版本并发写入、多标签页冲突、刷新恢复和项目切换。
-- 标准 XLSX 导入导出、合并单元格、空歌词块、纯动作块以及原 Python CLI 往返。
+- 标准 XLSX 导出、合并单元格、空歌词块、纯动作块以及原 Python CLI 读取。
 - 桌面、短屏和手机布局；页面不应出现横向溢出或控制台异常。
 
 测试只使用合成歌词和合成 WAV。浏览器测试若因本机缺少 WebKit 或网络无法下载而不能执行，要在 `VALIDATION.md` 记录实际限制，不要声称 Safari 已验证。

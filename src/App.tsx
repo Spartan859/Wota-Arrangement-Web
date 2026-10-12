@@ -374,18 +374,12 @@ export default function App() {
       setBusy(false);
     }
   }
-  async function importProject(file: File) {
+  async function importBackup(file: File) {
     setBusy(true);
     try {
-      let next: Project;
-      if (/\.xlsx$/i.test(file.name)) {
-        const { readXlsx } = await import("./core/xlsx");
-        next = await readXlsx(await file.arrayBuffer());
-      } else {
-        next = parseProject(await file.text());
-        next.id = uid();
-        if (next.audio) next.audio.id = null;
-      }
+      const next = parseProject(await file.text());
+      next.id = uid();
+      if (next.audio) next.audio.id = null;
       player.current?.pause();
       await store.create(next);
       if (next.audio) setNotice("项目已导入，请重新选择歌曲。");
@@ -934,23 +928,6 @@ export default function App() {
           <div className="project-import-actions">
             <label className="file-button">
               <Upload size={16} />
-              打开项目文件
-              <input
-                aria-label="打开项目文件"
-                type="file"
-                accept=".xlsx,.json"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file)
-                    void importProject(file).then((imported) => {
-                      if (imported) setModal(null);
-                    });
-                  event.target.value = "";
-                }}
-              />
-            </label>
-            <label className="file-button">
-              <Upload size={16} />
               从 JSON 备份导入
               <input
                 aria-label="从 JSON 备份导入"
@@ -959,7 +936,7 @@ export default function App() {
                 onChange={(event) => {
                   const file = event.target.files?.[0];
                   if (file)
-                    void importProject(file).then((imported) => {
+                    void importBackup(file).then((imported) => {
                       if (imported) setModal(null);
                     });
                   event.target.value = "";

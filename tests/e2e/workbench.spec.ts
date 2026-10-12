@@ -55,7 +55,7 @@ test("时间轴新建、卡片编辑、拍子流水灯和删除", async ({ page 
   await page.getByRole("button", { name: "删除副歌", exact: true }).click();
   await expect(page.locator(".timeline-block")).toHaveCount(0);
 });
-test("项目弹窗提供项目打开与 JSON 备份导入", async ({ page }) => {
+test("项目弹窗提供 JSON 备份导入", async ({ page }) => {
   await boot(page);
   await expect(
     page.getByRole("button", { name: "打开", exact: true }),
@@ -133,7 +133,7 @@ test("时间轴拖动冲突被拒绝且手机无横向溢出", async ({ page }) 
 async function timedProject(page: Page) {
   await boot(page);
   await page.getByRole("button", { name: "项目", exact: true }).click();
-  await page.getByLabel("打开项目文件").setInputFiles({
+  await page.getByLabel("从 JSON 备份导入").setInputFiles({
     name: "synthetic.json",
     mimeType: "application/json",
     buffer: Buffer.from(
@@ -164,7 +164,7 @@ async function timedProject(page: Page) {
 async function multiTimedProject(page: Page) {
   await boot(page);
   await page.getByRole("button", { name: "项目", exact: true }).click();
-  await page.getByLabel("打开项目文件").setInputFiles({
+  await page.getByLabel("从 JSON 备份导入").setInputFiles({
     name: "multi-synthetic.json",
     mimeType: "application/json",
     buffer: Buffer.from(
@@ -200,7 +200,7 @@ async function multiTimedProject(page: Page) {
 async function untimedProject(page: Page) {
   await boot(page);
   await page.getByRole("button", { name: "项目", exact: true }).click();
-  await page.getByLabel("打开项目文件").setInputFiles({
+  await page.getByLabel("从 JSON 备份导入").setInputFiles({
     name: "untimed-synthetic.json",
     mimeType: "application/json",
     buffer: Buffer.from(

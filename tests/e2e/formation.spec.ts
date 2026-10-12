@@ -494,7 +494,7 @@ async function formationFixture(page: Page) {
     })),
   }));
   await page.getByRole("button", { name: "项目", exact: true }).click();
-  await page.getByLabel("打开项目文件").setInputFiles({
+  await page.getByLabel("从 JSON 备份导入").setInputFiles({
     name: "formation.json",
     mimeType: "application/json",
     buffer: Buffer.from(
@@ -979,7 +979,7 @@ test("旧本地草稿导出文件后立即导入保留队形", async ({ page }) 
   expect(parsed.audio.id).toBeNull();
   await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
   await page.getByRole("button", { name: "项目", exact: true }).click();
-  await page.getByLabel("打开项目文件").setInputFiles((await file.path())!);
+  await page.getByLabel("从 JSON 备份导入").setInputFiles((await file.path())!);
   await expect(page.getByRole("alert")).toHaveCount(0);
   await page.getByLabel("选择舞者").selectOption("alice");
   await expect(
@@ -1023,20 +1023,6 @@ test("一次性光棒统计与Excel同表尾部一致，换棒顺序保留", asy
   expect(wb.worksheets[0].getCell("A6").value).toBe("换棒列表");
   expect(wb.worksheets[0].getImages()).toHaveLength(2);
   expect(wb.worksheets[0].getCell("A2").value).toBe("段落");
-  const { readFile } = await import("node:fs/promises");
-  await page.getByRole("button", { name: "项目", exact: true }).click();
-  await page.getByLabel("打开项目文件").setInputFiles({
-    name: file.suggestedFilename(),
-    mimeType:
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    buffer: await readFile((await file.path())!),
-  });
-  await expect(page.getByRole("alert")).toHaveCount(0);
-  await expect(
-    page
-      .locator(".untimed-strip")
-      .getByRole("button", { name: "副歌", exact: true }),
-  ).toBeVisible();
 });
 
 test("颜色弹窗标题行重命名后返回色板，取消保留姓名和手部模式", async ({
