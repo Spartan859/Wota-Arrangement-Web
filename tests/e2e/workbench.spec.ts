@@ -101,6 +101,7 @@ test("新建项目必须选择歌曲文件", async ({ page }) => {
   await page.getByRole("button", { name: "新建", exact: true }).click();
   const dialog = page.getByRole("dialog");
   const create = dialog.getByRole("button", { name: "创建项目", exact: true });
+  await expect(dialog.locator(".settings-meta .file-button")).toBeVisible();
   await expect(create).toBeDisabled();
   await dialog.getByLabel("新项目歌曲文件").setInputFiles({
     name: "new-song.wav",

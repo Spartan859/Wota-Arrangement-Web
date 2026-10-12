@@ -977,31 +977,13 @@ export default function App() {
       {modal === "settings" && (
         <Modal title="设置" onClose={() => setModal(null)}>
           <div className="settings-panel">
-            <section className="settings-meta" aria-label="歌曲设置">
-              <div>
-                <strong>歌曲</strong>
-                <span>{p.audio?.name || "尚未选择歌曲文件"}</span>
-              </div>
-              <div className="settings-actions">
-                <label
-                  className={"file-button " + (readOnly ? "disabled" : "")}
-                >
-                  <FileAudio size={16} />
-                  {p.audio ? "更换歌曲" : "导入歌曲"}
-                  <input
-                    aria-label="音频文件"
-                    disabled={readOnly}
-                    type="file"
-                    accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      if (file) void uploadAudio(file);
-                      event.target.value = "";
-                    }}
-                  />
-                </label>
-              </div>
-            </section>
+            <SongFileSetting
+              fileName={p.audio?.name}
+              actionText={p.audio ? "更换歌曲" : "导入歌曲"}
+              inputLabel="音频文件"
+              disabled={readOnly}
+              onSelect={(file) => void uploadAudio(file)}
+            />
             <section className="settings-meta" aria-label="歌词设置">
               <div>
                 <strong>歌词</strong>
@@ -1057,15 +1039,12 @@ function NewProjectModal({
   const [creating, setCreating] = useState(false);
   return (
     <Modal title="新建项目" onClose={onClose}>
-      <label className="field">
-        <span>歌曲文件</span>
-        <input
-          aria-label="新项目歌曲文件"
-          type="file"
-          accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac"
-          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-        />
-      </label>
+      <SongFileSetting
+        fileName={file?.name}
+        actionText={file ? "重新选择" : "选择歌曲"}
+        inputLabel="新项目歌曲文件"
+        onSelect={setFile}
+      />
       <p className="muted">必须选择歌曲文件后才能创建项目。</p>
       <button
         className="primary"
@@ -1083,6 +1062,45 @@ function NewProjectModal({
         {creating ? "正在创建…" : "创建项目"}
       </button>
     </Modal>
+  );
+}
+function SongFileSetting({
+  fileName,
+  actionText,
+  inputLabel,
+  disabled = false,
+  onSelect,
+}: {
+  fileName?: string;
+  actionText: string;
+  inputLabel: string;
+  disabled?: boolean;
+  onSelect: (file: File) => void;
+}) {
+  return (
+    <section className="settings-meta" aria-label="歌曲设置">
+      <div>
+        <strong>歌曲</strong>
+        <span>{fileName || "尚未选择歌曲文件"}</span>
+      </div>
+      <div className="settings-actions">
+        <label className={"file-button " + (disabled ? "disabled" : "")}>
+          <FileAudio size={16} />
+          {actionText}
+          <input
+            aria-label={inputLabel}
+            disabled={disabled}
+            type="file"
+            accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac"
+            onChange={(event) => {
+              const selected = event.target.files?.[0];
+              if (selected) onSelect(selected);
+              event.target.value = "";
+            }}
+          />
+        </label>
+      </div>
+    </section>
   );
 }
 function CreateBlockModal({
