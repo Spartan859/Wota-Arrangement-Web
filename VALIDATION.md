@@ -2,6 +2,18 @@
 
 日期：2026-09-19。所有测试仅使用合成歌词和音频。
 
+## 2026-10-15 修复队形视频播放闪烁/卡顿
+
+- 定位方法：本机真实 Chrome 打开调试容器，用合成 WAV 加 `MediaRecorder` 生成的 WebM 片段播放 12 秒并统计 `<video>` 事件。修复前 12 秒内出现 362 次 `seeking`、361 次 `seeked`，并在第 5 秒、第 10 秒各出现一次 `emptied`+`loadstart`。
+- 原因一：`FormationCanvas` 的 blob URL 建立在 `[c.videoAssets]` 上，而 `store.edit` 每次都会 `structuredClone` 整个项目。播放中每 5 秒的播放位置自动保存（以及任何编辑）都会让该数组换新引用并重建 URL，`FormationVideoLayer` 发现 src 变化后执行 `video.load()`，视频从 0 重新解码再跳回目标时间，表现为闪烁和卡顿。
+- 原因二：同步循环以 0.08 秒为阈值校正漂移，且片段播完后仍每帧写 `video.currentTime = asset.duration`。元素实际停在 5.986 秒（小于元数据时长 6 秒）时，每帧都会重新 seek（约 60 次/秒），解码器被反复打断。
+- 修复：blob URL 按 `localBlobId` 缓存复用，只在资源集合真正变化时重建，并在结果相同时保持 state 引用不变；同步循环改为停驻只对齐一次（0.02 秒容差，seek 目标按 `duration`/`seekable` 夹取）、播放中偏差超过 0.3 秒才硬跳、更小偏差用 ±6% 变速收敛，且 seek 未完成时不再叠加 seek。
+- 同一脚本复测：12 秒播放内 `seeking`/`seeked`/`emptied`/`loadstart` 全为 0；片段播完后停在 5.98 秒，视频与音频偏差稳定在 30 毫秒内，启动时用 0.94× 收敛后回到 1×。
+- 新增 Playwright 用例「视频播放不重复 seek，也不因自动保存重载源」：播放 6 秒覆盖片段结束与 5 秒自动保存，断言 `loadstart`/`emptied` 为 0、`seeking` 少于 5、停驻时间不再漂移。撤下修复代码后该用例失败（`loadstart` = 1），修复后通过。
+- `npm run check`：单元/集成测试与构建通过；`npm run format:check`、`git diff --check` 通过。
+- Chrome chromium 全量端到端：54 项通过、1 项失败；失败项为既有失败 `tests/e2e/formation.spec.ts › 旧本地草稿导出文件后立即导入保留队形`，在未改动的 `main` 上同样失败，与本次改动无关。
+- 本轮未运行 WebKit/Safari；未做生产部署。
+
 ## 2026-10-15 播放器控件行靠左排列
 
 - 播放器控件行原先由 `.ab-controls { margin-left: auto }` 把 A/B 循环组顶到行尾；`≤850px` 还额外把「速度」和「跟随播放」顶到行尾。现已移除这三处自动外边距，播放、速度、音量、循环此块、跟随播放和 A/B 循环组统一从左排列并自然换行。

@@ -38,6 +38,17 @@ function readShowNames() {
   }
 }
 
+function sameVideoSources(
+  a: Record<string, string>,
+  b: Record<string, string>,
+) {
+  const keys = Object.keys(a);
+  return (
+    keys.length === Object.keys(b).length &&
+    keys.every((key) => a[key] === b[key])
+  );
+}
+
 function defaultDancerName(dancers: Choreography["dancers"]) {
   const names = new Set(dancers.map((dancer) => dancer.name));
   let index = 1;
@@ -201,33 +212,58 @@ export function FormationCanvas({
     drag.current = null;
     if (readOnly) setModal(null);
   }, [readOnly]);
+  // 播放中项目会被反复编辑（自动保存播放位置等），每次编辑都会替换 choreography 对象。
+  // Blob URL 只能随视频资源本身变化：否则 <video> 会被重新 load，画面上就是闪烁和卡顿。
+  const videoSourcesRef = useRef(new Map<string, string>());
+  const videoAssetKey = (c.videoAssets ?? [])
+    .filter((asset) => asset.localBlobId)
+    .map((asset) => `${asset.id}:${asset.localBlobId}`)
+    .join("|");
+  useEffect(
+    () => () => {
+      for (const url of videoSourcesRef.current.values())
+        URL.revokeObjectURL(url);
+      videoSourcesRef.current.clear();
+    },
+    [],
+  );
   useEffect(() => {
     if (externalVideoSources) {
       setVideoSources(externalVideoSources);
       return;
     }
     let disposed = false;
-    const urls: string[] = [];
+    const cache = videoSourcesRef.current;
+    const assets = (c.videoAssets ?? []).filter((asset) => asset.localBlobId);
     void Promise.all(
-      c.videoAssets.map(async (asset) => {
-        if (!asset.localBlobId) return null;
-        const record = await db.videos.get(asset.localBlobId);
+      assets.map(async (asset) => {
+        const blobId = asset.localBlobId!;
+        const cached = cache.get(blobId);
+        if (cached) return [asset.id, cached] as const;
+        const record = await db.videos.get(blobId);
         if (!record) return null;
         const url = URL.createObjectURL(record.blob);
-        urls.push(url);
+        cache.set(blobId, url);
         return [asset.id, url] as const;
       }),
     ).then((entries) => {
       if (disposed) return;
-      setVideoSources(
-        Object.fromEntries(entries.filter((entry) => entry !== null)),
+      const live = new Set(assets.map((asset) => asset.localBlobId!));
+      for (const [blobId, url] of [...cache]) {
+        if (live.has(blobId)) continue;
+        URL.revokeObjectURL(url);
+        cache.delete(blobId);
+      }
+      const next: Record<string, string> = {};
+      for (const entry of entries) if (entry) next[entry[0]] = entry[1];
+      setVideoSources((current) =>
+        sameVideoSources(current, next) ? current : next,
       );
     });
     return () => {
       disposed = true;
-      for (const url of urls) URL.revokeObjectURL(url);
     };
-  }, [c.videoAssets, externalVideoSources]);
+  }, [videoAssetKey, externalVideoSources]);
   const selectedDancer = c.dancers.find((d) => d.id === selected);
   const chooseColor = (color: StickColor) => {
     if (selected)

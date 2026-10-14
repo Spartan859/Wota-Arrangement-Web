@@ -285,6 +285,62 @@ test("插入视频、时间轴入出点、逐帧入点和最小化", async ({ pa
   await expect(page.locator(".video-marker-lane")).toBeVisible();
 });
 
+test("视频播放不重复 seek，也不因自动保存重载源", async ({ page }) => {
+  await boot(page);
+  await song(page, 20);
+  await add(page, "视频舞者");
+  await page.getByLabel("选择舞者").selectOption({ label: "视频舞者" });
+  await page.getByLabel("插入视频文件").setInputFiles({
+    name: "playback.webm",
+    mimeType: "video/webm",
+    buffer: await syntheticWebm(page),
+  });
+  const video = page.locator(".formation-video video");
+  await expect(video).toBeVisible();
+  await page.evaluate(() => {
+    const node = document.querySelector(".formation-video video")!;
+    const counts = { seeking: 0, emptied: 0, loadstart: 0 };
+    for (const name of Object.keys(counts) as (keyof typeof counts)[])
+      node.addEventListener(name, () => {
+        counts[name] += 1;
+      });
+    (window as unknown as { wotaVideoCounts: typeof counts }).wotaVideoCounts =
+      counts;
+  });
+  await page.getByRole("button", { name: "播放", exact: true }).click();
+  await expect
+    .poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime))
+    .toBeGreaterThan(0.4);
+  // 合成片段很短：播完后画面应停在末帧，而不是每帧重复 seek。
+  await expect
+    .poll(() => video.evaluate((v: HTMLVideoElement) => v.paused))
+    .toBe(true);
+  const parked = await video.evaluate((v: HTMLVideoElement) => v.currentTime);
+  const audio = page.locator("audio");
+  const audioBefore = await audio.evaluate(
+    (a: HTMLAudioElement) => a.currentTime,
+  );
+  // 覆盖片段播完后的停驻阶段与播放位置自动保存（每 5 秒一次）之后的时间点。
+  await page.waitForTimeout(6000);
+  const audioAfter = await audio.evaluate(
+    (a: HTMLAudioElement) => a.currentTime,
+  );
+  expect(audioAfter - audioBefore).toBeGreaterThan(4);
+  expect(
+    Math.abs(
+      (await video.evaluate((v: HTMLVideoElement) => v.currentTime)) - parked,
+    ),
+  ).toBeLessThan(0.05);
+  const counts = await page.evaluate(
+    () =>
+      (window as unknown as { wotaVideoCounts: Record<string, number> })
+        .wotaVideoCounts,
+  );
+  expect(counts.loadstart).toBe(0);
+  expect(counts.emptied).toBe(0);
+  expect(counts.seeking).toBeLessThan(5);
+});
+
 test("舞台空白取消选择，并可直接插入未绑定舞者的视频", async ({ page }) => {
   await boot(page);
   await song(page);

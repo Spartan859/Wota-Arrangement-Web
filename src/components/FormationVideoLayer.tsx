@@ -48,6 +48,43 @@ type CropHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
 const cropHandles: CropHandle[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
 const minCrop = 0.02;
 
+// 画面停驻时的最小对齐误差，避免每帧对同一个时间点重复 seek。
+const parkEpsilon = 0.02;
+// 播放中偏差超过该值才硬跳；更小的偏差用轻微变速收敛。
+const resyncThreshold = 0.3;
+const rateDeadZone = 0.03;
+const rateGain = 1.5;
+const maxRateScale = 0.06;
+
+function seekVideo(video: HTMLVideoElement, time: number) {
+  try {
+    video.currentTime = time;
+  } catch {
+    // Metadata may not be ready yet; the next frame retries.
+  }
+}
+
+function clampSeekTarget(video: HTMLVideoElement, time: number) {
+  let target = Math.max(0, time);
+  if (Number.isFinite(video.duration))
+    target = Math.min(target, video.duration);
+  const { seekable } = video;
+  if (seekable?.length)
+    target = Math.min(target, seekable.end(seekable.length - 1));
+  return Math.max(0, target);
+}
+
+function syncPlaybackRate(base: number, drift: number) {
+  if (Math.abs(drift) < rateDeadZone) return base;
+  return Math.min(
+    Math.min(16, base * (1 + maxRateScale)),
+    Math.max(
+      Math.max(0.0625, base * (1 - maxRateScale)),
+      base * (1 - drift * rateGain),
+    ),
+  );
+}
+
 function minimizedFromStorage(key: string) {
   try {
     const parsed = JSON.parse(localStorage.getItem(key) ?? "[]") as unknown;
@@ -277,20 +314,28 @@ export function FormationVideoLayer({
           video.src = source;
           video.load();
         }
-        const desiredTime = active.sourceTime;
+        const baseRate = current.getPlaybackRate();
+        const desiredTime = clampSeekTarget(video, active.sourceTime);
         const shouldPlay = current.isPlaying() && !active.frozen;
-        const drift = Math.abs(video.currentTime - desiredTime);
-        if (!shouldPlay || drift > 0.08) {
-          try {
-            video.currentTime = desiredTime;
-          } catch {
-            // Metadata may not be ready yet; the next frame retries.
-          }
+        if (!shouldPlay) {
+          // 暂停或片段已播完：只对齐一次，不再每帧重复 seek。
+          if (!video.paused) video.pause();
+          if (
+            !video.seeking &&
+            Math.abs(video.currentTime - desiredTime) > parkEpsilon
+          )
+            seekVideo(video, desiredTime);
+          if (video.playbackRate !== baseRate) video.playbackRate = baseRate;
+          continue;
         }
-        video.playbackRate = current.getPlaybackRate();
-        if (shouldPlay && video.paused)
-          void video.play().catch(() => undefined);
-        else if (!shouldPlay && !video.paused) video.pause();
+        if (!video.seeking && video.readyState >= 2) {
+          const drift = video.currentTime - desiredTime;
+          if (Math.abs(drift) > resyncThreshold) seekVideo(video, desiredTime);
+          else video.playbackRate = syncPlaybackRate(baseRate, drift);
+        } else if (video.playbackRate !== baseRate) {
+          video.playbackRate = baseRate;
+        }
+        if (video.paused) void video.play().catch(() => undefined);
       }
       frame = requestAnimationFrame(sync);
     };
