@@ -1334,12 +1334,6 @@ fieldset {
     width: 30px;
     height: 30px;
   }
-  .player-controls > .compact {
-    margin-left: auto;
-  }
-  .player-controls > .check {
-    margin-left: auto;
-  }
   .player-controls > button:not(.play-button) {
     font-size: 10px;
     padding: 5px;
@@ -1406,7 +1400,6 @@ fieldset {
   align-items: center;
   flex-wrap: nowrap;
   gap: 6px;
-  margin-left: auto;
 }
 .ab-edit-controls {
   display: flex;
@@ -3636,7 +3629,6 @@ button.danger,
     flex: 0 1 auto;
   }
   .public-share-page .ab-controls {
-    margin-left: 0;
     flex: 0 0 auto;
   }
   .audio-gate {

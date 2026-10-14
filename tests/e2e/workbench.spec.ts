@@ -480,6 +480,34 @@ test("循环此块与 A/B 循环互斥", async ({ page }) => {
     controls.getByRole("button", { name: "开始 A/B 循环", exact: true }),
   ).toHaveAttribute("aria-pressed", "false");
 });
+test("播放器控件行统一靠左排列", async ({ page }) => {
+  await timedProject(page);
+  const controls = page.locator(".timeline-panel .player-controls");
+  const follow = page.locator(".timeline-panel .player-controls > .check");
+  const ab = page.locator(".timeline-panel .player-controls > .ab-controls");
+  const rowBox = (await controls.boundingBox())!;
+  const followBox = (await follow.boundingBox())!;
+  const abBox = (await ab.boundingBox())!;
+  expect(abBox.x - (followBox.x + followBox.width)).toBeLessThan(24);
+  expect(rowBox.x + rowBox.width - (abBox.x + abBox.width)).toBeGreaterThan(80);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const play = page.locator(".timeline-panel .player-controls > .play-button");
+  const speed = page.locator(".timeline-panel .player-controls > .compact");
+  await expect
+    .poll(async () => {
+      const playBox = (await play.boundingBox())!;
+      const speedBox = (await speed.boundingBox())!;
+      return speedBox.x - (playBox.x + playBox.width);
+    })
+    .toBeLessThan(24);
+  await expect
+    .poll(async () => {
+      const compactRowBox = (await controls.boundingBox())!;
+      const compactAbBox = (await ab.boundingBox())!;
+      return compactAbBox.x - compactRowBox.x;
+    })
+    .toBeLessThan(24);
+});
 test("播放覆盖手动选择，关闭跟随后保持选中段落", async ({ page }) => {
   await timedProject(page);
   await page.locator(".timeline-block").nth(1).click();

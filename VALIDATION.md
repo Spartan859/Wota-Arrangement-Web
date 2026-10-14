@@ -2,6 +2,14 @@
 
 日期：2026-09-19。所有测试仅使用合成歌词和音频。
 
+## 2026-10-15 播放器控件行靠左排列
+
+- 播放器控件行原先由 `.ab-controls { margin-left: auto }` 把 A/B 循环组顶到行尾；`≤850px` 还额外把「速度」和「跟随播放」顶到行尾。现已移除这三处自动外边距，播放、速度、音量、循环此块、跟随播放和 A/B 循环组统一从左排列并自然换行。
+- `npm run check`：单元/集成测试全部通过，TypeScript、API 构建与前端生产构建通过；`npm run format:check`、`git diff --check` 通过。
+- 本机真实 Chrome Playwright（chromium 项目）全量套件 53 项通过、1 项失败。新增 `播放器控件行统一靠左排列` 用例先在旧样式上复跑确认会失败，再在修复后通过；失败项为 `tests/e2e/formation.spec.ts › 旧本地草稿导出文件后立即导入保留队形`，在未改动的 `main`（4f6ded5）上单独复跑同样失败，属既有失败，与本次改动无关。
+- `scripts/capture.mjs` 已与当前界面脱节（等待不存在的 `打开项目文件`），改用临时脚本导入合成项目并截取桌面 1280×900 与手机 390×844 的播放器区域：控件行全部靠左，桌面与手机均无横向溢出。临时脚本未提交。
+- 本轮未运行 WebKit/Safari；未做生产部署。
+
 ## 2026-10-11 Deploy 修复
 
 - 复现原 Deploy 失败：服务器仍执行旧 Keycloak runtime，且部署脚本使用错误的 API 镜像名与完整 SHA 标签；CI 实际发布的是 `wota-arrangement-web-api:sha-<短 SHA>`。
