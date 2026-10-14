@@ -2,6 +2,18 @@
 
 日期：2026-09-19。所有测试仅使用合成歌词和音频。
 
+## 2026-10-15 视频定位点：角点缩放、边中点裁切
+
+- 需求：画面四角定位点改为等比放大/缩小，四边中点仍为裁切，并用颜色区分两类定位点。
+- 纯逻辑：`src/core/choreography.ts` 新增 `scaleVideoAboutCorner()`，把指针位置投影到「对角锚点 → 被拖角点」的对角线上求缩放比，按锚点缩放后反解 `offset`；`scale` 夹取到 schema 允许的 `0.02–2`，`offset` 夹取到 `-2–3`，因此拖到边界也不会触发保存校验错误，`crop` 保持不变。
+- UI：`FormationVideoLayer` 按手柄类型分流到缩放或裁切，四角 `aria-label` 改为「缩放视频 <角>」，边中点仍为「裁切视频 <边>」；基础类名由 `formation-crop-handle` 改为 `formation-video-handle`（仓库内无其他引用）。
+- 颜色：角点（缩放）沿用主蓝 `#4568d4`，边中点（裁切）改为橙色 `#e0872a`；已在调试容器截图核对为 `rgb(69, 104, 212)` 与 `rgb(224, 135, 42)`。
+- 测试：`npx vitest run tests/choreography.test.ts` 18 项通过，新增角点缩放用例覆盖对角锚点不动、等比放大与缩小、`nw` 反向拖动改用另一对角锚点、`scale` 上下限夹取与 `offset` 夹取。
+- 新增 Playwright 用例「视频角点等比缩放，边中点仍然裁切」：校验两类定位点标签互斥且颜色不同、拖右下角放大时左上角与裁切范围不变、保存后刷新缩放仍在、拖边中点仍按裁切改变宽度且不报错。
+- `npm run check`：单元/集成 66 项通过、1 项跳过，类型检查、API 与前端生产构建通过；`npm run format:check`、`git diff --check` 通过。
+- Chrome chromium 全量端到端：55 项通过、1 项失败；失败项仍是既有失败 `旧本地草稿导出文件后立即导入保留队形`（未改动的 `main` 上同样失败）。
+- 本轮未运行 WebKit/Safari；未做生产部署。
+
 ## 2026-10-15 修复队形视频播放闪烁/卡顿
 
 - 定位方法：本机真实 Chrome 打开调试容器，用合成 WAV 加 `MediaRecorder` 生成的 WebM 片段播放 12 秒并统计 `<video>` 事件。修复前 12 秒内出现 362 次 `seeking`、361 次 `seeked`，并在第 5 秒、第 10 秒各出现一次 `emptied`+`loadstart`。

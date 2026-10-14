@@ -7,10 +7,12 @@ import {
   emptyChoreography,
   normalizeChoreography,
   sampleFormation,
+  scaleVideoAboutCorner,
   setVideoInPoint,
   videoFrameRect,
   type Choreography,
   type VideoClip,
+  type VideoScaleHandle,
 } from "../core/choreography";
 import { usePointerDrag } from "./usePointerDrag";
 import { Modal } from "./Fields";
@@ -35,7 +37,7 @@ type Props = {
 
 type DragState = {
   clipId: string;
-  mode: "move" | CropHandle;
+  mode: "move" | VideoHandle;
   startX: number;
   startY: number;
   original: VideoClip;
@@ -43,9 +45,14 @@ type DragState = {
   moved: boolean;
 };
 
-type CropHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
+/** 边中点用于裁切，角点用于等比缩放。 */
+type CropHandle = "n" | "e" | "s" | "w";
+type VideoHandle = (typeof videoHandles)[number];
 
-const cropHandles: CropHandle[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
+const scaleHandles = ["nw", "ne", "se", "sw"] as const;
+const videoHandles = ["nw", "n", "ne", "e", "se", "s", "sw", "w"] as const;
+const isScaleHandle = (handle: VideoHandle): handle is VideoScaleHandle =>
+  (scaleHandles as readonly string[]).includes(handle);
 const minCrop = 0.02;
 
 // 画面停驻时的最小对齐误差，避免每帧对同一个时间点重复 seek。
@@ -419,17 +426,29 @@ export function FormationVideoLayer({
                   y: state.original.offset.y + dy,
                 },
               }
-            : {
-                ...state.original,
-                crop: resizeCrop(
-                  state.original,
-                  state.mode,
-                  dx,
-                  dy,
-                  fullWidth,
-                  fullHeight,
-                ),
-              };
+            : isScaleHandle(state.mode)
+              ? {
+                  ...state.original,
+                  ...scaleVideoAboutCorner(
+                    state.original,
+                    item.asset!,
+                    { width: bounds.width, height: bounds.height },
+                    state.mode,
+                    dx,
+                    dy,
+                  ),
+                }
+              : {
+                  ...state.original,
+                  crop: resizeCrop(
+                    state.original,
+                    state.mode,
+                    dx,
+                    dy,
+                    fullWidth,
+                    fullHeight,
+                  ),
+                };
       },
       (cancelled) => {
         const state = drag.current;
@@ -444,7 +463,9 @@ export function FormationVideoLayer({
               item.clip.id,
               state.mode === "move"
                 ? { offset: state.next.offset }
-                : { crop: state.next.crop },
+                : isScaleHandle(state.mode)
+                  ? { scale: state.next.scale, offset: state.next.offset }
+                  : { crop: state.next.crop },
             );
           });
         } catch (error) {
@@ -587,11 +608,17 @@ export function FormationVideoLayer({
             {!readOnly &&
               selected &&
               !isMinimized &&
-              cropHandles.map((handle) => (
+              videoHandles.map((handle) => (
                 <button
                   key={handle}
-                  className={`formation-crop-handle crop-${handle}`}
-                  aria-label={`裁切视频 ${handle}`}
+                  className={`formation-video-handle ${
+                    isScaleHandle(handle) ? "scale" : "crop"
+                  }-${handle}`}
+                  aria-label={
+                    isScaleHandle(handle)
+                      ? `缩放视频 ${handle}`
+                      : `裁切视频 ${handle}`
+                  }
                   onPointerDown={(event) => beginMutation(event, item, handle)}
                 />
               ))}
