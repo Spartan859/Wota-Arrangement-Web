@@ -6,10 +6,15 @@ services:
       target: dev
     command:
       - sh
-      - -c
-      - >-
-        npm ci --prefer-offline --no-audit --no-fund &&
-        exec npm run dev -- --host 0.0.0.0 --port 5173
+      - docker/dev-start.sh
+      - npm
+      - run
+      - dev
+      - --
+      - --host
+      - 0.0.0.0
+      - --port
+      - "5173"
     environment:
       CHOKIDAR_USEPOLLING: "true"
       VITE_API_PROXY_TARGET: http://api:8787
@@ -18,6 +23,7 @@ services:
     volumes: !override
       - .:/app
       - wota-web-node-modules:/app/node_modules
+      - wota-npm-cache:/home/node
     read_only: false
     healthcheck:
       test:
@@ -39,10 +45,10 @@ services:
       target: dev
     command:
       - sh
-      - -c
-      - >-
-        npm ci --prefer-offline --no-audit --no-fund &&
-        exec npm run dev:api
+      - docker/dev-start.sh
+      - npm
+      - run
+      - dev:api
     environment:
       CHOKIDAR_USEPOLLING: "true"
       HOST: 0.0.0.0
@@ -52,6 +58,7 @@ services:
       - .:/app
       - wota-api-node-modules:/app/node_modules
       - wota-audio:/data/audio
+      - wota-npm-cache:/home/node
     read_only: false
     healthcheck:
       test:
@@ -69,3 +76,4 @@ services:
 volumes:
   wota-web-node-modules:
   wota-api-node-modules:
+  wota-npm-cache:

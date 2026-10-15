@@ -6,7 +6,7 @@ import {
 
 import { describe, expect, it } from "vitest";
 import {
-  backup,
+  serializeProject,
   block,
   History,
   insertAt,
@@ -70,7 +70,7 @@ describe("时间轴模型", () => {
   it("JSON 只接受新 schema", () => {
     const p = project();
     p.blocks = [block()];
-    const decoded = parseProject(backup(p));
+    const decoded = parseProject(serializeProject(p));
     expect(decoded.schemaVersion).toBe(2);
     expect(decoded).not.toHaveProperty("pool");
     expect(() =>
@@ -173,14 +173,16 @@ describe("时间轴拖动边界", () => {
 describe("LRC 项目来源", () => {
   it("兼容无来源旧 v2，原文和偏移随 JSON 往返，拒绝非法偏移", () => {
     const p = project();
-    expect(parseProject(backup(p)).lyricSource).toBeUndefined();
+    expect(parseProject(serializeProject(p)).lyricSource).toBeUndefined();
     p.lyricSource = {
       raw: "[00:01]合成",
       name: "test.lrc",
       lrc: true,
       offset: -0.5,
     };
-    expect(parseProject(backup(p)).lyricSource).toEqual(p.lyricSource);
+    expect(parseProject(serializeProject(p)).lyricSource).toEqual(
+      p.lyricSource,
+    );
     expect(() =>
       parseProject(
         JSON.stringify({

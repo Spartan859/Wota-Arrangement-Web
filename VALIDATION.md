@@ -2,6 +2,30 @@
 
 日期：2026-09-19。所有测试仅使用合成歌词和音频。
 
+## 2026-10-15 调试容器复用镜像与依赖卷
+
+- 需求：切换 worktree 时重建调试容器太慢，希望尽量复用已有容器。
+- 原因：`compose.dev.yaml` 的 `web`/`api` 启动命令每次无条件执行 `npm ci --prefer-offline`，而 npm 缓存位于容器可写层，容器一重建就丢失；`npm run dev:container` 又始终带 `--build`，依赖文件一变化还要重跑镜像构建层。
+- 改动：新增 `docker/dev-start.sh`，先比较 `package-lock.json` 与卷内 `node_modules/.wota-lock`，一致就跳过 `npm ci`；`node_modules` 继续用 Compose 项目作用域的共享卷（同一项目的 worktree 共用）；新增共享卷 `wota-npm-cache` 挂到 `/home/node` 持久化 npm 缓存；`npm run dev:container` 去掉 `--build`，新增 `npm run dev:container:rebuild` 供 Dockerfile 或依赖变化时使用。
+- 实测（当前 worktree）：`COMPOSE_PROJECT_NAME=wota-local-share npm run dev:container` 从重建容器到 `web`/`api` healthy 约 10 秒，改前同一流程约 10 分钟（镜像构建层约 5 分钟 + 容器内 `npm ci` 约 5 分钟）；日志打印 `dev-start: 依赖与 package-lock.json 一致，跳过安装`，Vite 158 ms 就绪，`curl http://127.0.0.1:18080/` 返回 200，`docker inspect` 确认 `web` 挂载当前 worktree 且 `wota-npm-cache` 已挂到 `/home/node`。
+- 局限：依赖卷里还没有 `.wota-lock` 标记时（例如刚从旧配置升级）第一次仍要执行一次完整 `npm ci`；可先在旧容器里 `cp /app/package-lock.json /app/node_modules/.wota-lock` 再切换来跳过。lockfile 真正变化时仍需重新安装，只是有 npm 缓存后快得多。
+- 校验：`docker compose -f compose.yaml -f compose.dev.yaml config -q`、`npx vitest run`、`npm run format:check`、`git diff --check` 通过；本轮未跑端到端测试，未做生产部署，也没有改动产品代码。
+
+## 2026-10-15 项目导出改为含媒体文件的压缩包
+
+- 需求：导出不再产出单个 `.json`，改为 `.wota.zip`，内含用到的音乐文件与已插入的视频；前端相关文案同步修改。
+- 结构：新增 `src/core/archive.ts`。压缩包固定为 `project.json`、`audio/<本地 Blob ID>.<扩展名>`、`videos/<本地 Blob ID>.<扩展名>`；扩展名优先取原文件名后缀，其次按 MIME 映射，未知类型写 `.bin`。JSON 用 deflate，媒体用 STORE（音视频本身已压缩），按 Blob ID 去重；只有本地存在文件的视频才写入，缺失的名称随导出结果返回。新增运行时依赖 `fflate@^0.8.3`，压缩包逻辑放在动态 chunk 中（生产构建 `dist/assets/archive-*.js` 20.17 kB / gzip 8.96 kB）。
+- 文档序列化：`backup()` 改为 `serializeProject()`，不再清空 `audio.id` 与 `videoAssets[].localBlobId`，因为压缩包会带上对应媒体；写出前仍调用 `parseProject` 校验，行为保持“不合法的草稿不会被当成有效备份导出”。
+- 导入：`readProjectArchive()` 用 `Unzip` 流式解析，媒体按新生成的 Blob ID 写回 IndexedDB，不覆盖本机已有记录；缺音频时清空 `audio.id` 并提示“请重新选择歌曲”，缺视频时清空 `localBlobId` 并列出名称。`importBackup` 先看 `PK` 魔数：压缩包走新路径，其余仍按旧 `.json` 备份解析（`audio.id` 置空、提示重新关联）。
+- 文案：导出弹窗标题改为“项目压缩包”，按钮改为“下载项目压缩包”，打包中显示百分比进度；项目弹窗改为“从项目压缩包导入”，`accept` 同时允许 `.zip` 与 `.json`。导出成功后关闭弹窗并显示结果提示（缺少本地文件的视频会列出名称），与“下载 Excel”一致——原生 `<dialog>` 处于顶层，提示条在弹窗关闭前不可见。
+- 内存取舍：打包按 1 MiB 分块从 Blob 读取，媒体与压缩包内容都在内存中缓冲，峰值约为压缩包大小；大视频导出会同步占用相应内存。已写入 README，未引入流式落盘。
+- 新增 `tests/archive.test.ts` 7 项：压缩包往返（段落、队形、歌词来源、音频与视频字节一致）、媒体按新 Blob ID 分配、缺少本地文件的视频不写入并逐个报告、同一 Blob 多资源引用只写一次、音频缺失时清空引用、损坏文件／缺 `project.json`／非法文档分别报错、媒体扩展名映射。
+- 独立实现校验：用本机 `python3` 的 `zipfile.testzip()` 复查压缩包 CRC，并读出 `project.json` 与音频条目比对字节长度；`python3`/`python` 都不存在时该用例自动跳过（CI 的 ubuntu + setup-python 会执行）。
+- 已有测试同步：`tests/core.test.ts`、`tests/choreography.test.ts`、`tests/project-roundtrip.test.ts` 改用 `serializeProject`，并断言文档保留本地媒体 ID；`tests/e2e/workbench.spec.ts` 的旧 JSON 导入用例保留为兼容用例，`tests/e2e/formation.spec.ts` 的导出往返用例改为校验压缩包内的文档与音频并断言导入后播放可用。新增 Chromium 用例「压缩包含歌曲与视频，清空本地媒体后仍能完整恢复」：导出后清空 IndexedDB 的 `audio` 与 `videos` 表模拟换机，再导入压缩包，校验歌曲恢复、播放可用、视频片段与画布视频仍在。
+- `npm run check`：单元/集成 73 项通过、1 项跳过（Python XLSX 兼容专项默认跳过），TypeScript、API 构建与前端生产构建通过；`npm run format:check`、`git diff --check` 通过。
+- Chrome chromium 全量端到端：57 项通过。其中改写后的「旧本地草稿导出压缩包后立即导入并恢复歌曲与队形」通过，此前记录为在 `main` 上失败的同一用例已随本轮改写消失。
+- 本轮未运行 WebKit/Safari：本机缺少 Playwright 的 WebKit 二进制（`~/Library/Caches/ms-playwright/webkit-2359/pw_run.sh` 不存在），只记录了该限制；未做生产部署。
+
 ## 2026-10-15 视频定位点：角点缩放、边中点裁切
 
 - 需求：画面四角定位点改为等比放大/缩小，四边中点仍为裁切，并用颜色区分两类定位点。

@@ -28,7 +28,12 @@ import {
   videoFrameRect,
   type Choreography,
 } from "../src/core/choreography";
-import { backup, parseProject, project, History } from "../src/core/model";
+import {
+  serializeProject,
+  parseProject,
+  project,
+  History,
+} from "../src/core/model";
 describe("全员队形", () => {
   it("插值走位与瞬时换色，不提前入场或滑向退场点", () => {
     const c = emptyChoreography(),
@@ -86,11 +91,13 @@ describe("全员队形", () => {
   });
   it("v2 兼容与JSON保存，不丢超时关键帧", () => {
     const p = project();
-    expect(parseProject(backup(p)).choreography).toBeUndefined();
+    expect(parseProject(serializeProject(p)).choreography).toBeUndefined();
     p.choreography = emptyChoreography();
     addDancer(p.choreography, "A", 10);
     p.audio = { id: null, name: "short", duration: 3 };
-    expect(parseProject(backup(p)).choreography).toEqual(p.choreography);
+    expect(parseProject(serializeProject(p)).choreography).toEqual(
+      p.choreography,
+    );
   });
   it("清理不影响渲染结果的冗余位置与颜色关键帧", () => {
     const c = emptyChoreography(),
@@ -173,7 +180,7 @@ describe("画布尺寸", () => {
     });
     const p = project();
     p.choreography = { ...c, canvas: { width: 1200, height: 400 } };
-    const result = parseProject(backup(p));
+    const result = parseProject(serializeProject(p));
     expect(result.choreography?.canvas).toEqual({ width: 1200, height: 400 });
     expect(result.choreography?.frames).toEqual(c.frames);
     for (const canvas of [

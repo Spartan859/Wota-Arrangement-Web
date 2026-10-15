@@ -57,7 +57,7 @@ test("时间轴新建、卡片编辑、拍子流水灯和删除", async ({ page 
   await page.getByRole("button", { name: "删除副歌", exact: true }).click();
   await expect(page.locator(".timeline-block")).toHaveCount(0);
 });
-test("项目弹窗提供 JSON 备份导入", async ({ page }) => {
+test("项目弹窗提供压缩包导入并兼容旧 JSON 备份", async ({ page }) => {
   await boot(page);
   await expect(
     page.getByRole("button", { name: "打开", exact: true }),
@@ -70,14 +70,14 @@ test("项目弹窗提供 JSON 备份导入", async ({ page }) => {
   await page.getByRole("button", { name: "关闭对话框" }).click();
   await page.getByRole("button", { name: "项目", exact: true }).click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog.getByText("从 JSON 备份导入")).toBeVisible();
+  await expect(dialog.getByText("从项目压缩包导入")).toBeVisible();
   const chooserPromise = page.waitForEvent("filechooser");
-  await dialog.getByText("从 JSON 备份导入").click();
+  await dialog.getByText("从项目压缩包导入").click();
   const chooser = await chooserPromise;
   await chooser.setFiles([]);
   await page.keyboard.press("Escape");
   await expect(dialog).toBeVisible();
-  await dialog.getByLabel("从 JSON 备份导入").setInputFiles({
+  await dialog.getByLabel("从项目压缩包导入").setInputFiles({
     name: "backup.json",
     mimeType: "application/json",
     buffer: Buffer.from(
@@ -155,7 +155,7 @@ test("时间轴拖动冲突被拒绝且手机无横向溢出", async ({ page }) 
 async function timedProject(page: Page) {
   await boot(page);
   await page.getByRole("button", { name: "项目", exact: true }).click();
-  await page.getByLabel("从 JSON 备份导入").setInputFiles({
+  await page.getByLabel("从项目压缩包导入").setInputFiles({
     name: "synthetic.json",
     mimeType: "application/json",
     buffer: Buffer.from(
@@ -186,7 +186,7 @@ async function timedProject(page: Page) {
 async function multiTimedProject(page: Page) {
   await boot(page);
   await page.getByRole("button", { name: "项目", exact: true }).click();
-  await page.getByLabel("从 JSON 备份导入").setInputFiles({
+  await page.getByLabel("从项目压缩包导入").setInputFiles({
     name: "multi-synthetic.json",
     mimeType: "application/json",
     buffer: Buffer.from(
@@ -222,7 +222,7 @@ async function multiTimedProject(page: Page) {
 async function untimedProject(page: Page) {
   await boot(page);
   await page.getByRole("button", { name: "项目", exact: true }).click();
-  await page.getByLabel("从 JSON 备份导入").setInputFiles({
+  await page.getByLabel("从项目压缩包导入").setInputFiles({
     name: "untimed-synthetic.json",
     mimeType: "application/json",
     buffer: Buffer.from(

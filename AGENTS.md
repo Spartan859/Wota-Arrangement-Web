@@ -11,7 +11,7 @@
 - `server/` 是唯一服务端边界。分享快照必须经过 `src/core/share.ts` 的脱敏和校验，不得直接上传完整本地 `Project`。
 - 服务端不得把音频放进静态目录；文件保存在 `AUDIO_STORAGE_DIR`，公开播放只通过支持 Range 的分享令牌接口。
 - 兼容对象是原 Python 仓库 `/Users/dijkstra0x3/Github/Wota-Arrangement-Tool` 生成的标准 XLSX 模板。修改表格格式前必须先检查 `tests/python-compat.test.ts`。
-- 个人歌词、歌曲、导出的 XLSX/JSON、音频、截图和构建产物不应提交到 Git。
+- 个人歌词、歌曲、导出的 XLSX/项目压缩包、音频、截图和构建产物不应提交到 Git。
 
 ## 环境与命令
 
@@ -29,7 +29,8 @@ npm audit
 
 - `npm run dev`：启动只监听 `127.0.0.1` 的 Vite 开发服务器。
 - `npm run dev:api`：启动 Fastify API；`npm run dev:all` 同时启动 Web 与 API。
-- `npm run dev:container`：用 `compose.dev.yaml` 启动调试容器，并把当前工作树挂载到 Web/API 容器中热更新。
+- `npm run dev:container`：用 `compose.dev.yaml` 把当前工作树挂载到 Web/API 容器中热更新。复用已有镜像和依赖卷，只重建容器，通常几秒完成。
+- `npm run dev:container:rebuild`：同上，但额外执行 `docker build`。只在改动 `Dockerfile`、`compose.dev.yaml`、`package.json` 或 `package-lock.json` 后需要。
 - `npm run dev:container:logs`：持续查看调试容器的 Web 与 API 日志。
 - `npm run typecheck`：只运行 TypeScript 检查。
 - `npm run test`：运行 `tests/**/*.test.ts` 中的 Vitest 测试。
@@ -41,7 +42,7 @@ npm audit
 - `npm run format` / `npm run format:check`：统一或检查 Prettier 格式。
 - `node scripts/capture.mjs`：用合成歌词和音频生成桌面、短屏及手机截图；不要替换为个人媒体文件。
 
-开发服务器或测试服务启动后，优先使用本机地址访问。不要为了测试执行 `open`、修改系统浏览器配置或启动外部服务。
+开发服务器或测试服务启动后，优先使用本机地址访问。自动测试不要执行 `open`、修改系统浏览器配置或启动外部服务；唯一例外是用户要求本地调试时，按下面「本地调试时交付调试网址」把调试地址打开给用户人工检验。
 
 ### 调试容器实时开发
 
@@ -57,7 +58,11 @@ COMPOSE_PROJECT_NAME=wota-local-share npm run dev:container
 - `api` 同样挂载当前工作树并运行 `tsx watch`，源码变化会重启 Fastify；Vite 通过 `VITE_API_PROXY_TARGET=http://api:8787` 代理 `/api`。
 - Web 与 API 的 `node_modules` 分别保存在 Compose 项目作用域的命名卷中；容器启动时会运行 `npm ci --prefer-offline`，不要挂载宿主机 `node_modules`。
 
-修改 `src/`、`server/`、样式或测试等普通源码后不需要重建镜像，刷新浏览器或等待 HMR/进程重启即可。修改 `Dockerfile`、`compose.dev.yaml`、`package.json` 或 `package-lock.json` 后，重新执行 `npm run dev:container` 以重建或刷新依赖。
+修改 `src/`、`server/`、样式或测试等普通源码后不需要重建镜像，刷新浏览器或等待 HMR/进程重启即可；切换 worktree 也只需 `npm run dev:container`。
+
+依赖安装由 `docker/dev-start.sh` 控制：`node_modules` 放在 Compose 项目作用域的命名卷里（`wota-web-node-modules`、`wota-api-node-modules`），同一个项目的所有 worktree 共用，只有 `package-lock.json` 与卷内 `node_modules/.wota-lock` 不一致时才执行 `npm ci`。npm 缓存另存在共享卷 `wota-npm-cache`（挂到 `/home/node`），因此 lockfile 真的变化时也不是全量重新下载。修改 `Dockerfile`、`compose.dev.yaml`、`package.json` 或 `package-lock.json` 后执行 `npm run dev:container:rebuild`。
+
+如果依赖卷里已经有与当前 lockfile 一致的安装，但还没有 `.wota-lock` 标记（例如刚从旧版调试容器配置升上来），可以先 `docker exec <web 容器> cp /app/package-lock.json /app/node_modules/.wota-lock`（`api` 容器同理）再切换，省掉一次完整 `npm ci`。
 
 ```sh
 COMPOSE_PROJECT_NAME=wota-local-share npm run dev:container:logs
@@ -65,6 +70,23 @@ docker compose -p wota-local-share -f compose.yaml -f compose.dev.yaml down
 ```
 
 调试容器运行时不要再执行宿主机 `npm run dev:api` 或 `npm run dev:all`，避免 API 端口冲突。只有需要清空该项目作用域的 `node_modules` 命名卷时才在 `down` 命令中增加 `-v`。
+
+### 本地调试时交付调试网址
+
+只有用户提出本地调试需求时才做这一步：用户说「本地调试」，或要求打开调试网址、想自己看效果、要手动验收界面时，就把调试容器切到当前 worktree 并打开本地调试地址。用户没有提出本地调试需求时，不要为了交付而启动或重建调试容器，也不要仅为了让容器指向当前 worktree 就执行下面的命令；调试容器停留在旧 worktree 是允许的状态。本地调试与提交、PR、合并相互独立，不需要等它们，也不需要等 PR 合并或生产部署。
+
+1. 在当前 worktree 根目录执行 `COMPOSE_PROJECT_NAME=wota-local-share npm run dev:container`。该命令复用同一 Compose 项目的镜像与依赖卷，只用当前目录的 `compose.yaml` 与 `compose.dev.yaml` 重建容器，因此会把挂载目录从上一个 worktree 切到当前 worktree，且通常几秒完成。
+2. 核实容器确实挂载当前 worktree：
+
+   ```sh
+   docker inspect wota-local-share-web-1 --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}'
+   ```
+
+   输出的路径必须等于当前 worktree 根目录；相等才继续。仍指向旧路径时重跑第 1 步，必要时先 `docker compose -p wota-local-share -f compose.yaml -f compose.dev.yaml down` 再启动。
+
+3. 等 `web` 健康检查通过后，打开 `http://127.0.0.1:18080`（端口取当前 worktree `.env` 的 `WOTA_WEB_PORT`，未设置时默认 `8080`）。用 Codex 的浏览器面板打开，让用户在同一界面手动检验；打不开时至少在回复里给出完整地址，不要为此修改系统浏览器配置。只有依赖卷为空或 `package-lock.json` 变化时才会执行 `npm ci`（`web` 和 `api` 日志里会打印 `dev-start: ...`），此时 `web` 可能几分钟才从 `health: starting` 变成 `healthy`，期间访问端口只会拿到空响应，这属于正常现象，继续等即可。
+4. 当前 worktree 没有 `.env` 时 compose 会因缺少 `POSTGRES_PASSWORD`、`AUTHENTIK_SECRET_KEY` 等变量直接失败。先把主检出或其他 worktree 的 `.env` 复制到当前 worktree 根目录再启动；`.env` 已被 `.gitignore` 忽略，禁止提交，也不要把里面的值写进日志或回复。
+5. 这一步只是本地人工检验，不等于部署；报告时区分“调试容器已启动并可访问”和“已上线”。
 
 ## 代码结构
 
@@ -100,7 +122,7 @@ docker compose -p wota-local-share -f compose.yaml -f compose.dev.yaml down
 - 段落循环必须检查有效的开始、结束和歌曲时长。更换项目或歌曲时停止播放并清理循环状态。
 - 时间轴 A/B 循环是播放器的瞬时练习状态：依次选择 A 入点和 B 出点，B 必须晚于 A；更换歌曲或项目时清除 A/B 点。它不写入 XLSX，也不应污染编排撤销历史。
 - 时间轴缩放后，选点必须根据可见时间轴元素的实际 `getBoundingClientRect()` 计算，不能假定容器宽度等于歌曲时长。
-- 音频 Blob 只存当前浏览器的 IndexedDB。JSON 只保存音频元信息，不嵌入音频；导入 JSON 后必须提示重新关联歌曲。
+- 音频与视频 Blob 只存当前浏览器的 IndexedDB。项目导出统一走 `src/core/archive.ts` 生成的 `.wota.zip`：`project.json` 保存编排与媒体元信息，`audio/`、`videos/` 按本地 Blob ID 存放媒体文件，媒体条目不压缩。`serializeProject` 保留本地 Blob ID 供导入时对应；导入必须把媒体写成新的 Blob ID，不能覆盖本机已有记录。只打包本地有文件的已插入视频，缺失的名称要向用户提示。旧版 `.json` 备份仍可导入，但需手动重新关联媒体。
 - 分享页播放器以媒体时钟为基础，`编排时间 = 媒体时间 + 同步偏移`；云端音频默认偏移为 0，本地替代音频按分享保存在当前浏览器。
 - 发布使用固定分享令牌和递增 revision；重复发布不能生成第二条在线记录。删除音乐只释放配额并保留快照，删除分享才使令牌失效。
 - 默认配额为 100 MiB 且只计算音频；所有上传、替换和删除必须在数据库事务中同步更新 `used_bytes` 和 `quota_events`。
@@ -151,8 +173,9 @@ npm test -- tests/python-compat.test.ts
 6. 运行最小相关测试，再运行 `npm run check`、`npm run format:check` 和必要的端到端测试。
 7. 检查 `git diff --check`、`git status --short`，确认没有 `dist/`、`node_modules/`、个人媒体或测试结果被加入。
 8. 通过相关检查后，自动提交并 push 当前任务分支，不需要逐次请求授权；创建 Pull Request 前必须获得用户明确授权。PR 创建后，合并前必须确认分支 CI 通过、Copilot review 已明确完成，逐条评估和处理审查意见，回复并解决所有可执行线程，同时处理与 `main` 的冲突。任何 review 驱动的修订 push 后，默认允许立即重新请求 Copilot review，无需再次向用户确认；重新请求后必须等待新审查明确完成且无未处理意见。若 Copilot review 因配额耗尽无法执行，且没有产生实际审查意见或未处理线程，则 Copilot review 门禁视为满足，可在 CI 通过且无冲突时合并。合并操作前再次刷新 review 和 CI 状态；Copilot review 仍在运行，或存在实际审查意见、未处理线程时不得合并。满足全部合并门禁后仍须获得用户明确的合并授权，不得把 PR 创建授权视为合并授权。不要绕过失败检查直接合并，也不要直接 push 到 `main`。
-9. Pull Request 合并后，记录当前任务分支名，切换回 `main`，运行 `git pull --ff-only origin main` 同步合并结果。随后确认 GitHub 上的 PR 状态为 `MERGED`，并确认对应的 squash 合并提交已进入最新 `main`；完成这两项验证后，使用 `git branch -D <任务分支>` 删除本地任务分支，因为 squash 合并不会让任务分支提交成为 `main` 的祖先。若 PR 未合并但已明确永久关闭，只有确认其中提交不再需要时才能使用 `git branch -D <任务分支>`；仍需保留提交的分支不得删除。若远端任务分支未被 GitHub 自动删除，确认 PR 已完成且分支不再需要后使用 `git push origin --delete <任务分支>` 删除远端分支，最后运行 `git fetch --prune` 清理远端跟踪引用。
-10. 报告实际通过的命令和未能执行的浏览器/环境检查；不要把“启动成功”写成“部署成功”。
+9. 用户要求本地调试（说「本地调试」、要打开调试网址或想自己看效果）时，按「本地调试时交付调试网址」把调试容器切到当前 worktree 并打开本地调试地址；用户没有要求时跳过这一步，不要主动重建调试容器。
+10. Pull Request 合并后，记录当前任务分支名，切换回 `main`，运行 `git pull --ff-only origin main` 同步合并结果。随后确认 GitHub 上的 PR 状态为 `MERGED`，并确认对应的 squash 合并提交已进入最新 `main`；完成这两项验证后，使用 `git branch -D <任务分支>` 删除本地任务分支，因为 squash 合并不会让任务分支提交成为 `main` 的祖先。若 PR 未合并但已明确永久关闭，只有确认其中提交不再需要时才能使用 `git branch -D <任务分支>`；仍需保留提交的分支不得删除。若远端任务分支未被 GitHub 自动删除，确认 PR 已完成且分支不再需要后使用 `git push origin --delete <任务分支>` 删除远端分支，最后运行 `git fetch --prune` 清理远端跟踪引用。
+11. 报告实际通过的命令和未能执行的浏览器/环境检查；不要把“启动成功”写成“部署成功”。
 
 除非用户明确要求，不要创建远程仓库、创建 Pull Request、合并 Pull Request、部署或修改原 Python 仓库。允许在任务检查通过后自动 push 当前任务分支，但不得直接 push 到 `main`；创建 PR 与合并 PR 是两项独立操作，均须分别获得用户明确授权。
 
