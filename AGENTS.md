@@ -41,7 +41,7 @@ npm audit
 - `npm run format` / `npm run format:check`：统一或检查 Prettier 格式。
 - `node scripts/capture.mjs`：用合成歌词和音频生成桌面、短屏及手机截图；不要替换为个人媒体文件。
 
-开发服务器或测试服务启动后，优先使用本机地址访问。不要为了测试执行 `open`、修改系统浏览器配置或启动外部服务。
+开发服务器或测试服务启动后，优先使用本机地址访问。自动测试不要执行 `open`、修改系统浏览器配置或启动外部服务；唯一例外是下面「完成后交付调试网址」，它要求把本地调试地址打开给用户人工检验。
 
 ### 调试容器实时开发
 
@@ -65,6 +65,23 @@ docker compose -p wota-local-share -f compose.yaml -f compose.dev.yaml down
 ```
 
 调试容器运行时不要再执行宿主机 `npm run dev:api` 或 `npm run dev:all`，避免 API 端口冲突。只有需要清空该项目作用域的 `node_modules` 命名卷时才在 `down` 命令中增加 `-v`。
+
+### 完成后交付调试网址
+
+每完成一项修改，都要让调试容器跑在当前 worktree 上并打开本地调试地址，供用户手动检验；不需要等 PR 合并或生产部署。
+
+1. 在当前 worktree 根目录执行 `COMPOSE_PROJECT_NAME=wota-local-share npm run dev:container`。该命令用当前目录的 `compose.yaml` 与 `compose.dev.yaml` 覆盖同名容器，因此会把挂载目录从上一个 worktree 切到当前 worktree。
+2. 核实容器确实挂载当前 worktree：
+
+   ```sh
+   docker inspect wota-local-share-web-1 --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}'
+   ```
+
+   输出的路径必须等于当前 worktree 根目录；相等才继续。仍指向旧路径时重跑第 1 步，必要时先 `docker compose -p wota-local-share -f compose.yaml -f compose.dev.yaml down` 再启动。
+
+3. 等 `web` 健康检查通过后，打开 `http://127.0.0.1:18080`（端口取当前 worktree `.env` 的 `WOTA_WEB_PORT`，未设置时默认 `8080`）。用 Codex 的浏览器面板打开，让用户在同一界面手动检验；打不开时至少在回复里给出完整地址，不要为此修改系统浏览器配置。切换 worktree 后容器会先在挂载卷里执行 `npm ci --prefer-offline`，`web` 可能要几分钟才从 `health: starting` 变成 `healthy`，期间访问端口只会拿到空响应，这属于正常现象，继续等即可。
+4. 当前 worktree 没有 `.env` 时 compose 会因缺少 `POSTGRES_PASSWORD`、`AUTHENTIK_SECRET_KEY` 等变量直接失败。先把主检出或其他 worktree 的 `.env` 复制到当前 worktree 根目录再启动；`.env` 已被 `.gitignore` 忽略，禁止提交，也不要把里面的值写进日志或回复。
+5. 这一步只是本地人工检验，不等于部署；报告时区分“调试容器已启动并可访问”和“已上线”。
 
 ## 代码结构
 
@@ -151,8 +168,9 @@ npm test -- tests/python-compat.test.ts
 6. 运行最小相关测试，再运行 `npm run check`、`npm run format:check` 和必要的端到端测试。
 7. 检查 `git diff --check`、`git status --short`，确认没有 `dist/`、`node_modules/`、个人媒体或测试结果被加入。
 8. 通过相关检查后，自动提交并 push 当前任务分支，不需要逐次请求授权；创建 Pull Request 前必须获得用户明确授权。PR 创建后，合并前必须确认分支 CI 通过、Copilot review 已明确完成，逐条评估和处理审查意见，回复并解决所有可执行线程，同时处理与 `main` 的冲突。任何 review 驱动的修订 push 后，默认允许立即重新请求 Copilot review，无需再次向用户确认；重新请求后必须等待新审查明确完成且无未处理意见。若 Copilot review 因配额耗尽无法执行，且没有产生实际审查意见或未处理线程，则 Copilot review 门禁视为满足，可在 CI 通过且无冲突时合并。合并操作前再次刷新 review 和 CI 状态；Copilot review 仍在运行，或存在实际审查意见、未处理线程时不得合并。满足全部合并门禁后仍须获得用户明确的合并授权，不得把 PR 创建授权视为合并授权。不要绕过失败检查直接合并，也不要直接 push 到 `main`。
-9. Pull Request 合并后，记录当前任务分支名，切换回 `main`，运行 `git pull --ff-only origin main` 同步合并结果。随后确认 GitHub 上的 PR 状态为 `MERGED`，并确认对应的 squash 合并提交已进入最新 `main`；完成这两项验证后，使用 `git branch -D <任务分支>` 删除本地任务分支，因为 squash 合并不会让任务分支提交成为 `main` 的祖先。若 PR 未合并但已明确永久关闭，只有确认其中提交不再需要时才能使用 `git branch -D <任务分支>`；仍需保留提交的分支不得删除。若远端任务分支未被 GitHub 自动删除，确认 PR 已完成且分支不再需要后使用 `git push origin --delete <任务分支>` 删除远端分支，最后运行 `git fetch --prune` 清理远端跟踪引用。
-10. 报告实际通过的命令和未能执行的浏览器/环境检查；不要把“启动成功”写成“部署成功”。
+9. 每完成一项修改后，先把调试容器切到当前 worktree 并按「完成后交付调试网址」打开本地调试地址，让用户可以马上手动检验；这一步与提交、PR、合并相互独立，不需要等它们。
+10. Pull Request 合并后，记录当前任务分支名，切换回 `main`，运行 `git pull --ff-only origin main` 同步合并结果。随后确认 GitHub 上的 PR 状态为 `MERGED`，并确认对应的 squash 合并提交已进入最新 `main`；完成这两项验证后，使用 `git branch -D <任务分支>` 删除本地任务分支，因为 squash 合并不会让任务分支提交成为 `main` 的祖先。若 PR 未合并但已明确永久关闭，只有确认其中提交不再需要时才能使用 `git branch -D <任务分支>`；仍需保留提交的分支不得删除。若远端任务分支未被 GitHub 自动删除，确认 PR 已完成且分支不再需要后使用 `git push origin --delete <任务分支>` 删除远端分支，最后运行 `git fetch --prune` 清理远端跟踪引用。
+11. 报告实际通过的命令和未能执行的浏览器/环境检查；不要把“启动成功”写成“部署成功”。
 
 除非用户明确要求，不要创建远程仓库、创建 Pull Request、合并 Pull Request、部署或修改原 Python 仓库。允许在任务检查通过后自动 push 当前任务分支，但不得直接 push 到 `main`；创建 PR 与合并 PR 是两项独立操作，均须分别获得用户明确授权。
 
