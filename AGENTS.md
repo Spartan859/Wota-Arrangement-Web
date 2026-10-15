@@ -29,7 +29,8 @@ npm audit
 
 - `npm run dev`：启动只监听 `127.0.0.1` 的 Vite 开发服务器。
 - `npm run dev:api`：启动 Fastify API；`npm run dev:all` 同时启动 Web 与 API。
-- `npm run dev:container`：用 `compose.dev.yaml` 启动调试容器，并把当前工作树挂载到 Web/API 容器中热更新。
+- `npm run dev:container`：用 `compose.dev.yaml` 把当前工作树挂载到 Web/API 容器中热更新。复用已有镜像和依赖卷，只重建容器，通常几秒完成。
+- `npm run dev:container:rebuild`：同上，但额外执行 `docker build`。只在改动 `Dockerfile`、`compose.dev.yaml`、`package.json` 或 `package-lock.json` 后需要。
 - `npm run dev:container:logs`：持续查看调试容器的 Web 与 API 日志。
 - `npm run typecheck`：只运行 TypeScript 检查。
 - `npm run test`：运行 `tests/**/*.test.ts` 中的 Vitest 测试。
@@ -57,7 +58,11 @@ COMPOSE_PROJECT_NAME=wota-local-share npm run dev:container
 - `api` 同样挂载当前工作树并运行 `tsx watch`，源码变化会重启 Fastify；Vite 通过 `VITE_API_PROXY_TARGET=http://api:8787` 代理 `/api`。
 - Web 与 API 的 `node_modules` 分别保存在 Compose 项目作用域的命名卷中；容器启动时会运行 `npm ci --prefer-offline`，不要挂载宿主机 `node_modules`。
 
-修改 `src/`、`server/`、样式或测试等普通源码后不需要重建镜像，刷新浏览器或等待 HMR/进程重启即可。修改 `Dockerfile`、`compose.dev.yaml`、`package.json` 或 `package-lock.json` 后，重新执行 `npm run dev:container` 以重建或刷新依赖。
+修改 `src/`、`server/`、样式或测试等普通源码后不需要重建镜像，刷新浏览器或等待 HMR/进程重启即可；切换 worktree 也只需 `npm run dev:container`。
+
+依赖安装由 `docker/dev-start.sh` 控制：`node_modules` 放在 Compose 项目作用域的命名卷里（`wota-web-node-modules`、`wota-api-node-modules`），同一个项目的所有 worktree 共用，只有 `package-lock.json` 与卷内 `node_modules/.wota-lock` 不一致时才执行 `npm ci`。npm 缓存另存在共享卷 `wota-npm-cache`（挂到 `/home/node`），因此 lockfile 真的变化时也不是全量重新下载。修改 `Dockerfile`、`compose.dev.yaml`、`package.json` 或 `package-lock.json` 后执行 `npm run dev:container:rebuild`。
+
+如果依赖卷里已经有与当前 lockfile 一致的安装，但还没有 `.wota-lock` 标记（例如刚从旧版调试容器配置升上来），可以先 `docker exec <web 容器> cp /app/package-lock.json /app/node_modules/.wota-lock`（`api` 容器同理）再切换，省掉一次完整 `npm ci`。
 
 ```sh
 COMPOSE_PROJECT_NAME=wota-local-share npm run dev:container:logs
@@ -70,7 +75,7 @@ docker compose -p wota-local-share -f compose.yaml -f compose.dev.yaml down
 
 每完成一项修改，都要让调试容器跑在当前 worktree 上并打开本地调试地址，供用户手动检验；不需要等 PR 合并或生产部署。
 
-1. 在当前 worktree 根目录执行 `COMPOSE_PROJECT_NAME=wota-local-share npm run dev:container`。该命令用当前目录的 `compose.yaml` 与 `compose.dev.yaml` 覆盖同名容器，因此会把挂载目录从上一个 worktree 切到当前 worktree。
+1. 在当前 worktree 根目录执行 `COMPOSE_PROJECT_NAME=wota-local-share npm run dev:container`。该命令复用同一 Compose 项目的镜像与依赖卷，只用当前目录的 `compose.yaml` 与 `compose.dev.yaml` 重建容器，因此会把挂载目录从上一个 worktree 切到当前 worktree，且通常几秒完成。
 2. 核实容器确实挂载当前 worktree：
 
    ```sh
@@ -79,7 +84,7 @@ docker compose -p wota-local-share -f compose.yaml -f compose.dev.yaml down
 
    输出的路径必须等于当前 worktree 根目录；相等才继续。仍指向旧路径时重跑第 1 步，必要时先 `docker compose -p wota-local-share -f compose.yaml -f compose.dev.yaml down` 再启动。
 
-3. 等 `web` 健康检查通过后，打开 `http://127.0.0.1:18080`（端口取当前 worktree `.env` 的 `WOTA_WEB_PORT`，未设置时默认 `8080`）。用 Codex 的浏览器面板打开，让用户在同一界面手动检验；打不开时至少在回复里给出完整地址，不要为此修改系统浏览器配置。切换 worktree 后容器会先在挂载卷里执行 `npm ci --prefer-offline`，`web` 可能要几分钟才从 `health: starting` 变成 `healthy`，期间访问端口只会拿到空响应，这属于正常现象，继续等即可。
+3. 等 `web` 健康检查通过后，打开 `http://127.0.0.1:18080`（端口取当前 worktree `.env` 的 `WOTA_WEB_PORT`，未设置时默认 `8080`）。用 Codex 的浏览器面板打开，让用户在同一界面手动检验；打不开时至少在回复里给出完整地址，不要为此修改系统浏览器配置。只有依赖卷为空或 `package-lock.json` 变化时才会执行 `npm ci`（`web` 和 `api` 日志里会打印 `dev-start: ...`），此时 `web` 可能几分钟才从 `health: starting` 变成 `healthy`，期间访问端口只会拿到空响应，这属于正常现象，继续等即可。
 4. 当前 worktree 没有 `.env` 时 compose 会因缺少 `POSTGRES_PASSWORD`、`AUTHENTIK_SECRET_KEY` 等变量直接失败。先把主检出或其他 worktree 的 `.env` 复制到当前 worktree 根目录再启动；`.env` 已被 `.gitignore` 忽略，禁止提交，也不要把里面的值写进日志或回复。
 5. 这一步只是本地人工检验，不等于部署；报告时区分“调试容器已启动并可访问”和“已上线”。
 

@@ -2,6 +2,15 @@
 
 日期：2026-09-19。所有测试仅使用合成歌词和音频。
 
+## 2026-10-15 调试容器复用镜像与依赖卷
+
+- 需求：切换 worktree 时重建调试容器太慢，希望尽量复用已有容器。
+- 原因：`compose.dev.yaml` 的 `web`/`api` 启动命令每次无条件执行 `npm ci --prefer-offline`，而 npm 缓存位于容器可写层，容器一重建就丢失；`npm run dev:container` 又始终带 `--build`，依赖文件一变化还要重跑镜像构建层。
+- 改动：新增 `docker/dev-start.sh`，先比较 `package-lock.json` 与卷内 `node_modules/.wota-lock`，一致就跳过 `npm ci`；`node_modules` 继续用 Compose 项目作用域的共享卷（同一项目的 worktree 共用）；新增共享卷 `wota-npm-cache` 挂到 `/home/node` 持久化 npm 缓存；`npm run dev:container` 去掉 `--build`，新增 `npm run dev:container:rebuild` 供 Dockerfile 或依赖变化时使用。
+- 实测（当前 worktree）：`COMPOSE_PROJECT_NAME=wota-local-share npm run dev:container` 从重建容器到 `web`/`api` healthy 约 10 秒，改前同一流程约 10 分钟（镜像构建层约 5 分钟 + 容器内 `npm ci` 约 5 分钟）；日志打印 `dev-start: 依赖与 package-lock.json 一致，跳过安装`，Vite 158 ms 就绪，`curl http://127.0.0.1:18080/` 返回 200，`docker inspect` 确认 `web` 挂载当前 worktree 且 `wota-npm-cache` 已挂到 `/home/node`。
+- 局限：依赖卷里还没有 `.wota-lock` 标记时（例如刚从旧配置升级）第一次仍要执行一次完整 `npm ci`；可先在旧容器里 `cp /app/package-lock.json /app/node_modules/.wota-lock` 再切换来跳过。lockfile 真正变化时仍需重新安装，只是有 npm 缓存后快得多。
+- 校验：`docker compose -f compose.yaml -f compose.dev.yaml config -q`、`npx vitest run`、`npm run format:check`、`git diff --check` 通过；本轮未跑端到端测试，未做生产部署，也没有改动产品代码。
+
 ## 2026-10-15 项目导出改为含媒体文件的压缩包
 
 - 需求：导出不再产出单个 `.json`，改为 `.wota.zip`，内含用到的音乐文件与已插入的视频；前端相关文案同步修改。
