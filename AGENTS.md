@@ -42,7 +42,7 @@ npm audit
 - `npm run format` / `npm run format:check`：统一或检查 Prettier 格式。
 - `node scripts/capture.mjs`：用合成歌词和音频生成桌面、短屏及手机截图；不要替换为个人媒体文件。
 
-开发服务器或测试服务启动后，优先使用本机地址访问。自动测试不要执行 `open`、修改系统浏览器配置或启动外部服务；唯一例外是下面「完成后交付调试网址」，它要求把本地调试地址打开给用户人工检验。
+开发服务器或测试服务启动后，优先使用本机地址访问。自动测试不要执行 `open`、修改系统浏览器配置或启动外部服务；唯一例外是用户要求本地调试时，按下面「本地调试时交付调试网址」把调试地址打开给用户人工检验。
 
 ### 调试容器实时开发
 
@@ -71,9 +71,9 @@ docker compose -p wota-local-share -f compose.yaml -f compose.dev.yaml down
 
 调试容器运行时不要再执行宿主机 `npm run dev:api` 或 `npm run dev:all`，避免 API 端口冲突。只有需要清空该项目作用域的 `node_modules` 命名卷时才在 `down` 命令中增加 `-v`。
 
-### 完成后交付调试网址
+### 本地调试时交付调试网址
 
-每完成一项修改，都要让调试容器跑在当前 worktree 上并打开本地调试地址，供用户手动检验；不需要等 PR 合并或生产部署。
+只有用户提出本地调试需求时才做这一步：用户说「本地调试」，或要求打开调试网址、想自己看效果、要手动验收界面时，就把调试容器切到当前 worktree 并打开本地调试地址。用户没有提出本地调试需求时，不要为了交付而启动或重建调试容器，也不要仅为了让容器指向当前 worktree 就执行下面的命令；调试容器停留在旧 worktree 是允许的状态。本地调试与提交、PR、合并相互独立，不需要等它们，也不需要等 PR 合并或生产部署。
 
 1. 在当前 worktree 根目录执行 `COMPOSE_PROJECT_NAME=wota-local-share npm run dev:container`。该命令复用同一 Compose 项目的镜像与依赖卷，只用当前目录的 `compose.yaml` 与 `compose.dev.yaml` 重建容器，因此会把挂载目录从上一个 worktree 切到当前 worktree，且通常几秒完成。
 2. 核实容器确实挂载当前 worktree：
@@ -173,7 +173,7 @@ npm test -- tests/python-compat.test.ts
 6. 运行最小相关测试，再运行 `npm run check`、`npm run format:check` 和必要的端到端测试。
 7. 检查 `git diff --check`、`git status --short`，确认没有 `dist/`、`node_modules/`、个人媒体或测试结果被加入。
 8. 通过相关检查后，自动提交并 push 当前任务分支，不需要逐次请求授权；创建 Pull Request 前必须获得用户明确授权。PR 创建后，合并前必须确认分支 CI 通过、Copilot review 已明确完成，逐条评估和处理审查意见，回复并解决所有可执行线程，同时处理与 `main` 的冲突。任何 review 驱动的修订 push 后，默认允许立即重新请求 Copilot review，无需再次向用户确认；重新请求后必须等待新审查明确完成且无未处理意见。若 Copilot review 因配额耗尽无法执行，且没有产生实际审查意见或未处理线程，则 Copilot review 门禁视为满足，可在 CI 通过且无冲突时合并。合并操作前再次刷新 review 和 CI 状态；Copilot review 仍在运行，或存在实际审查意见、未处理线程时不得合并。满足全部合并门禁后仍须获得用户明确的合并授权，不得把 PR 创建授权视为合并授权。不要绕过失败检查直接合并，也不要直接 push 到 `main`。
-9. 每完成一项修改后，先把调试容器切到当前 worktree 并按「完成后交付调试网址」打开本地调试地址，让用户可以马上手动检验；这一步与提交、PR、合并相互独立，不需要等它们。
+9. 用户要求本地调试（说「本地调试」、要打开调试网址或想自己看效果）时，按「本地调试时交付调试网址」把调试容器切到当前 worktree 并打开本地调试地址；用户没有要求时跳过这一步，不要主动重建调试容器。
 10. Pull Request 合并后，记录当前任务分支名，切换回 `main`，运行 `git pull --ff-only origin main` 同步合并结果。随后确认 GitHub 上的 PR 状态为 `MERGED`，并确认对应的 squash 合并提交已进入最新 `main`；完成这两项验证后，使用 `git branch -D <任务分支>` 删除本地任务分支，因为 squash 合并不会让任务分支提交成为 `main` 的祖先。若 PR 未合并但已明确永久关闭，只有确认其中提交不再需要时才能使用 `git branch -D <任务分支>`；仍需保留提交的分支不得删除。若远端任务分支未被 GitHub 自动删除，确认 PR 已完成且分支不再需要后使用 `git push origin --delete <任务分支>` 删除远端分支，最后运行 `git fetch --prune` 清理远端跟踪引用。
 11. 报告实际通过的命令和未能执行的浏览器/环境检查；不要把“启动成功”写成“部署成功”。
 
