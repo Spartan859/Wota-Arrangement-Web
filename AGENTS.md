@@ -11,7 +11,7 @@
 - `server/` 是唯一服务端边界。分享快照必须经过 `src/core/share.ts` 的脱敏和校验，不得直接上传完整本地 `Project`。
 - 服务端不得把音频放进静态目录；文件保存在 `AUDIO_STORAGE_DIR`，公开播放只通过支持 Range 的分享令牌接口。
 - 兼容对象是原 Python 仓库 `/Users/dijkstra0x3/Github/Wota-Arrangement-Tool` 生成的标准 XLSX 模板。修改表格格式前必须先检查 `tests/python-compat.test.ts`。
-- 个人歌词、歌曲、导出的 XLSX/JSON、音频、截图和构建产物不应提交到 Git。
+- 个人歌词、歌曲、导出的 XLSX/项目压缩包、音频、截图和构建产物不应提交到 Git。
 
 ## 环境与命令
 
@@ -100,7 +100,7 @@ docker compose -p wota-local-share -f compose.yaml -f compose.dev.yaml down
 - 段落循环必须检查有效的开始、结束和歌曲时长。更换项目或歌曲时停止播放并清理循环状态。
 - 时间轴 A/B 循环是播放器的瞬时练习状态：依次选择 A 入点和 B 出点，B 必须晚于 A；更换歌曲或项目时清除 A/B 点。它不写入 XLSX，也不应污染编排撤销历史。
 - 时间轴缩放后，选点必须根据可见时间轴元素的实际 `getBoundingClientRect()` 计算，不能假定容器宽度等于歌曲时长。
-- 音频 Blob 只存当前浏览器的 IndexedDB。JSON 只保存音频元信息，不嵌入音频；导入 JSON 后必须提示重新关联歌曲。
+- 音频与视频 Blob 只存当前浏览器的 IndexedDB。项目导出统一走 `src/core/archive.ts` 生成的 `.wota.zip`：`project.json` 保存编排与媒体元信息，`audio/`、`videos/` 按本地 Blob ID 存放媒体文件，媒体条目不压缩。`serializeProject` 保留本地 Blob ID 供导入时对应；导入必须把媒体写成新的 Blob ID，不能覆盖本机已有记录。只打包本地有文件的已插入视频，缺失的名称要向用户提示。旧版 `.json` 备份仍可导入，但需手动重新关联媒体。
 - 分享页播放器以媒体时钟为基础，`编排时间 = 媒体时间 + 同步偏移`；云端音频默认偏移为 0，本地替代音频按分享保存在当前浏览器。
 - 发布使用固定分享令牌和递增 revision；重复发布不能生成第二条在线记录。删除音乐只释放配额并保留快照，删除分享才使令牌失效。
 - 默认配额为 100 MiB 且只计算音频；所有上传、替换和删除必须在数据库事务中同步更新 `used_bytes` 和 `quota_events`。

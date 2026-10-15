@@ -141,28 +141,17 @@ export function parseProject(text: string): Project {
   if (new Set(ids).size !== ids.length) throw new Error("项目存在重复 ID。");
   return p;
 }
-export function backup(p: Project): string {
+export function serializeProject(p: Project): string {
   // Older IndexedDB drafts can retain their original version even after editing
   // in the current UI. Serialize the current model with the current format tag.
+  // Local Blob IDs stay in place because the project archive ships the matching
+  // media files next to this document.
   const exported = JSON.stringify(
-    {
-      ...p,
-      schemaVersion: currentSchemaVersion,
-      audio: p.audio ? { ...p.audio, id: null } : null,
-      choreography: p.choreography
-        ? {
-            ...p.choreography,
-            videoAssets: p.choreography.videoAssets.map((asset) => ({
-              ...asset,
-              localBlobId: null,
-            })),
-          }
-        : undefined,
-    },
+    { ...p, schemaVersion: currentSchemaVersion },
     null,
     2,
   );
-  // Use the same validation as import so we never report a broken backup as valid.
+  // Use the same validation as import so we never report a broken archive as valid.
   parseProject(exported);
   return exported;
 }

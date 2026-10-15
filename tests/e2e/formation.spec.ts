@@ -637,7 +637,7 @@ async function formationFixture(page: Page) {
     })),
   }));
   await page.getByRole("button", { name: "项目", exact: true }).click();
-  await page.getByLabel("从 JSON 备份导入").setInputFiles({
+  await page.getByLabel("从项目压缩包导入").setInputFiles({
     name: "formation.json",
     mimeType: "application/json",
     buffer: Buffer.from(
@@ -1075,7 +1075,7 @@ test("圆点第一次点击只选中，第二次点击打开颜色并可重命�
   ).toBeVisible();
 });
 
-test("旧本地草稿导出文件后立即导入保留队形", async ({ page }) => {
+test("旧本地草稿导出压缩包后立即导入并恢复歌曲与队形", async ({ page }) => {
   await formationFixture(page);
   await expect(page.locator(".save-state")).toContainText("已保存");
   await page.evaluate(
@@ -1112,17 +1112,24 @@ test("旧本地草稿导出文件后立即导入保留队形", async ({ page }) 
   await page.getByRole("button", { name: "导出", exact: true }).click();
   const downloaded = page.waitForEvent("download");
   await page
-    .getByRole("button", { name: "下载 JSON 备份", exact: true })
+    .getByRole("button", { name: "下载项目压缩包", exact: true })
     .click();
   const file = await downloaded;
   const { readFile } = await import("node:fs/promises");
-  const parsed = JSON.parse(await readFile((await file.path())!, "utf8"));
+  const { strFromU8, unzipSync } = await import("fflate");
+  const archive = unzipSync(
+    new Uint8Array(await readFile((await file.path())!)),
+  );
+  const names = Object.keys(archive);
+  expect(names).toContain("project.json");
+  const parsed = JSON.parse(strFromU8(archive["project.json"]));
   expect(parsed.schemaVersion).toBe(2);
   expect(parsed.choreography.dancers).toHaveLength(2);
-  expect(parsed.audio.id).toBeNull();
-  await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
+  // 压缩包带上音频文件，文档保留本地 Blob ID 供导入时自动关联。
+  expect(parsed.audio.id).not.toBeNull();
+  expect(names.filter((name) => name.startsWith("audio/"))).toHaveLength(1);
   await page.getByRole("button", { name: "项目", exact: true }).click();
-  await page.getByLabel("从 JSON 备份导入").setInputFiles((await file.path())!);
+  await page.getByLabel("从项目压缩包导入").setInputFiles((await file.path())!);
   await expect(page.getByRole("alert")).toHaveCount(0);
   await page.getByLabel("选择舞者").selectOption("alice");
   await expect(
@@ -1132,7 +1139,69 @@ test("旧本地草稿导出文件后立即导入保留队形", async ({ page }) 
   await expect(page.getByLabel("选择舞者").locator("option")).toHaveCount(3);
   await expect(
     page.getByRole("button", { name: "播放", exact: true }),
-  ).toBeDisabled();
+  ).toBeEnabled();
+});
+
+test("压缩包含歌曲与视频，清空本地媒体后仍能完整恢复", async ({ page }) => {
+  await boot(page);
+  await page.getByLabel("歌曲名称").fill("压缩包往返");
+  await page.getByLabel("歌曲名称").blur();
+  await song(page);
+  await add(page, "视频舞者");
+  await page.getByLabel("插入视频文件").setInputFiles({
+    name: "synthetic.webm",
+    mimeType: "video/webm",
+    buffer: await syntheticWebm(page),
+  });
+  await expect(page.locator(".formation-video video")).toBeVisible();
+  await page.getByRole("button", { name: "导出", exact: true }).click();
+  const downloaded = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "下载项目压缩包", exact: true })
+    .click();
+  const file = await downloaded;
+  const { readFile } = await import("node:fs/promises");
+  const { strFromU8, unzipSync } = await import("fflate");
+  const archive = unzipSync(
+    new Uint8Array(await readFile((await file.path())!)),
+  );
+  const names = Object.keys(archive);
+  expect(names.filter((name) => name.startsWith("audio/"))).toHaveLength(1);
+  expect(names.filter((name) => name.startsWith("videos/"))).toHaveLength(1);
+  const parsed = JSON.parse(strFromU8(archive["project.json"]));
+  const asset = parsed.choreography.videoAssets[0];
+  expect(names).toContain(`videos/${asset.localBlobId}.webm`);
+  // 模拟换到另一台设备：清空本地音频与视频，只留下导出的压缩包。
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const open = indexedDB.open("wota-workbench");
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const db = open.result,
+            tx = db.transaction(["audio", "videos"], "readwrite");
+          tx.objectStore("audio").clear();
+          tx.objectStore("videos").clear();
+          tx.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+          tx.onerror = () => reject(tx.error);
+        };
+      }),
+  );
+  await page.getByRole("button", { name: "项目", exact: true }).click();
+  await page.getByLabel("从项目压缩包导入").setInputFiles((await file.path())!);
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByLabel("歌曲名称")).toHaveValue("压缩包往返");
+  await expect(page.getByLabel("选择舞者").locator("option")).toHaveCount(2);
+  await expect(
+    page.getByRole("button", { name: "播放", exact: true }),
+  ).toBeEnabled();
+  await page.getByLabel("选择舞者").selectOption({ label: "视频舞者" });
+  await expect(page.locator(".video-marker-lane")).toBeVisible();
+  await expect(page.locator(".video-marker-range")).toHaveCount(1);
+  await expect(page.locator(".formation-video video")).toBeVisible();
 });
 
 test("一次性光棒统计与Excel同表尾部一致，换棒顺序保留", async ({ page }) => {

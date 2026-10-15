@@ -15,7 +15,6 @@ import {
   Waves,
 } from "lucide-react";
 import {
-  backup,
   block,
   insertAt,
   parseProject,
@@ -126,6 +125,8 @@ export default function App() {
     [busy, setBusy] = useState(false),
     [publishing, setPublishing] = useState(false),
     [publishProgress, setPublishProgress] = useState(0),
+    [exporting, setExporting] = useState(false),
+    [exportProgress, setExportProgress] = useState(0),
     [shares, setShares] = useState<ShareSummary[]>([]),
     [shareUrlFallback, setShareUrlFallback] = useState("");
   const currentBlock =
@@ -406,6 +407,31 @@ export default function App() {
   async function importBackup(file: File) {
     setBusy(true);
     try {
+      const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+      const archived =
+        head[0] === 0x50 &&
+        head[1] === 0x4b &&
+        (head[2] === 0x03 || head[2] === 0x05 || head[2] === 0x07) &&
+        (head[3] === 0x04 || head[3] === 0x06 || head[3] === 0x08);
+      if (archived) {
+        const { readProjectArchive } = await import("./core/archive");
+        const { project: next, missing } = await readProjectArchive(file);
+        next.id = uid();
+        player.current?.pause();
+        await store.create(next);
+        const notes: string[] = [];
+        if (next.audio && !next.audio.id) notes.push("请重新选择歌曲");
+        if (missing.length)
+          notes.push(
+            `${missing.length} 个视频缺少本地文件：${missing.join("、")}`,
+          );
+        setNotice(
+          notes.length
+            ? `项目压缩包已导入，${notes.join("；")}`
+            : "项目压缩包已导入。",
+        );
+        return true;
+      }
       const next = parseProject(await file.text());
       next.id = uid();
       if (next.audio) next.audio.id = null;
@@ -917,19 +943,42 @@ export default function App() {
             </button>
           </div>
           <div className="export-option">
-            <h3>项目 JSON</h3>
+            <h3>项目压缩包</h3>
+            <p>
+              包含编排、歌词、队形和当前歌曲文件与已插入的视频，可在其他设备直接导入恢复。
+            </p>
             <button
+              className="primary"
+              disabled={exporting}
               onClick={() =>
-                void attempt(() =>
-                  download(
-                    backup(store.latest.current),
-                    `${safeName(p.songName)}.wota.json`,
-                    `application/json`,
-                  ),
-                )
+                void attempt(async () => {
+                  const { buildProjectArchive } =
+                    await import("./core/archive");
+                  setExporting(true);
+                  setExportProgress(0);
+                  try {
+                    const { blob, skipped } = await buildProjectArchive(
+                      store.latest.current,
+                      setExportProgress,
+                    );
+                    download(
+                      blob,
+                      `${safeName(p.songName)}.wota.zip`,
+                      `application/zip`,
+                    );
+                    setModal(null);
+                    setNotice(
+                      skipped.length
+                        ? `项目压缩包已导出；${skipped.length} 个视频缺少本地文件，未写入压缩包：${skipped.join("、")}`
+                        : "项目压缩包已导出。",
+                    );
+                  } finally {
+                    setExporting(false);
+                  }
+                })
               }
             >
-              下载 JSON 备份
+              {exporting ? `打包中 ${exportProgress}%` : "下载项目压缩包"}
             </button>
           </div>
           <BatonUsage project={p} />
@@ -956,11 +1005,11 @@ export default function App() {
           <div className="project-import-actions">
             <label className="file-button">
               <Upload size={16} />
-              从 JSON 备份导入
+              从项目压缩包导入
               <input
-                aria-label="从 JSON 备份导入"
+                aria-label="从项目压缩包导入"
                 type="file"
-                accept=".json,application/json"
+                accept=".zip,.json,application/zip,application/json"
                 onChange={(event) => {
                   const file = event.target.files?.[0];
                   if (file)
