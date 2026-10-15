@@ -7,10 +7,12 @@ import {
   emptyChoreography,
   normalizeChoreography,
   sampleFormation,
+  scaleVideoAboutCorner,
   setVideoInPoint,
   videoFrameRect,
   type Choreography,
   type VideoClip,
+  type VideoScaleHandle,
 } from "../core/choreography";
 import { usePointerDrag } from "./usePointerDrag";
 import { Modal } from "./Fields";
@@ -35,7 +37,7 @@ type Props = {
 
 type DragState = {
   clipId: string;
-  mode: "move" | CropHandle;
+  mode: "move" | VideoHandle;
   startX: number;
   startY: number;
   original: VideoClip;
@@ -43,10 +45,52 @@ type DragState = {
   moved: boolean;
 };
 
-type CropHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
+/** 边中点用于裁切，角点用于等比缩放。 */
+type CropHandle = "n" | "e" | "s" | "w";
+type VideoHandle = (typeof videoHandles)[number];
 
-const cropHandles: CropHandle[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
+const scaleHandles = ["nw", "ne", "se", "sw"] as const;
+const videoHandles = ["nw", "n", "ne", "e", "se", "s", "sw", "w"] as const;
+const isScaleHandle = (handle: VideoHandle): handle is VideoScaleHandle =>
+  (scaleHandles as readonly string[]).includes(handle);
 const minCrop = 0.02;
+
+// 画面停驻时的最小对齐误差，避免每帧对同一个时间点重复 seek。
+const parkEpsilon = 0.02;
+// 播放中偏差超过该值才硬跳；更小的偏差用轻微变速收敛。
+const resyncThreshold = 0.3;
+const rateDeadZone = 0.03;
+const rateGain = 1.5;
+const maxRateScale = 0.06;
+
+function seekVideo(video: HTMLVideoElement, time: number) {
+  try {
+    video.currentTime = time;
+  } catch {
+    // Metadata may not be ready yet; the next frame retries.
+  }
+}
+
+function clampSeekTarget(video: HTMLVideoElement, time: number) {
+  let target = Math.max(0, time);
+  if (Number.isFinite(video.duration))
+    target = Math.min(target, video.duration);
+  const { seekable } = video;
+  if (seekable?.length)
+    target = Math.min(target, seekable.end(seekable.length - 1));
+  return Math.max(0, target);
+}
+
+function syncPlaybackRate(base: number, drift: number) {
+  if (Math.abs(drift) < rateDeadZone) return base;
+  return Math.min(
+    Math.min(16, base * (1 + maxRateScale)),
+    Math.max(
+      Math.max(0.0625, base * (1 - maxRateScale)),
+      base * (1 - drift * rateGain),
+    ),
+  );
+}
 
 function minimizedFromStorage(key: string) {
   try {
@@ -277,20 +321,28 @@ export function FormationVideoLayer({
           video.src = source;
           video.load();
         }
-        const desiredTime = active.sourceTime;
+        const baseRate = current.getPlaybackRate();
+        const desiredTime = clampSeekTarget(video, active.sourceTime);
         const shouldPlay = current.isPlaying() && !active.frozen;
-        const drift = Math.abs(video.currentTime - desiredTime);
-        if (!shouldPlay || drift > 0.08) {
-          try {
-            video.currentTime = desiredTime;
-          } catch {
-            // Metadata may not be ready yet; the next frame retries.
-          }
+        if (!shouldPlay) {
+          // 暂停或片段已播完：只对齐一次，不再每帧重复 seek。
+          if (!video.paused) video.pause();
+          if (
+            !video.seeking &&
+            Math.abs(video.currentTime - desiredTime) > parkEpsilon
+          )
+            seekVideo(video, desiredTime);
+          if (video.playbackRate !== baseRate) video.playbackRate = baseRate;
+          continue;
         }
-        video.playbackRate = current.getPlaybackRate();
-        if (shouldPlay && video.paused)
-          void video.play().catch(() => undefined);
-        else if (!shouldPlay && !video.paused) video.pause();
+        if (!video.seeking && video.readyState >= 2) {
+          const drift = video.currentTime - desiredTime;
+          if (Math.abs(drift) > resyncThreshold) seekVideo(video, desiredTime);
+          else video.playbackRate = syncPlaybackRate(baseRate, drift);
+        } else if (video.playbackRate !== baseRate) {
+          video.playbackRate = baseRate;
+        }
+        if (video.paused) void video.play().catch(() => undefined);
       }
       frame = requestAnimationFrame(sync);
     };
@@ -374,17 +426,29 @@ export function FormationVideoLayer({
                   y: state.original.offset.y + dy,
                 },
               }
-            : {
-                ...state.original,
-                crop: resizeCrop(
-                  state.original,
-                  state.mode,
-                  dx,
-                  dy,
-                  fullWidth,
-                  fullHeight,
-                ),
-              };
+            : isScaleHandle(state.mode)
+              ? {
+                  ...state.original,
+                  ...scaleVideoAboutCorner(
+                    state.original,
+                    item.asset!,
+                    { width: bounds.width, height: bounds.height },
+                    state.mode,
+                    dx,
+                    dy,
+                  ),
+                }
+              : {
+                  ...state.original,
+                  crop: resizeCrop(
+                    state.original,
+                    state.mode,
+                    dx,
+                    dy,
+                    fullWidth,
+                    fullHeight,
+                  ),
+                };
       },
       (cancelled) => {
         const state = drag.current;
@@ -399,7 +463,9 @@ export function FormationVideoLayer({
               item.clip.id,
               state.mode === "move"
                 ? { offset: state.next.offset }
-                : { crop: state.next.crop },
+                : isScaleHandle(state.mode)
+                  ? { scale: state.next.scale, offset: state.next.offset }
+                  : { crop: state.next.crop },
             );
           });
         } catch (error) {
@@ -542,11 +608,17 @@ export function FormationVideoLayer({
             {!readOnly &&
               selected &&
               !isMinimized &&
-              cropHandles.map((handle) => (
+              videoHandles.map((handle) => (
                 <button
                   key={handle}
-                  className={`formation-crop-handle crop-${handle}`}
-                  aria-label={`裁切视频 ${handle}`}
+                  className={`formation-video-handle ${
+                    isScaleHandle(handle) ? "scale" : "crop"
+                  }-${handle}`}
+                  aria-label={
+                    isScaleHandle(handle)
+                      ? `缩放视频 ${handle}`
+                      : `裁切视频 ${handle}`
+                  }
                   onPointerDown={(event) => beginMutation(event, item, handle)}
                 />
               ))}

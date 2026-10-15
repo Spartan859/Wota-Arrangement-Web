@@ -2,6 +2,38 @@
 
 日期：2026-09-19。所有测试仅使用合成歌词和音频。
 
+## 2026-10-15 视频定位点：角点缩放、边中点裁切
+
+- 需求：画面四角定位点改为等比放大/缩小，四边中点仍为裁切，并用颜色区分两类定位点。
+- 纯逻辑：`src/core/choreography.ts` 新增 `scaleVideoAboutCorner()`，把指针位置投影到「对角锚点 → 被拖角点」的对角线上求缩放比，按锚点缩放后反解 `offset`；`scale` 夹取到 schema 允许的 `0.02–2`，`offset` 夹取到 `-2–3`，因此拖到边界也不会触发保存校验错误，`crop` 保持不变。
+- UI：`FormationVideoLayer` 按手柄类型分流到缩放或裁切，四角 `aria-label` 改为「缩放视频 <角>」，边中点仍为「裁切视频 <边>」；基础类名由 `formation-crop-handle` 改为 `formation-video-handle`（仓库内无其他引用）。
+- 颜色：角点（缩放）沿用主蓝 `#4568d4`，边中点（裁切）改为橙色 `#e0872a`；已在调试容器截图核对为 `rgb(69, 104, 212)` 与 `rgb(224, 135, 42)`。
+- 测试：`npx vitest run tests/choreography.test.ts` 18 项通过，新增角点缩放用例覆盖对角锚点不动、等比放大与缩小、`nw` 反向拖动改用另一对角锚点、`scale` 上下限夹取与 `offset` 夹取。
+- 新增 Playwright 用例「视频角点等比缩放，边中点仍然裁切」：校验两类定位点标签互斥且颜色不同、拖右下角放大时左上角与裁切范围不变、保存后刷新缩放仍在、拖边中点仍按裁切改变宽度且不报错。
+- `npm run check`：单元/集成 66 项通过、1 项跳过，类型检查、API 与前端生产构建通过；`npm run format:check`、`git diff --check` 通过。
+- Chrome chromium 全量端到端：55 项通过、1 项失败；失败项仍是既有失败 `旧本地草稿导出文件后立即导入保留队形`（未改动的 `main` 上同样失败）。
+- 本轮未运行 WebKit/Safari；未做生产部署。
+
+## 2026-10-15 修复队形视频播放闪烁/卡顿
+
+- 定位方法：本机真实 Chrome 打开调试容器，用合成 WAV 加 `MediaRecorder` 生成的 WebM 片段播放 12 秒并统计 `<video>` 事件。修复前 12 秒内出现 362 次 `seeking`、361 次 `seeked`，并在第 5 秒、第 10 秒各出现一次 `emptied`+`loadstart`。
+- 原因一：`FormationCanvas` 的 blob URL 建立在 `[c.videoAssets]` 上，而 `store.edit` 每次都会 `structuredClone` 整个项目。播放中每 5 秒的播放位置自动保存（以及任何编辑）都会让该数组换新引用并重建 URL，`FormationVideoLayer` 发现 src 变化后执行 `video.load()`，视频从 0 重新解码再跳回目标时间，表现为闪烁和卡顿。
+- 原因二：同步循环以 0.08 秒为阈值校正漂移，且片段播完后仍每帧写 `video.currentTime = asset.duration`。元素实际停在 5.986 秒（小于元数据时长 6 秒）时，每帧都会重新 seek（约 60 次/秒），解码器被反复打断。
+- 修复：blob URL 按 `localBlobId` 缓存复用，只在资源集合真正变化时重建，并在结果相同时保持 state 引用不变；同步循环改为停驻只对齐一次（0.02 秒容差，seek 目标按 `duration`/`seekable` 夹取）、播放中偏差超过 0.3 秒才硬跳、更小偏差用 ±6% 变速收敛，且 seek 未完成时不再叠加 seek。
+- 同一脚本复测：12 秒播放内 `seeking`/`seeked`/`emptied`/`loadstart` 全为 0；片段播完后停在 5.98 秒，视频与音频偏差稳定在 30 毫秒内，启动时用 0.94× 收敛后回到 1×。
+- 新增 Playwright 用例「视频播放不重复 seek，也不因自动保存重载源」：播放 6 秒覆盖片段结束与 5 秒自动保存，断言 `loadstart`/`emptied` 为 0、`seeking` 少于 5、停驻时间不再漂移。撤下修复代码后该用例失败（`loadstart` = 1），修复后通过。
+- `npm run check`：单元/集成测试与构建通过；`npm run format:check`、`git diff --check` 通过。
+- Chrome chromium 全量端到端：54 项通过、1 项失败；失败项为既有失败 `tests/e2e/formation.spec.ts › 旧本地草稿导出文件后立即导入保留队形`，在未改动的 `main` 上同样失败，与本次改动无关。
+- 本轮未运行 WebKit/Safari；未做生产部署。
+
+## 2026-10-15 播放器控件行靠左排列
+
+- 播放器控件行原先由 `.ab-controls { margin-left: auto }` 把 A/B 循环组顶到行尾；`≤850px` 还额外把「速度」和「跟随播放」顶到行尾。现已移除这三处自动外边距，播放、速度、音量、循环此块、跟随播放和 A/B 循环组统一从左排列并自然换行。
+- `npm run check`：单元/集成测试全部通过，TypeScript、API 构建与前端生产构建通过；`npm run format:check`、`git diff --check` 通过。
+- 本机真实 Chrome Playwright（chromium 项目）全量套件 53 项通过、1 项失败。新增 `播放器控件行统一靠左排列` 用例先在旧样式上复跑确认会失败，再在修复后通过；失败项为 `tests/e2e/formation.spec.ts › 旧本地草稿导出文件后立即导入保留队形`，在未改动的 `main`（4f6ded5）上单独复跑同样失败，属既有失败，与本次改动无关。
+- `scripts/capture.mjs` 已与当前界面脱节（等待不存在的 `打开项目文件`），改用临时脚本导入合成项目并截取桌面 1280×900 与手机 390×844 的播放器区域：控件行全部靠左，桌面与手机均无横向溢出。临时脚本未提交。
+- 本轮未运行 WebKit/Safari；未做生产部署。
+
 ## 2026-10-11 Deploy 修复
 
 - 复现原 Deploy 失败：服务器仍执行旧 Keycloak runtime，且部署脚本使用错误的 API 镜像名与完整 SHA 标签；CI 实际发布的是 `wota-arrangement-web-api:sha-<短 SHA>`。

@@ -23,6 +23,7 @@ import {
   normalizeChoreography,
   removeDancerFrame,
   removeVideoFrame,
+  scaleVideoAboutCorner,
   setVideoInPoint,
   videoFrameRect,
   type Choreography,
@@ -339,6 +340,79 @@ describe("视频片段轨道", () => {
       rect,
     );
     expect(id).toBe(clip.id);
+  });
+
+  it("拖动角点以对角为锚点缩放画面，且不改动裁切范围", () => {
+    const c = emptyChoreography();
+    const asset = addVideoAsset(c, {
+      name: "scale.mp4",
+      mimeType: "video/mp4",
+      sizeBytes: 100,
+      duration: 10,
+      width: 160,
+      height: 120,
+      frameRate: 30,
+    });
+    const id = addVideoClip(c, null, asset.id, 0);
+    const clip = c.freeVideoTrack.videoClips.find((item) => item.id === id)!;
+    clip.crop = { x: 0.25, y: 0.25, width: 0.5, height: 0.5 };
+    clip.offset = { x: 0.2, y: 0.3 };
+    clip.scale = 0.4;
+    const viewport = { width: 800, height: 600 };
+    const before = videoFrameRect(clip, asset, viewport);
+    const grown = {
+      ...clip,
+      ...scaleVideoAboutCorner(clip, asset, viewport, "se", 0.1, 0.1),
+    };
+    const after = videoFrameRect(grown, asset, viewport);
+    expect(grown.scale).toBeGreaterThan(clip.scale);
+    // 对角（左上）保持不动，长宽按同一比例放大，裁切范围不变。
+    expect(after.x).toBeCloseTo(before.x, 6);
+    expect(after.y).toBeCloseTo(before.y, 6);
+    expect(after.width / before.width).toBeCloseTo(
+      after.height / before.height,
+      6,
+    );
+    expect(grown.crop).toEqual(clip.crop);
+    const shrunk = {
+      ...clip,
+      ...scaleVideoAboutCorner(clip, asset, viewport, "se", -0.08, -0.08),
+    };
+    expect(shrunk.scale).toBeLessThan(clip.scale);
+    expect(videoFrameRect(shrunk, asset, viewport).width).toBeLessThan(
+      before.width,
+    );
+    // 反向拖动时锚点换到对角，仍不越界。
+    const fromTopLeft = {
+      ...clip,
+      ...scaleVideoAboutCorner(clip, asset, viewport, "nw", -0.05, -0.05),
+    };
+    const bottomRight = videoFrameRect(clip, asset, viewport);
+    const scaledTopLeft = videoFrameRect(fromTopLeft, asset, viewport);
+    expect(scaledTopLeft.x + scaledTopLeft.width).toBeCloseTo(
+      bottomRight.x + bottomRight.width,
+      6,
+    );
+    expect(scaledTopLeft.y + scaledTopLeft.height).toBeCloseTo(
+      bottomRight.y + bottomRight.height,
+      6,
+    );
+    expect(scaleVideoAboutCorner(clip, asset, viewport, "se", 8, 8).scale).toBe(
+      2,
+    );
+    expect(
+      scaleVideoAboutCorner(clip, asset, viewport, "se", -8, -8).scale,
+    ).toBe(0.02);
+    const clamped = scaleVideoAboutCorner(
+      { ...clip, offset: { x: -1.9, y: 2.9 } },
+      asset,
+      viewport,
+      "nw",
+      -0.6,
+      -0.6,
+    );
+    expect(clamped.offset.x).toBeGreaterThanOrEqual(-2);
+    expect(clamped.offset.y).toBeLessThanOrEqual(3);
   });
 });
 

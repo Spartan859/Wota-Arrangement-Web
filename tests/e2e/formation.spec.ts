@@ -285,6 +285,147 @@ test("插入视频、时间轴入出点、逐帧入点和最小化", async ({ pa
   await expect(page.locator(".video-marker-lane")).toBeVisible();
 });
 
+test("视频角点等比缩放，边中点仍然裁切", async ({ page }) => {
+  await boot(page);
+  await song(page);
+  await add(page, "缩放舞者");
+  await page.getByLabel("选择舞者").selectOption({ label: "缩放舞者" });
+  await page.getByLabel("插入视频文件").setInputFiles({
+    name: "scale.webm",
+    mimeType: "video/webm",
+    buffer: await syntheticWebm(page),
+  });
+  const frame = page.locator(".formation-video");
+  const inner = page.locator(".formation-video video");
+  await expect(frame).toBeVisible();
+  // 角点用于缩放，边中点仍用于裁切，两类定位点颜色不同。
+  await expect(page.getByLabel("缩放视频 se")).toHaveCount(1);
+  await expect(page.getByLabel("裁切视频 se")).toHaveCount(0);
+  await expect(page.getByLabel("裁切视频 e")).toHaveCount(1);
+  const colors = await page.evaluate(() =>
+    ["缩放视频 se", "裁切视频 e"].map(
+      (label) =>
+        getComputedStyle(document.querySelector(`[aria-label="${label}"]`)!)
+          .backgroundColor,
+    ),
+  );
+  expect(colors[0]).not.toBe(colors[1]);
+  const cropWidthBefore = await inner.evaluate(
+    (node: HTMLVideoElement) => node.style.width,
+  );
+  const before = (await frame.boundingBox())!;
+  const scaleHandle = page.getByLabel("缩放视频 se");
+  const scaleBox = (await scaleHandle.boundingBox())!;
+  await page.mouse.move(
+    scaleBox.x + scaleBox.width / 2,
+    scaleBox.y + scaleBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    scaleBox.x + scaleBox.width / 2 + 45,
+    scaleBox.y + scaleBox.height / 2 + 34,
+    { steps: 5 },
+  );
+  await page.mouse.up();
+  const grown = (await frame.boundingBox())!;
+  expect(grown.width).toBeGreaterThan(before.width + 10);
+  expect(grown.height).toBeGreaterThan(before.height + 5);
+  // 对角（左上）保持不动，裁切范围也不变。
+  expect(Math.abs(grown.x - before.x)).toBeLessThan(2);
+  expect(Math.abs(grown.y - before.y)).toBeLessThan(2);
+  expect(
+    await inner.evaluate((node: HTMLVideoElement) => node.style.width),
+  ).toBe(cropWidthBefore);
+  await expect(page.locator(".save-state")).toContainText("已保存");
+  await page.reload();
+  await page.getByLabel("选择舞者").selectOption({ label: "缩放舞者" });
+  await expect
+    .poll(async () => (await frame.boundingBox())!.width)
+    .toBeCloseTo(grown.width, 0);
+  // 刷新后重新选中片段才会显示定位点。
+  await frame.click();
+  await expect(page.getByLabel("裁切视频 e")).toHaveCount(1);
+  // 边中点仍然裁切：宽度变小，内部裁切比例相应变化。
+  const cropHandle = page.getByLabel("裁切视频 e");
+  const cropBox = (await cropHandle.boundingBox())!;
+  await page.mouse.move(
+    cropBox.x + cropBox.width / 2,
+    cropBox.y + cropBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    cropBox.x + cropBox.width / 2 - 25,
+    cropBox.y + cropBox.height / 2,
+    { steps: 4 },
+  );
+  await page.mouse.up();
+  await expect
+    .poll(async () => (await frame.boundingBox())!.width)
+    .toBeLessThan(grown.width - 5);
+  expect(
+    Number.parseFloat(
+      await inner.evaluate((node: HTMLVideoElement) => node.style.width),
+    ),
+  ).toBeGreaterThan(Number.parseFloat(cropWidthBefore));
+  await expect(page.getByRole("alert")).toHaveCount(0);
+});
+
+test("视频播放不重复 seek，也不因自动保存重载源", async ({ page }) => {
+  await boot(page);
+  await song(page, 20);
+  await add(page, "视频舞者");
+  await page.getByLabel("选择舞者").selectOption({ label: "视频舞者" });
+  await page.getByLabel("插入视频文件").setInputFiles({
+    name: "playback.webm",
+    mimeType: "video/webm",
+    buffer: await syntheticWebm(page),
+  });
+  const video = page.locator(".formation-video video");
+  await expect(video).toBeVisible();
+  await page.evaluate(() => {
+    const node = document.querySelector(".formation-video video")!;
+    const counts = { seeking: 0, emptied: 0, loadstart: 0 };
+    for (const name of Object.keys(counts) as (keyof typeof counts)[])
+      node.addEventListener(name, () => {
+        counts[name] += 1;
+      });
+    (window as unknown as { wotaVideoCounts: typeof counts }).wotaVideoCounts =
+      counts;
+  });
+  await page.getByRole("button", { name: "播放", exact: true }).click();
+  await expect
+    .poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime))
+    .toBeGreaterThan(0.4);
+  // 合成片段很短：播完后画面应停在末帧，而不是每帧重复 seek。
+  await expect
+    .poll(() => video.evaluate((v: HTMLVideoElement) => v.paused))
+    .toBe(true);
+  const parked = await video.evaluate((v: HTMLVideoElement) => v.currentTime);
+  const audio = page.locator("audio");
+  const audioBefore = await audio.evaluate(
+    (a: HTMLAudioElement) => a.currentTime,
+  );
+  // 覆盖片段播完后的停驻阶段与播放位置自动保存（每 5 秒一次）之后的时间点。
+  await page.waitForTimeout(6000);
+  const audioAfter = await audio.evaluate(
+    (a: HTMLAudioElement) => a.currentTime,
+  );
+  expect(audioAfter - audioBefore).toBeGreaterThan(4);
+  expect(
+    Math.abs(
+      (await video.evaluate((v: HTMLVideoElement) => v.currentTime)) - parked,
+    ),
+  ).toBeLessThan(0.05);
+  const counts = await page.evaluate(
+    () =>
+      (window as unknown as { wotaVideoCounts: Record<string, number> })
+        .wotaVideoCounts,
+  );
+  expect(counts.loadstart).toBe(0);
+  expect(counts.emptied).toBe(0);
+  expect(counts.seeking).toBeLessThan(5);
+});
+
 test("舞台空白取消选择，并可直接插入未绑定舞者的视频", async ({ page }) => {
   await boot(page);
   await song(page);

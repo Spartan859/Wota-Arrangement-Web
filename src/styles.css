@@ -1334,12 +1334,6 @@ fieldset {
     width: 30px;
     height: 30px;
   }
-  .player-controls > .compact {
-    margin-left: auto;
-  }
-  .player-controls > .check {
-    margin-left: auto;
-  }
   .player-controls > button:not(.play-button) {
     font-size: 10px;
     padding: 5px;
@@ -1406,7 +1400,6 @@ fieldset {
   align-items: center;
   flex-wrap: nowrap;
   gap: 6px;
-  margin-left: auto;
 }
 .ab-edit-controls {
   display: flex;
@@ -2201,7 +2194,7 @@ fieldset {
   padding: 3px 6px;
   font-size: 10px;
 }
-.formation-crop-handle {
+.formation-video-handle {
   position: absolute;
   z-index: 5;
   width: 12px;
@@ -2209,10 +2202,18 @@ fieldset {
   padding: 0;
   border: 2px solid #fff;
   border-radius: 2px;
+  /* 角点：等比放大/缩小 */
   background: #4568d4;
   transform: translate(-50%, -50%);
 }
-.crop-nw {
+.formation-video-handle.crop-n,
+.formation-video-handle.crop-e,
+.formation-video-handle.crop-s,
+.formation-video-handle.crop-w {
+  /* 边中点：裁切 */
+  background: #e0872a;
+}
+.scale-nw {
   left: 0;
   top: 0;
   cursor: nwse-resize;
@@ -2222,7 +2223,7 @@ fieldset {
   top: 0;
   cursor: ns-resize;
 }
-.crop-ne {
+.scale-ne {
   left: 100%;
   top: 0;
   cursor: nesw-resize;
@@ -2232,7 +2233,7 @@ fieldset {
   top: 50%;
   cursor: ew-resize;
 }
-.crop-se {
+.scale-se {
   left: 100%;
   top: 100%;
   cursor: nwse-resize;
@@ -2242,7 +2243,7 @@ fieldset {
   top: 100%;
   cursor: ns-resize;
 }
-.crop-sw {
+.scale-sw {
   left: 0;
   top: 100%;
   cursor: nesw-resize;
@@ -3636,7 +3637,6 @@ button.danger,
     flex: 0 1 auto;
   }
   .public-share-page .ab-controls {
-    margin-left: 0;
     flex: 0 0 auto;
   }
   .audio-gate {

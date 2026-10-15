@@ -590,6 +590,57 @@ export function videoFrameRect(
     height,
   };
 }
+
+export type VideoScaleHandle = "nw" | "ne" | "se" | "sw";
+
+const roundVideoValue = (value: number) =>
+  Math.round(value * 1_000_000) / 1_000_000;
+const clampVideoOffset = (value: number) => Math.min(3, Math.max(-2, value));
+
+/**
+ * 拖动画面角点时以对角为锚点缩放（放大/缩小），裁切范围保持不变。
+ * dx/dy 为相对舞台宽高的归一化位移，返回值可直接与 clip 合并。
+ */
+export function scaleVideoAboutCorner(
+  clip: VideoClip,
+  asset: VideoAsset,
+  viewport: { width: number; height: number },
+  handle: VideoScaleHandle,
+  dx: number,
+  dy: number,
+): Pick<VideoClip, "scale" | "offset"> {
+  const rect = videoFrameRect(clip, asset, viewport);
+  const unitHeight =
+    (asset.height / asset.width) * (viewport.width / viewport.height);
+  const east = handle === "ne" || handle === "se";
+  const south = handle === "se" || handle === "sw";
+  const anchorX = east ? rect.x : rect.x + rect.width;
+  const anchorY = south ? rect.y : rect.y + rect.height;
+  const cornerX = east ? rect.x + rect.width : rect.x;
+  const cornerY = south ? rect.y + rect.height : rect.y;
+  const spanX = cornerX - anchorX;
+  const spanY = cornerY - anchorY;
+  const span = spanX * spanX + spanY * spanY;
+  // 把指针位置投影到“锚点 → 被拖角点”的对角线上，两个方向都能等比缩放。
+  const projected =
+    span > 0
+      ? ((cornerX + dx - anchorX) * spanX + (cornerY + dy - anchorY) * spanY) /
+        span
+      : 1;
+  const scale = Math.min(2, Math.max(0.02, clip.scale * projected));
+  const applied = scale / clip.scale;
+  const nextX = anchorX - (anchorX - rect.x) * applied;
+  const nextY = anchorY - (anchorY - rect.y) * applied;
+  return {
+    scale: roundVideoValue(scale),
+    offset: {
+      x: roundVideoValue(clampVideoOffset(nextX - clip.crop.x * scale)),
+      y: roundVideoValue(
+        clampVideoOffset(nextY - clip.crop.y * scale * unitHeight),
+      ),
+    },
+  };
+}
 export function getDancerFrames(
   c: Choreography,
   dancerId: string,
