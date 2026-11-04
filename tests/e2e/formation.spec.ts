@@ -285,6 +285,34 @@ test("插入视频、时间轴入出点、逐帧入点和最小化", async ({ pa
   await expect(page.locator(".video-marker-lane")).toBeVisible();
 });
 
+test("视频工具栏删除片段并可撤销、重做和刷新", async ({ page }) => {
+  await boot(page);
+  await song(page);
+  await add(page, "删除视频舞者");
+  await page.getByLabel("插入视频文件").setInputFiles({
+    name: "delete.webm",
+    mimeType: "video/webm",
+    buffer: await syntheticWebm(page),
+  });
+  const video = page.locator(".formation-video");
+  await expect(video).toBeVisible();
+  await expect(page.locator(".video-marker-lane")).toBeVisible();
+  await video.hover();
+  await page.getByRole("button", { name: "删除视频", exact: true }).click();
+  await expect(video).toHaveCount(0);
+  await expect(page.locator(".video-marker-lane")).toHaveCount(0);
+  await expect(page.locator(".save-state")).toContainText("已保存");
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(video).toBeVisible();
+  await expect(page.locator(".video-marker-lane")).toBeVisible();
+  await page.getByRole("button", { name: "重做", exact: true }).click();
+  await expect(video).toHaveCount(0);
+  await page.reload();
+  await page.getByLabel("选择舞者").selectOption({ label: "删除视频舞者" });
+  await expect(page.locator(".formation-video")).toHaveCount(0);
+  await expect(page.locator(".video-marker-lane")).toHaveCount(0);
+});
+
 test("视频角点等比缩放，边中点仍然裁切", async ({ page }) => {
   await boot(page);
   await song(page);

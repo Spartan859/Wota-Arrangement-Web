@@ -2194,6 +2194,11 @@ fieldset {
   padding: 3px 6px;
   font-size: 10px;
 }
+.formation-video-actions .formation-video-delete {
+  color: #bb3444;
+  background: #fff0f1;
+  border-color: #e8a1ab;
+}
 .formation-video-handle {
   position: absolute;
   z-index: 5;

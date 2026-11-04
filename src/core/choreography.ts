@@ -508,12 +508,22 @@ export function removeVideoFrame(
   const frame = track.videoFrames.find((item) => item.id === frameId);
   if (!frame) throw new Error("视频入点或出点不存在。");
   if (frame.kind === "insert") {
+    const assetId = track.videoClips.find(
+      (clip) => clip.id === frame.clipId,
+    )?.assetId;
     track.videoFrames = track.videoFrames.filter(
       (item) => item.clipId !== frame.clipId,
     );
     track.videoClips = track.videoClips.filter(
       (clip) => clip.id !== frame.clipId,
     );
+    const assetStillReferenced =
+      assetId &&
+      [...c.tracks, c.freeVideoTrack].some((item) =>
+        item.videoClips.some((clip) => clip.assetId === assetId),
+      );
+    if (assetId && !assetStillReferenced)
+      c.videoAssets = c.videoAssets.filter((asset) => asset.id !== assetId);
   } else {
     track.videoFrames = track.videoFrames.filter((item) => item.id !== frameId);
   }
