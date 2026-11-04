@@ -1,4 +1,4 @@
-import { Maximize2, Minimize2, Scissors } from "lucide-react";
+import { Maximize2, Minimize2, Scissors, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Project } from "../core/model";
 import {
@@ -6,6 +6,7 @@ import {
   changeVideoGeometry,
   emptyChoreography,
   normalizeChoreography,
+  removeVideoFrame,
   sampleFormation,
   scaleVideoAboutCorner,
   setVideoInPoint,
@@ -495,6 +496,34 @@ export function FormationVideoLayer({
       onError((error as Error).message);
     }
   };
+  const deleteClip = (item: (typeof clips)[number]) => {
+    if (readOnly) return;
+    pause();
+    try {
+      edit((draft) => {
+        draft.choreography ??= emptyChoreography();
+        const track =
+          item.dancerId === null
+            ? draft.choreography.freeVideoTrack
+            : draft.choreography.tracks.find(
+                (entry) => entry.dancerId === item.dancerId,
+              );
+        const insert = track?.videoFrames.find(
+          (frame) => frame.clipId === item.clip.id && frame.kind === "insert",
+        );
+        if (!insert) throw new Error("视频入点不存在。");
+        removeVideoFrame(draft.choreography, item.dancerId, insert.id);
+      });
+      setMinimized((current) => {
+        const next = new Set(current);
+        next.delete(item.clip.id);
+        return next;
+      });
+      selectClip(null);
+    } catch (error) {
+      onError((error as Error).message);
+    }
+  };
   return (
     <div className="formation-video-layer" ref={layer}>
       {clips.map((item) => {
@@ -581,6 +610,18 @@ export function FormationVideoLayer({
                     }}
                   >
                     <Scissors size={13} />
+                  </button>
+                  <button
+                    className="formation-video-delete"
+                    aria-label="删除视频"
+                    title="删除视频片段（可撤销）"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      deleteClip(item);
+                    }}
+                  >
+                    <Trash2 size={13} />
                   </button>
                 </>
               )}

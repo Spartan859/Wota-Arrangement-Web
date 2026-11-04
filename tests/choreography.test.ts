@@ -300,6 +300,32 @@ describe("视频片段轨道", () => {
     expect(c.tracks[0].videoFrames).toHaveLength(0);
   });
 
+  it("删除最后一个引用片段时移除孤立视频资源，仍被引用时保留", () => {
+    const c = emptyChoreography();
+    const dancer = addDancer(c, "A", 0);
+    const asset = addVideoAsset(c, {
+      name: "shared.mp4",
+      mimeType: "video/mp4",
+      sizeBytes: 100,
+      duration: 10,
+      width: 1280,
+      height: 720,
+      frameRate: 30,
+    });
+    addVideoClip(c, dancer, asset.id, 1);
+    addVideoClip(c, null, asset.id, 1);
+    const dancerInsert = c.tracks[0].videoFrames.find(
+      (frame) => frame.kind === "insert",
+    )!;
+    removeVideoFrame(c, dancer, dancerInsert.id);
+    expect(c.videoAssets.map((item) => item.id)).toEqual([asset.id]);
+    const freeInsert = c.freeVideoTrack.videoFrames.find(
+      (frame) => frame.kind === "insert",
+    )!;
+    removeVideoFrame(c, null, freeInsert.id);
+    expect(c.videoAssets).toHaveLength(0);
+  });
+
   it("支持不绑定舞者的舞台视频轨", () => {
     const c = emptyChoreography();
     const asset = addVideoAsset(c, {
